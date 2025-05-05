@@ -1,0 +1,2 @@
+add_executable(hexmesher hexmesher.cpp)
+target_link_libraries(hexmesher HexMesher)
