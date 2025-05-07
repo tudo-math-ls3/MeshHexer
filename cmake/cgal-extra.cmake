@@ -7,4 +7,6 @@ if(NOT TARGET CGAL::CGAL)
   target_link_libraries(hexmesher-cgal-extern INTERFACE Boost::boost)
 
   add_library(CGAL::CGAL ALIAS hexmesher-cgal-extern)
+else()
+  message(STATUS "Target CGAL::CGAL already exists!")
 endif()

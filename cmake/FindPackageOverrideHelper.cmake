@@ -12,7 +12,7 @@ function(find_package_override_helper package version compat)
   include(CMakePackageConfigHelpers)
 
   string(TOLOWER ${package} package)
-  set(extra_file ${PROJECT_SOURCE_DIR}/build_system/cmake/${package}-extra.cmake)
+  set(extra_file ${PROJECT_SOURCE_DIR}/cmake/${package}-extra.cmake)
   set(version_file ${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/${package}-config-version.cmake)
 
   # Copy <lowercaseName>-extra file to CMAKE_FIND_PACKAGE_REDIRECTS_DIR if it exists

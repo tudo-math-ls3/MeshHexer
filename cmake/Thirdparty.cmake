@@ -15,7 +15,7 @@ if(HEXMESHER_PREFER_EXTERNAL_TPL OR Boost_DIR)
 endif()
 
 if(NOT Boost_FOUND)
-  set(BOOST_INCLUDE_LIBRARIES graph heap logic)
+  #set(BOOST_INCLUDE_LIBRARIES graph heap logic)
 
   # Make boost create Boost::boost target
   set(BOOST_ENABLE_COMPATIBILITY_TARGETS ON)
@@ -49,11 +49,19 @@ if(NOT CGAL_FOUND)
     CGAL
     URL https://github.com/CGAL/cgal/releases/download/v6.0.1/CGAL-6.0.1.tar.xz
     URL_HASH MD5=944c789615bff14a56d78b398ec2cc49
-    SOURCE_SUBDIR Non-Existing # Use non-existing source dir to disable add_subdirectory call of MakeAvailable
+    #SOURCE_SUBDIR Non-Existing # Use non-existing source dir to disable add_subdirectory call of MakeAvailable
     UPDATE_DISCONNECTED ON
     # FIND_PACKAGE_ARGS NAMES CGAL GLOBAL
     OVERRIDE_FIND_PACKAGE
   )
+
+  set(CGAL_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/cgal-src)
+  set(CGAL_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/cgal-build)
+
+  #SET(CGAL_CMAKE_EXACT_NT_BACKEND BOOST_BACKEND CACHE STRING "" FORCE)
+  #SET(CGAL_DISABLE_GMP ON CACHE BOOL "" FORCE)
+  #set(CMAKE_DISABLE_FIND_PACKAGE_GMP ON CACHE BOOL "" FORCE)
+  message(STATUS "Cgal source dir: ${CGAL_SOURCE_DIR}")
   list(APPEND MAKE_AVAIL_LIST CGAL)
   find_package_override_helper(cgal 6.0.1 AnyNewerVersion)
 else()
