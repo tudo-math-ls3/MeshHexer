@@ -9,7 +9,22 @@ namespace HexMesher
 {
   namespace PMP = CGAL::Polygon_mesh_processing;
 
-  PolygonWithHoles make_polygon(Polylines2D& polylines)
+  /**
+   * \brief Returns true if all vertices of \c b are contained in \c a.
+   */
+  bool contains(const Polygon& a, const Polygon& b)
+  {
+    for(const Point2D& p : b)
+    {
+      if(a.bounded_side(p) == CGAL::ON_UNBOUNDED_SIDE)
+      {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  std::vector<PolygonWithHoles> make_polygon(Polylines2D& polylines)
   {
     // Create polygons from the polylines.
     // This gives us inside-out tests without
@@ -30,64 +45,114 @@ namespace HexMesher
       }
     }
 
-    // We assume that there is a single closed polyline that contains all others
-    // Find it and save it as the boundary polyline.
-    Polygon* outer = &polygons[0];
-    int outer_idx = 0;
+    // Sort polygons in descending order by area, i.e. largest polygon comes first.
+    std::sort(
+      polygons.begin(),
+      polygons.end(),
+      [](const Polygon& a, const Polygon& b) { return a.area() > b.area(); }
+    );
 
-    for(int i(1); i < polygons.size(); i++)
+    // Create inclusion tree for polygons.
+    const std::size_t num_polygons = polygons.size();
+    std::vector<int> depths(num_polygons, 0);
+    std::vector<int> parents(num_polygons, -1);
+
+    std::size_t current_idx = 0;
+    for(const Polygon& polygon : polygons)
     {
-      Polygon& candidate = polygons[i];
-      for(auto it = candidate.vertices_begin(); it != candidate.vertices_end(); it++)
+      int parent_candidate = -1;
+      int parent_depth = -1;
+      // Find the deepest, i.e. smallest, already handled polygon
+      // that still contains the current polygon
+      for(int j(0); j < current_idx; j++)
       {
-        if(outer->bounded_side(*it) == CGAL::ON_UNBOUNDED_SIDE)
+        if(contains(polygons[j], polygon) && depths[j] > parent_depth)
         {
-          // Candidate polygon has at least one vertex outside the current outer polygon
-          outer = &polygons[i];
-          outer_idx = i;
-          break;
+          parent_depth = depths[j];
+          parent_candidate = j;
         }
       }
-    }
 
-    std::vector<Polygon> holes;
-
-    auto it = polygons.begin();
-    for(int i(0); i < polygons.size(); i++)
-    {
-      if(i != outer_idx)
+      if(parent_candidate != -1)
       {
-        holes.push_back(*it);
+        // Polygon is contained in another polygon. Set parent
+        parents[current_idx] = parent_candidate;
+        depths[current_idx] = parent_depth + 1;
       }
-      it++;
+      else
+      {
+        // Polygon is not contained in another larger polygon. Add it as new root
+        parents[current_idx] = current_idx;
+        depths[current_idx] = 0;
+      }
+      current_idx++;
     }
 
-    return PolygonWithHoles(*outer, holes.begin(), holes.end());
+    std::vector<std::size_t> root_mapping(num_polygons, -1);
+    std::vector<PolygonWithHoles> result;
+
+    std::size_t handled_polygons = 0;
+
+    // Collect all roots
+    for(int i(0); i < num_polygons; i++)
+    {
+      if(depths[i] == 0)
+      {
+        root_mapping[i] = result.size();
+        result.emplace_back(polygons[i]);
+        handled_polygons++;
+      }
+    }
+
+    // Collect holes at depth 1
+    for(int i(0); i < num_polygons; i++)
+    {
+      if(depths[i] == 1)
+      {
+        std::size_t parent = parents[i];
+        result[root_mapping[parent]].add_hole(polygons[i]);
+        handled_polygons++;
+      }
+    }
+
+    std::size_t unhandled_polygons = num_polygons - handled_polygons;
+    if(unhandled_polygons > 0)
+    {
+      std::cerr << "Warning: " << unhandled_polygons << " unhandled polygons in HexMesher::make_polygon!";
+    }
+
+    return result;
   }
 
-  PolygonWithHoles merge(PolygonWithHoles& a, PolygonWithHoles& b)
+  bool merge(const PolygonWithHoles& a, const PolygonWithHoles& b, PolygonWithHoles& res)
   {
-    PolygonWithHoles new_boundary;
-    CGAL::join(a.outer_boundary(), b.outer_boundary(), new_boundary);
-
-    std::vector<PolygonWithHoles> intersections;
-
-    for(auto& hole_a : a.holes())
+    if(CGAL::join(a.outer_boundary(), b.outer_boundary(), res))
     {
-      for(auto& hole_b : b.holes())
+      std::vector<PolygonWithHoles> intersections;
+
+      for(auto& hole_a : a.holes())
       {
-        CGAL::intersection(hole_a, hole_b, std::back_inserter(intersections));
+        for(auto& hole_b : b.holes())
+        {
+          CGAL::intersection(hole_a, hole_b, std::back_inserter(intersections));
+        }
       }
+
+      std::vector<Polygon> new_holes;
+
+      for(auto& intersection : intersections)
+      {
+        new_holes.push_back(intersection.outer_boundary());
+      }
+
+      res.holes().clear();
+      res.holes().insert(res.holes().end(), new_holes.begin(), new_holes.end());
+      return true;
     }
-
-    std::vector<Polygon> new_holes;
-
-    for(auto& intersection : intersections)
+    else
     {
-      new_holes.push_back(intersection.outer_boundary());
+      return false;
     }
-
-    return PolygonWithHoles(new_boundary.outer_boundary(), new_holes.begin(), new_holes.end());
   }
 
   void write_polygon(const std::string& filename, const Polygon& poly)
@@ -385,7 +450,8 @@ namespace HexMesher
   {
     idx = std::max(0, std::min(idx, _num_planes - 1));
 
-    const double delta_angle = (2.0 * M_PI) / double(_num_planes - 1);
+    const double delta_angle = 
+      _num_planes > 1 ? (2.0 * M_PI) / double(_num_planes - 1) : 2.0 * M_PI;
     const double angle = idx * delta_angle;
 
     Vector plane_normal = std::cos(angle) * _u + std::sin(angle) * _v;
@@ -453,6 +519,8 @@ namespace HexMesher
 
     PolygonWithHoles shadow;
 
+    std::vector<PolygonWithHoles> all_cross_sections;
+
     for(int i(0); i < sampler.num_planes(); i++)
     {
       // Create slicing plane
@@ -492,22 +560,47 @@ namespace HexMesher
 
       write_polylines("projected_" + std::to_string(i) + ".vtp", projected_polylines);
 
-      PolygonWithHoles next_slice = make_polygon(projected_polylines);
+      std::vector<PolygonWithHoles> new_cross_sections = make_polygon(projected_polylines);
 
-      if(next_slice.outer_boundary().is_counterclockwise_oriented())
+      all_cross_sections.insert(all_cross_sections.end(), new_cross_sections.begin(), new_cross_sections.end());
+    }
+
+    bool shadow_init = false;
+    bool progress = true;
+    while(progress && !all_cross_sections.empty())
+    {
+      progress = false;
+      for(auto it = all_cross_sections.begin(); it != all_cross_sections.end();)
       {
-        if(i > 0)
+        if(it->outer_boundary().is_clockwise_oriented())
         {
-          shadow = merge(shadow, next_slice);
+          it = all_cross_sections.erase(it);
+          continue;
         }
-        else
+
+        if(!shadow_init)
         {
-          shadow = next_slice;
+          shadow = *it;
+          it = all_cross_sections.erase(it);
+          shadow_init = true;
+          continue;
         }
+
+        PolygonWithHoles new_shadow;
+        if(merge(shadow, *it, new_shadow))
+        {
+          it = all_cross_sections.erase(it);
+          shadow = new_shadow;
+          progress = true;
+          continue;
+        }
+        it++;
       }
-      else {
-        std::cerr << "Outer boundary with wrong orientation. Skipping plane!\n";
-      }
+    }
+
+    if(!all_cross_sections.empty())
+    {
+      std::cerr << "Warning: Unhandled cross sections. " << all_cross_sections.size() << " cross sections left after merging!\n";
     }
 
     std::cout << "Done!\n";

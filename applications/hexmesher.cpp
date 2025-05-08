@@ -37,7 +37,9 @@ int main(int argc, char* argv[])
       HexMesher::Vector up(std::atof(argv[6]), std::atof(argv[7]), std::atof(argv[8]));
       HexMesher::Vector u(std::atof(argv[9]), std::atof(argv[10]), std::atof(argv[11]));
 
-      HexMesher::RadialCrossSectionSampler sampler(50, p, u, up);
+      int steps = std::atoi(argv[12]);
+
+      HexMesher::RadialCrossSectionSampler sampler(steps, p, u, up);
 
       HexMesher::union_of_cross_sections(mesh, sampler);
     }
@@ -49,7 +51,9 @@ int main(int argc, char* argv[])
       HexMesher::Vector normal(std::atof(argv[9]), std::atof(argv[10]), std::atof(argv[11]));
       HexMesher::Vector up(std::atof(argv[12]), std::atof(argv[13]), std::atof(argv[14]));
 
-      HexMesher::LineCrossSectionSampler sampler(50, start, end, normal, up);
+      int steps = std::atoi(argv[15]);
+
+      HexMesher::LineCrossSectionSampler sampler(steps, start, end, normal, up);
 
       HexMesher::union_of_cross_sections(mesh, sampler);
     }
