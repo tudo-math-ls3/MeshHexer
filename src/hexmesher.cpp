@@ -4,10 +4,12 @@
 #include <math.h>
 
 #include <CGAL/Boolean_set_operations_2.h>
+#include <CGAL/Polyline_simplification_2/simplify.h>
 
 namespace HexMesher
 {
   namespace PMP = CGAL::Polygon_mesh_processing;
+  namespace PS = CGAL::Polyline_simplification_2;
 
   /**
    * \brief Returns true if all vertices of \c b are contained in \c a.
@@ -26,6 +28,7 @@ namespace HexMesher
 
   std::vector<PolygonWithHoles> make_polygon(Polylines2D& polylines)
   {
+
     // Create polygons from the polylines.
     // This gives us inside-out tests without
     // without having to think about the orientation
@@ -44,6 +47,18 @@ namespace HexMesher
         polygons.emplace_back(std::move(poly));
       }
     }
+
+    // Simplyify polygons
+    int total_vertices_pre = 0;
+    int total_vertices_post = 0;
+    for(Polygon& poly : polygons)
+    {
+      total_vertices_pre += poly.size();
+      poly = PS::simplify(poly, PS::Squared_distance_cost(), PS::Stop_above_cost_threshold(1e-8));
+      total_vertices_post += poly.size();
+    }
+
+    std::cout << "Simplified polygons: " << total_vertices_pre << " -> " << total_vertices_post << "\n";
 
     // Sort polygons in descending order by area, i.e. largest polygon comes first.
     std::sort(
@@ -124,7 +139,7 @@ namespace HexMesher
     return result;
   }
 
-  bool merge(const PolygonWithHoles& a, const PolygonWithHoles& b, PolygonWithHoles& res)
+  bool merge_polygons_with_holes(const PolygonWithHoles& a, const PolygonWithHoles& b, PolygonWithHoles& res)
   {
     if(CGAL::join(a.outer_boundary(), b.outer_boundary(), res))
     {
@@ -153,6 +168,46 @@ namespace HexMesher
     {
       return false;
     }
+  }
+
+  std::vector<PolygonWithHoles> merge(std::vector<PolygonWithHoles>& cross_sections)
+  {
+    std::vector<PolygonWithHoles> result;
+    while(!cross_sections.empty())
+    {
+      PolygonWithHoles merged = cross_sections.back();
+      cross_sections.pop_back();
+
+      bool progress = false;
+      do
+      {
+        progress = false;
+        for(auto it = cross_sections.rbegin(); it != cross_sections.rend();)
+        {
+          if(it->outer_boundary().is_clockwise_oriented())
+          {
+            it = decltype(it){cross_sections.erase(std::next(it).base())};
+            continue;
+          }
+
+          PolygonWithHoles new_shadow;
+          if(merge_polygons_with_holes(merged, *it, new_shadow))
+          {
+            it = decltype(it){cross_sections.erase(std::next(it).base())};
+
+            merged = new_shadow;
+            progress = true;
+            continue;
+          }
+          it++;
+        }
+      } while(progress);
+
+      merged = PS::simplify(merged, PS::Squared_distance_cost(), PS::Stop_above_cost_threshold(1e-8));
+      result.push_back(merged);
+    }
+
+    return result;
   }
 
   void write_polygon(const std::string& filename, const Polygon& poly)
@@ -517,8 +572,6 @@ namespace HexMesher
     Polylines polylines;
     Polylines2D projected_polylines;
 
-    PolygonWithHoles shadow;
-
     std::vector<PolygonWithHoles> all_cross_sections;
 
     for(int i(0); i < sampler.num_planes(); i++)
@@ -545,7 +598,7 @@ namespace HexMesher
         write_polyline("intersection_" + std::to_string(i) + "_polyline_" + std::to_string(j) + ".vtp", *it);
         it++;
       }*/
-      write_polylines("intersection_" + std::to_string(i) + ".vtp", polylines);
+      //write_polylines("intersection_" + std::to_string(i) + ".vtp", polylines);
 
       // The found polylines are 3d objects. We are actually only interested in the projection onto the current cutting plane.
       for(const auto& polyline : polylines)
@@ -558,67 +611,43 @@ namespace HexMesher
         projected_polylines.push_back(projected);
       }
 
-      write_polylines("projected_" + std::to_string(i) + ".vtp", projected_polylines);
+      //write_polylines("projected_" + std::to_string(i) + ".vtp", projected_polylines);
 
       std::vector<PolygonWithHoles> new_cross_sections = make_polygon(projected_polylines);
 
       all_cross_sections.insert(all_cross_sections.end(), new_cross_sections.begin(), new_cross_sections.end());
     }
 
-    bool shadow_init = false;
-    bool progress = true;
-    while(progress && !all_cross_sections.empty())
-    {
-      progress = false;
-      for(auto it = all_cross_sections.begin(); it != all_cross_sections.end();)
-      {
-        if(it->outer_boundary().is_clockwise_oriented())
-        {
-          it = all_cross_sections.erase(it);
-          continue;
-        }
-
-        if(!shadow_init)
-        {
-          shadow = *it;
-          it = all_cross_sections.erase(it);
-          shadow_init = true;
-          continue;
-        }
-
-        PolygonWithHoles new_shadow;
-        if(merge(shadow, *it, new_shadow))
-        {
-          it = all_cross_sections.erase(it);
-          shadow = new_shadow;
-          progress = true;
-          continue;
-        }
-        it++;
-      }
-    }
+    std::vector<PolygonWithHoles> union_components = merge(all_cross_sections);
 
     if(!all_cross_sections.empty())
     {
       std::cerr << "Warning: Unhandled cross sections. " << all_cross_sections.size() << " cross sections left after merging!\n";
     }
-
     std::cout << "Done!\n";
 
-    std::cout << "Found Union of cross sections with:\n";
-    std::cout << "  Boundary Vertices: " << shadow.outer_boundary().size() << "\n";
-    std::cout << "  Number of holes: " << shadow.holes().size() << "\n";
+    std::cout << "Found union of cross sections with " << union_components.size() << " components.\n";
 
-    int idx;
-    int total_vertices = shadow.outer_boundary().size();
-    for(const Polygon& hole : shadow.holes())
+    for(int i(0); i < union_components.size(); i++)
     {
-      std::cout << "  Hole " << idx << " with " << hole.size() << " vertices\n";
-      total_vertices += hole.size();
-    }
-    std::cout << "  Total vertices: " << total_vertices << "\n";
+      PolygonWithHoles& component = union_components[i];
 
-    // Output the found shadow
-    write_polygon("shadow.vtp", shadow);
+      int idx;
+      int total_vertices = component.outer_boundary().size();
+      for(const Polygon& hole : component.holes())
+      {
+        std::cout << "  Hole " << idx << " with " << hole.size() << " vertices\n";
+        total_vertices += hole.size();
+      }
+      std::cout << "Component " << i << ":\n";
+      std::cout << "  Boundary Vertices: " << component.outer_boundary().size() << "\n";
+      std::cout << "  Number of holes: " << component.holes().size() << "\n";
+      std::cout << "  Total vertices: " << total_vertices << "\n";
+
+      // Output the found shadow
+      write_polygon("shadow_" + std::to_string(i) + ".vtp", component);
+    }
+
+
   }
 }
