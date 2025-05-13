@@ -496,6 +496,11 @@ namespace HexMesher
     return Point2D(x, y);
   }
 
+  Point RadialCrossSectionSampler::origin() const
+  {
+    return _origin;
+  }
+
   int RadialCrossSectionSampler::num_planes() const
   {
     return _num_planes;
@@ -512,8 +517,8 @@ namespace HexMesher
     Vector plane_normal = std::cos(angle) * _u + std::sin(angle) * _v;
     CGALKernel::Plane_3 plane(_origin, plane_normal);
 
-    Vector x_axis = _up;
-    Vector y_axis = CGAL::cross_product(plane_normal, x_axis);
+    Vector y_axis = _up;
+    Vector x_axis = CGAL::cross_product(plane_normal, y_axis);
 
     return CuttingPlane {
       plane,
@@ -521,6 +526,45 @@ namespace HexMesher
       x_axis,
       y_axis
     };
+  }
+
+  Point2D RadialCrossSectionSampler::project(Point p) const
+  {
+    // We need a radial projection onto the 0-th cutting plane
+    CuttingPlane plane = get_plane(0);
+
+    // Figure out height
+    const auto height = CGAL::scalar_product(Vector(plane.origin, p), plane.y_axis);
+
+    Point ref = plane.origin + height * plane.y_axis;
+
+    // p, ref, and the projected point now all lie on a plane orthogonal to the axis
+    // Target point is then the point on the 0-th cutting plane with the same distance
+    // as the vector p - ref.
+
+    const auto dist = CGAL::approximate_sqrt(Vector(ref, p).squared_length());
+
+    return Point2D(dist, height);
+  }
+
+  CuttingPlane RadialCrossSectionSampler::get_plane_through_vertex(Point p) const
+  {
+    Vector y_axis = _up;
+    Vector x_axis = Vector(_origin, p) - y_axis * CGAL::scalar_product(Vector(_origin, p), y_axis);
+    x_axis = x_axis / CGAL::approximate_sqrt(x_axis.squared_length());
+    Vector normal = CGAL::cross_product(x_axis, y_axis);
+
+    return CuttingPlane {
+      CGALKernel::Plane_3(_origin, normal),
+      _origin,
+      x_axis,
+      y_axis
+    };
+  }
+
+  Point LineCrossSectionSampler::origin() const
+  {
+    return _start;
   }
 
   int LineCrossSectionSampler::num_planes() const
@@ -547,6 +591,117 @@ namespace HexMesher
     };
   }
 
+  Point2D LineCrossSectionSampler::project(Point p) const
+  {
+    // Orthogonal projection onto 0-th cutting plane
+
+    CuttingPlane plane = get_plane(0);
+
+    const auto x = CGAL::scalar_product(Vector(plane.origin, p), plane.x_axis);
+    const auto y = CGAL::scalar_product(Vector(plane.origin, p), plane.y_axis);
+
+    return Point2D(x, y);
+  }
+
+  CuttingPlane LineCrossSectionSampler::get_plane_through_vertex(Point p) const
+  {
+    const auto distance = CGAL::scalar_product(_normal, Vector(_start, p));
+    const Point origin = _start + distance * _normal;
+
+    Plane plane(origin, _normal);
+
+    return CuttingPlane
+    {
+      plane,
+      origin,
+      _x_axis,
+      _y_axis
+    };
+  }
+
+  template<typename OutputIterator>
+  void find_cross_section(CGAL::Polygon_mesh_slicer<Mesh, CGALKernel>& slicer, const CuttingPlane& plane, OutputIterator out)
+  {
+    Polylines polylines;
+    Polylines2D projected_polylines;
+
+    // Find polylines
+    polylines.clear();
+    projected_polylines.clear();
+    slicer(plane.plane, std::back_inserter(polylines));
+
+    if(polylines.empty())
+    {
+      std::cerr << "Empty intersection.\n";
+      return;
+    }
+
+    /*auto it = polylines.begin();
+    for(int j(0); j < polylines.size(); j++)
+    {
+      write_polyline("intersection_" + std::to_string(i) + "_polyline_" + std::to_string(j) + ".vtp", *it);
+      it++;
+    }*/
+    //write_polylines("intersection_" + std::to_string(i) + ".vtp", polylines);
+
+    // The found polylines are 3d objects. We are actually only interested in the projection onto the current cutting plane.
+    for(const auto& polyline : polylines)
+    {
+      Polyline2D projected;
+      for(const Point& point : polyline)
+      {
+        projected.push_back(plane.project(point));
+      }
+      projected_polylines.push_back(projected);
+    }
+
+    //write_polylines("projected_" + std::to_string(i) + ".vtp", projected_polylines);
+
+    std::vector<PolygonWithHoles> new_cross_sections = make_polygon(projected_polylines);
+
+    for(PolygonWithHoles& poly : new_cross_sections)
+    {
+      *out = poly;
+    }
+  }
+
+  template<typename OutputIterator>
+  void find_cross_sections(CGAL::Polygon_mesh_slicer<Mesh, CGALKernel>& slicer, const CrossSectionSampler& sampler, OutputIterator out)
+  {
+    for(int i(0); i < sampler.num_planes(); i++)
+    {
+      CuttingPlane cutting_plane = sampler.get_plane(i);
+      find_cross_section(slicer, cutting_plane, out);
+    }
+  }
+
+  template<typename CuttingPlaneIterator, typename OutputIterator>
+  void find_cross_sections(CGAL::Polygon_mesh_slicer<Mesh, CGALKernel>& slicer, const CuttingPlaneIterator start, const CuttingPlaneIterator end, OutputIterator out)
+  {
+    for(CuttingPlaneIterator it = start; it != end; it++)
+    {
+      find_cross_section(slicer, *it, out);
+    }
+  }
+
+  bool is_outside_union(Point2D p, std::vector<PolygonWithHoles>& union_components)
+  {
+    bool outside_boundary = true;
+    for(const PolygonWithHoles& poly : union_components)
+    {
+      outside_boundary = outside_boundary && poly.outer_boundary().bounded_side(p) == CGAL::ON_UNBOUNDED_SIDE;
+      for(const Polygon& hole : poly.holes())
+      {
+        if(hole.bounded_side(p) == CGAL::ON_BOUNDED_SIDE)
+        {
+          return true;
+        }
+      }
+    }
+
+    return outside_boundary;
+  }
+
   /**
    * \brief Computes the union of cross sections of a surface mesh
    *
@@ -569,63 +724,59 @@ namespace HexMesher
     // Slicer constructor from the mesh
     CGAL::Polygon_mesh_slicer<Mesh, CGALKernel> slicer(mesh);
 
-    Polylines polylines;
-    Polylines2D projected_polylines;
-
     std::vector<PolygonWithHoles> all_cross_sections;
 
-    for(int i(0); i < sampler.num_planes(); i++)
-    {
-      // Create slicing plane
-      CuttingPlane cutting_plane = sampler.get_plane(i);
-
-      std::cout << "Plane: " << cutting_plane.plane << "\n";
-
-      // Find polylines
-      polylines.clear();
-      projected_polylines.clear();
-      slicer(cutting_plane.plane, std::back_inserter(polylines));
-
-      if(polylines.empty())
-      {
-        std::cerr << "Empty intersection for plane " << i << "!\n";
-        continue;
-      }
-
-      /*auto it = polylines.begin();
-      for(int j(0); j < polylines.size(); j++)
-      {
-        write_polyline("intersection_" + std::to_string(i) + "_polyline_" + std::to_string(j) + ".vtp", *it);
-        it++;
-      }*/
-      //write_polylines("intersection_" + std::to_string(i) + ".vtp", polylines);
-
-      // The found polylines are 3d objects. We are actually only interested in the projection onto the current cutting plane.
-      for(const auto& polyline : polylines)
-      {
-        Polyline2D projected;
-        for(const Point& point : polyline)
-        {
-          projected.push_back(cutting_plane.project(point));
-        }
-        projected_polylines.push_back(projected);
-      }
-
-      //write_polylines("projected_" + std::to_string(i) + ".vtp", projected_polylines);
-
-      std::vector<PolygonWithHoles> new_cross_sections = make_polygon(projected_polylines);
-
-      all_cross_sections.insert(all_cross_sections.end(), new_cross_sections.begin(), new_cross_sections.end());
-    }
-
+    // Running initial sampling of mesh. Collect evenly spaced cross sections and merge them
+    find_cross_sections(slicer, sampler, std::back_inserter(all_cross_sections));
     std::vector<PolygonWithHoles> union_components = merge(all_cross_sections);
 
-    if(!all_cross_sections.empty())
-    {
-      std::cerr << "Warning: Unhandled cross sections. " << all_cross_sections.size() << " cross sections left after merging!\n";
-    }
-    std::cout << "Done!\n";
+    // The inital samples should have captured the major features of the input mesh,
+    // but there is no guarantee that all features have been captured.
+    // As a next step the vertices of the input mesh onto the components of the union.
+    // If a vertex gets projected outside of the outer boundary or inside a hole,
+    // we have missed a feature of the mesh.
+    // In that case we place additional cutting planes through these vertices.
 
+    std::vector<Point> outside_vertices;
+
+    for(const Point& vertex : mesh.points())
+    {
+      Point2D projected = sampler.project(vertex);
+      if(is_outside_union(projected, union_components))
+      {
+        outside_vertices.push_back(vertex);
+      }
+    }
+
+    // Merge additional feature planes into union
+    std::cout << "Potentially checking an additional " << outside_vertices.size() << " feature planes.\n";
+
+    // Sort vertices by distance to sampler origin.
+    // For radial sampler this should save some time,
+    // because more distant vertices will cover more other vertices
+    // when added to the union.
+    std::sort(outside_vertices.begin(), outside_vertices.end(), [&](Point& a, Point& b) {
+      return Vector(sampler.origin(), a).squared_length() > Vector(sampler.origin(), b).squared_length();
+    });
+
+    std::cout << "Done sorting\n";
+
+    int feature_planes_checked = 0;
+    for(Point& vertex : outside_vertices)
+    {
+      Point2D projected = sampler.project(vertex);
+      if(is_outside_union(projected, union_components))
+      {
+        feature_planes_checked++;
+        CuttingPlane plane = sampler.get_plane_through_vertex(vertex);
+        find_cross_section(slicer, plane, std::back_inserter(union_components));
+        union_components = merge(union_components);
+      }
+    }
+
+    std::cout << "Checked " << feature_planes_checked << " of " << outside_vertices.size() << " potential feature planes.\n";
+
+    std::cout << "Done!\n";
     std::cout << "Found union of cross sections with " << union_components.size() << " components.\n";
 
     for(int i(0); i < union_components.size(); i++)
@@ -647,7 +798,5 @@ namespace HexMesher
       // Output the found shadow
       write_polygon("shadow_" + std::to_string(i) + ".vtp", component);
     }
-
-
   }
 }

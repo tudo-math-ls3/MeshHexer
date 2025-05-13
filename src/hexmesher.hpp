@@ -44,8 +44,11 @@ namespace HexMesher
   class CrossSectionSampler
   {
   public:
+    virtual Point origin() const = 0;
     virtual int num_planes() const = 0;
     virtual CuttingPlane get_plane(int) const = 0;
+    virtual Point2D project(Point p) const = 0;
+    virtual CuttingPlane get_plane_through_vertex(Point p) const = 0;
   };
 
   class RadialCrossSectionSampler : public CrossSectionSampler
@@ -77,8 +80,12 @@ namespace HexMesher
       _v = _v / CGAL::approximate_sqrt(_v.squared_length());
     }
 
+    Point origin() const override;
     int num_planes() const override;
     CuttingPlane get_plane(int idx) const override;
+
+    Point2D project(Point p) const override;
+    CuttingPlane get_plane_through_vertex(Point p) const override;
   };
 
   class LineCrossSectionSampler : public CrossSectionSampler
@@ -112,8 +119,12 @@ namespace HexMesher
       _y_axis = _y_axis / CGAL::approximate_sqrt(_y_axis.squared_length());
     }
 
+    Point origin() const override;
     int num_planes() const override;
     CuttingPlane get_plane(int idx) const override;
+
+    Point2D project(Point p) const override;
+    CuttingPlane get_plane_through_vertex(Point p) const override;
   };
 
   void union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler);
