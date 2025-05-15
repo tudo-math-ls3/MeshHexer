@@ -54,7 +54,7 @@ namespace HexMesher
     for(Polygon& poly : polygons)
     {
       total_vertices_pre += poly.size();
-      poly = PS::simplify(poly, PS::Squared_distance_cost(), PS::Stop_above_cost_threshold(1e-8));
+      poly = PS::simplify(poly, PS::Squared_distance_cost(), PS::Stop_above_cost_threshold(1e-4));
       total_vertices_post += poly.size();
     }
 
@@ -208,6 +208,148 @@ namespace HexMesher
     }
 
     return result;
+  }
+
+  void write_geo_compound_2d(const std::string& filename, const Polygon& poly)
+  {
+    std::ofstream output(filename);
+
+    if(!output)
+    {
+      std::cerr << "Could not open file " << filename << " for writing.\n";
+      return;
+    }
+
+    // Set options
+    output << "Mesh.Algorithm = 8;\n"; // Frontal-Delaunay for Quads
+    output << "Mesh.RecombinationAlgorithm = 1;\n";
+    output << "Mesh.Format = 16;\n"; // vtk
+    output << "Mesh.RecombineAll = 1;\n"; // Always produce quad meshes
+
+    int next_tag = 1;
+
+    for(const Point2D& p : poly)
+    {
+      output << "Point(" << next_tag++ << ") = {" << p.x() << ", " << p.y() << ", 0, 1.0};\n";
+    }
+
+
+    next_tag = 1;
+    for(int i(0); i < poly.size() - 1; i++)
+    {
+      output << "Curve(" << next_tag++ << ") = {" << i + 1 << ", " << i + 2 << "};\n";
+    }
+    output << "Curve(" << next_tag++ << ") = {" << poly.size() << ", 1};\n";
+
+    int line_loop_tag = next_tag;
+    output << "Curve Loop(" << next_tag++ << ") = {";
+    for(int i(0); i < poly.size(); i++)
+    {
+      output << (i + 1);
+      if(i + 1 != poly.size())
+      {
+        output << ", ";
+      }
+    }
+    output << "};\n";
+
+    int surface_tag = next_tag;
+    output << "Plane Surface(" << next_tag++ << ") = {" << line_loop_tag << "};\n"; 
+
+    output << "Compound Curve{";
+    for(int i(0); i < poly.size(); i++)
+    {
+      output << (i + 1);
+      if(i + 1 != poly.size())
+      {
+        output << ", ";
+      }
+    }
+    output << "};\n";
+    output << "Compound Surface{" << surface_tag << "};\n";
+    output << "Mesh 2\n";
+  }
+
+
+  void write_geo(const std::string& filename, const Polygon& poly)
+  {
+    std::ofstream output(filename);
+
+    if(!output)
+    {
+      std::cerr << "Could not open file " << filename << " for writing.\n";
+      return;
+    }
+
+    // Set options
+    output << "Mesh.Algorithm = 8;\n"; // Frontal-Delaunay for Quads
+    output << "Mesh.RecombinationAlgorithm = 1;\n";
+    output << "Mesh.Format = 16;\n"; // vtk
+    output << "Mesh.RecombineAll = 1;\n"; // Always produce quad meshes
+
+    int next_tag = 1;
+
+    for(const Point2D& p : poly)
+    {
+      output << "Point(" << next_tag++ << ") = {" << p.x() << ", " << p.y() << ", 0, 1.0};\n";
+    }
+
+
+    next_tag = 1;
+    for(int i(0); i < poly.size() - 1; i++)
+    {
+      output << "Line(" << next_tag++ << ") = {" << i + 1 << ", " << i + 2 << "};\n";
+    }
+    output << "Line(" << next_tag++ << ") = {" << poly.size() << ", 1};\n";
+
+    int line_loop_tag = next_tag;
+    output << "Line Loop(" << next_tag++ << ") = {";
+    for(int i(0); i < poly.size(); i++)
+    {
+      output << (i + 1);
+      if(i + 1 != poly.size())
+      {
+        output << ", ";
+      }
+    }
+    output << "};\n";
+
+    int surface_tag = next_tag;
+    output << "Plane Surface(" << next_tag++ << ") = {" << line_loop_tag << "};\n"; 
+
+    output << "Extrude {0, 0, 10} {Surface{" << surface_tag << "}; Layers {1}; }\n";
+  }
+
+  void write_polygon_brep(const std::string& filename, const Polygon& poly)
+  {
+    std::ofstream output(filename);
+
+    if(!output)
+    {
+      std::cerr << "Could not open file " << filename << " for writing.\n";
+      return;
+    }
+
+    output << "DBRep_DrawableShape\n\n";
+    output << "CASCADE Topology V1, (c)  Matra-Datavision\n";
+    output << "Locations 0\n";
+    output << "Curve2ds 0\n";
+    output << "Curves 0\n";
+    output << "Polygon3D 1\n"; // One 3D polygon
+    output << std::to_string(poly.size()) << " 0\n"; // Number of points and parameter presence. 0 = no parameters.
+    output << "0.1\n"; // deflection
+
+    // Points of the polygon, all on a single line, in triplets
+    for(const Point2D& p: poly)
+    {
+      output << p.x() << " " << p.y() << " 0 ";
+    }
+    output << "\n";
+
+    output << "PolygonOnTriangulations 0\n";
+    output << "Surfaces 0\n";
+    output << "Triangulations 0\n";
+    output << "TShapes 0\n";
   }
 
   void write_polygon(const std::string& filename, const Polygon& poly)
@@ -737,7 +879,7 @@ namespace HexMesher
     // we have missed a feature of the mesh.
     // In that case we place additional cutting planes through these vertices.
 
-    std::vector<Point> outside_vertices;
+    /*std::vector<Point> outside_vertices;
 
     for(const Point& vertex : mesh.points())
     {
@@ -775,6 +917,7 @@ namespace HexMesher
     }
 
     std::cout << "Checked " << feature_planes_checked << " of " << outside_vertices.size() << " potential feature planes.\n";
+    */
 
     std::cout << "Done!\n";
     std::cout << "Found union of cross sections with " << union_components.size() << " components.\n";
@@ -797,6 +940,9 @@ namespace HexMesher
 
       // Output the found shadow
       write_polygon("shadow_" + std::to_string(i) + ".vtp", component);
+      write_polygon_brep("union.brep", component.outer_boundary());
+      write_geo("union.geo", component.outer_boundary());
+      write_geo_compound_2d("union_2d.geo", component.outer_boundary());
     }
   }
 }
