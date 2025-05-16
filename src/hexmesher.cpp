@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <math.h>
+#include <unistd.h>
 
 #include <CGAL/Boolean_set_operations_2.h>
 #include <CGAL/Polyline_simplification_2/simplify.h>
@@ -10,6 +11,172 @@ namespace HexMesher
 {
   namespace PMP = CGAL::Polygon_mesh_processing;
   namespace PS = CGAL::Polyline_simplification_2;
+
+  void status(const std::string& message)
+  {
+    if(isatty(fileno(stdout)))
+    {
+      std::cout << "\33[2K\r"; // Clear line and reset cursor to beginning
+      std::cout << message;
+      std::cout.flush();
+    }
+    else
+    {
+      std::cout << message;
+    }
+  }
+
+  enum class WindingOrder
+  {
+    Clockwise,
+    CounterClockwise,
+  };
+
+  WindingOrder winding_order(const Polyline2D& polyline)
+  {
+    Real sum(0);
+    for(int i(0); i < polyline.size(); i++)
+    {
+      const Point2D& a = polyline[i];
+      const Point2D& b = polyline[(i + 1) % polyline.size()];
+
+      sum += (b.x() - a.x()) * (b.y() + b.y());
+    }
+
+    return sum < 0 ? WindingOrder::CounterClockwise : WindingOrder::Clockwise;
+  }
+
+  /**
+   * \brief Compute left normal of line segment from a to b. Result has unit length.
+   */
+  Vector2D left_normal(const Point2D& a, const Point2D& b)
+  {
+    Vector2D delta = b - a;
+    Vector2D normal = Vector2D(-delta.y(), delta.x());
+    return normal / CGAL::approximate_sqrt(normal.squared_length());
+  }
+
+  /**
+   * \brief Compute right normal of line segment from a to b. Result has unit length.
+   */
+  Vector2D right_normal(const Point2D& a, const Point2D& b)
+  {
+    return -left_normal(a, b);
+  }
+
+  Vector2D outside_normal(const Point2D& a, const Point2D& b, WindingOrder order)
+  {
+    return order == WindingOrder::CounterClockwise ? right_normal(a, b) : left_normal(a, b);
+  }
+
+  Vector2D inside_normal(const Point2D& a, const Point2D& b, WindingOrder order)
+  {
+    return -outside_normal(a, b, order);
+  }
+
+  auto angle(const Vector2D& a, const Vector2D& b)
+  {
+    return CGAL::approximate_angle(Vector(a.x(), a.y(), 0), Vector(b.x(), b.y(), 0));
+  }
+
+  /**
+   * \brief Simplifies a polyline by merging runs of segments with similar normals
+   * 
+   * Normals whose angles differ by at most \c threshold are considered similar.
+   * 
+   * \param polyline The polyline to simplify
+   * \param threshold Similarity threshold for normals, in degrees.
+   */
+  template<typename Func_>
+  Polygon simplify_by_normal(const Polygon& polygon, Func_ continue_pred)
+  {
+    Polyline2D result;
+
+    // Find vertex of polyline with smallest inside angle as a safe starting point
+    const std::size_t size = polygon.size();
+    int starting_vertex = 0;
+    Real minimal_angle = 360.0;
+    for(int i(0); i < polygon.size(); i++)
+    {
+      const Point2D& a = polygon[i];
+      const Point2D& b = polygon[(i + 1) % size];
+      const Point2D& c = polygon[(i + 2) % size];
+
+      Vector2D ba = a - b;
+      ba = ba / CGAL::approximate_sqrt(ba.squared_length());
+      Vector2D bc = c - b;
+      bc = bc / CGAL::approximate_sqrt(bc.squared_length());
+
+      const Real theta = angle(ba, bc);
+
+      if(theta < minimal_angle)
+      {
+        starting_vertex = i + 1;
+        minimal_angle = theta;
+      }
+    }
+
+    // Build simplified result by finding sections with similar normals
+    WindingOrder order = polygon.is_clockwise_oriented() ? WindingOrder::Clockwise : WindingOrder::CounterClockwise;
+
+    int section_start = starting_vertex;
+    int section_end = (starting_vertex + 1) % size;
+    int candidate = (starting_vertex + 2) % size;
+
+    Vector2D reference_normal = outside_normal(polygon[section_start], polygon[section_end], order);
+    Vector2D link_normal = outside_normal(polygon[section_end], polygon[candidate], order);
+
+    result.push_back(polygon[section_start]);
+
+    std::vector<Vector2D> section_normals;
+    section_normals.push_back(reference_normal);
+    
+    while(true)
+    {
+      while(continue_pred(section_normals, link_normal) && section_end != starting_vertex)
+      {
+        section_end = candidate;
+        candidate = (candidate + 1) % size;
+
+        const Point2D& a = polygon[section_end];
+        const Point2D& b = polygon[candidate];
+
+        section_normals.push_back(link_normal);
+        link_normal = outside_normal(a, b, order);
+      }
+
+      // Latest link_normal is outside threshold
+      // Merge the links from [section_start, section_end]
+      // and continue next section at section_end if not all links are covered yet.
+
+      if(section_end == starting_vertex)
+      {
+        // With this section we have covered all links of the original polyline.
+        // The last vertex we pushed thus just gets connected to the inital vertex.
+
+        std::cout << "Polygon simplification done. Reduced from " << polygon.size() << " vertices to " << result.size() << " vertices.\n";
+        return Polygon(result.begin(), result.end());
+      }
+
+      // We have not yet covered all links of the original polyline.
+      // Merge the current section into a single segment and then continue.
+      result.push_back(polygon[section_end]);
+
+      section_start = section_end;
+      section_end = candidate;
+      candidate = (candidate + 1) % size;
+
+      reference_normal = outside_normal(polygon[section_start], polygon[section_end], order);
+      link_normal = outside_normal(polygon[section_end], polygon[candidate], order);
+
+      section_normals.clear();
+      section_normals.push_back(reference_normal);
+
+      status("[SimplifyByNormal]: " + std::to_string(section_end) + " / " + std::to_string(starting_vertex));
+    }
+
+    return Polygon();
+  }
 
   /**
    * \brief Returns true if all vertices of \c b are contained in \c a.
@@ -57,8 +224,6 @@ namespace HexMesher
       poly = PS::simplify(poly, PS::Squared_distance_cost(), PS::Stop_above_cost_threshold(1e-4));
       total_vertices_post += poly.size();
     }
-
-    std::cout << "Simplified polygons: " << total_vertices_pre << " -> " << total_vertices_post << "\n";
 
     // Sort polygons in descending order by area, i.e. largest polygon comes first.
     std::sort(
@@ -222,7 +387,7 @@ namespace HexMesher
 
     // Set options
     output << "Mesh.Algorithm = 8;\n"; // Frontal-Delaunay for Quads
-    output << "Mesh.RecombinationAlgorithm = 1;\n";
+    output << "Mesh.RecombinationAlgorithm = 3;\n"; // Blossom Full-Quad
     output << "Mesh.Format = 16;\n"; // vtk
     output << "Mesh.RecombineAll = 1;\n"; // Always produce quad meshes
 
@@ -230,7 +395,7 @@ namespace HexMesher
 
     for(const Point2D& p : poly)
     {
-      output << "Point(" << next_tag++ << ") = {" << p.x() << ", " << p.y() << ", 0, 1.0};\n";
+      output << "Point(" << next_tag++ << ") = {" << p.x() << ", " << p.y() << ", 0, 5.0};\n";
     }
 
 
@@ -283,7 +448,7 @@ namespace HexMesher
 
     // Set options
     output << "Mesh.Algorithm = 8;\n"; // Frontal-Delaunay for Quads
-    output << "Mesh.RecombinationAlgorithm = 1;\n";
+    output << "Mesh.RecombinationAlgorithm = 3;\n"; // Blossom Full-Quad
     output << "Mesh.Format = 16;\n"; // vtk
     output << "Mesh.RecombineAll = 1;\n"; // Always produce quad meshes
 
@@ -291,7 +456,7 @@ namespace HexMesher
 
     for(const Point2D& p : poly)
     {
-      output << "Point(" << next_tag++ << ") = {" << p.x() << ", " << p.y() << ", 0, 1.0};\n";
+      output << "Point(" << next_tag++ << ") = {" << p.x() << ", " << p.y() << ", 0, 5.0};\n";
     }
 
 
@@ -317,7 +482,8 @@ namespace HexMesher
     int surface_tag = next_tag;
     output << "Plane Surface(" << next_tag++ << ") = {" << line_loop_tag << "};\n"; 
 
-    output << "Extrude {0, 0, 10} {Surface{" << surface_tag << "}; Layers {1}; }\n";
+    //output << "Extrude {0, 0, 10} {Surface{" << surface_tag << "}; Layers {1}; }\n";
+    output << "Mesh 2\n";
   }
 
   void write_polygon_brep(const std::string& filename, const Polygon& poly)
@@ -384,7 +550,7 @@ namespace HexMesher
       output << "</DataArray>\n";
 
       output << "<DataArray type=\"UInt32\" Name=\"offsets\">\n";
-      output << poly.size() << "\n";
+      output << poly.size() + 1 << "\n";
       output << "</DataArray>\n";
 
       output << "</Lines>\n";
@@ -812,6 +978,7 @@ namespace HexMesher
   {
     for(int i(0); i < sampler.num_planes(); i++)
     {
+      status("Finding cross section " + std::to_string(i) + " of " + std::to_string(sampler.num_planes()));
       CuttingPlane cutting_plane = sampler.get_plane(i);
       find_cross_section(slicer, cutting_plane, out);
     }
@@ -879,7 +1046,7 @@ namespace HexMesher
     // we have missed a feature of the mesh.
     // In that case we place additional cutting planes through these vertices.
 
-    /*std::vector<Point> outside_vertices;
+    std::vector<Point> outside_vertices;
 
     for(const Point& vertex : mesh.points())
     {
@@ -909,15 +1076,16 @@ namespace HexMesher
       Point2D projected = sampler.project(vertex);
       if(is_outside_union(projected, union_components))
       {
-        feature_planes_checked++;
         CuttingPlane plane = sampler.get_plane_through_vertex(vertex);
         find_cross_section(slicer, plane, std::back_inserter(union_components));
         union_components = merge(union_components);
       }
+      feature_planes_checked++;
+      status("Checked " + std::to_string(feature_planes_checked + 1) + " of " + std::to_string(outside_vertices.size()) + " feature planes");
     }
 
     std::cout << "Checked " << feature_planes_checked << " of " << outside_vertices.size() << " potential feature planes.\n";
-    */
+
 
     std::cout << "Done!\n";
     std::cout << "Found union of cross sections with " << union_components.size() << " components.\n";
@@ -939,10 +1107,18 @@ namespace HexMesher
       std::cout << "  Total vertices: " << total_vertices << "\n";
 
       // Output the found shadow
+
+      auto pred = [](const std::vector<Vector2D>& normals, const Vector2D& next)
+      {
+        return angle(normals.back(), next) < 15.0 && angle(normals.front(), next) < 45.0;
+      };
+
+      Polygon simplified_boundary = simplify_by_normal(component.outer_boundary(), pred);
+
       write_polygon("shadow_" + std::to_string(i) + ".vtp", component);
-      write_polygon_brep("union.brep", component.outer_boundary());
-      write_geo("union.geo", component.outer_boundary());
-      write_geo_compound_2d("union_2d.geo", component.outer_boundary());
+      write_polygon("simplified_" + std::to_string(i) + ".vtp", simplified_boundary);
+      write_geo("union_" + std::to_string(i) + ".geo", simplified_boundary);
+      write_geo_compound_2d("union_2d_" + std::to_string(i) + ".geo", simplified_boundary);
     }
   }
 }

@@ -60,7 +60,7 @@ int main(int argc, char* argv[])
   }
   else
   {
-    const std::string filename("/home/user/mmuegge/nobackup/repos/feat/data/models/scalexa_gendie_small.off");
+    const std::string filename("/home/user/mmuegge/nobackup/repos/feat/data/models/scalexa_gendie_simple.off");
 
     HexMesher::Mesh mesh;
     if(!CGAL::Polygon_mesh_processing::IO::read_polygon_mesh(filename, mesh))

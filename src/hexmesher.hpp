@@ -14,6 +14,8 @@ namespace HexMesher
   using CGALKernel = CGAL::Exact_predicates_exact_constructions_kernel;
   using Mesh = CGAL::Surface_mesh<CGALKernel::Point_3>;
 
+  using Real = CGALKernel::RT;
+
   using Point = CGALKernel::Point_3;
   using Vector = CGALKernel::Vector_3;
   using Plane = CGALKernel::Plane_3;
