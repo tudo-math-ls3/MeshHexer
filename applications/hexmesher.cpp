@@ -1,11 +1,13 @@
-#include <hexmesher.hpp>
 #include <iostream>
+
+#include <hexmesher.hpp>
+#include <io.hpp>
+
+#include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
 
 int main(int argc, char* argv[])
 {
   std::cout << "Running hexmesher\n";
-
-
 
   if(argc > 11)
   {
@@ -31,6 +33,8 @@ int main(int argc, char* argv[])
       return 1;
     }
 
+    std::vector<HexMesher::PolygonWithHoles> union_components;
+
     if(mode == "radial")
     {
       HexMesher::Point p(std::atof(argv[3]), std::atof(argv[4]), std::atof(argv[5]));
@@ -41,7 +45,7 @@ int main(int argc, char* argv[])
 
       HexMesher::RadialCrossSectionSampler sampler(steps, p, u, up);
 
-      HexMesher::union_of_cross_sections(mesh, sampler);
+      union_components = HexMesher::union_of_cross_sections(mesh, sampler);
     }
 
     if(mode == "line")
@@ -55,7 +59,38 @@ int main(int argc, char* argv[])
 
       HexMesher::LineCrossSectionSampler sampler(steps, start, end, normal, up);
 
-      HexMesher::union_of_cross_sections(mesh, sampler);
+      union_components = HexMesher::union_of_cross_sections(mesh, sampler);
+    }
+
+    for(int i(0); i < union_components.size(); i++)
+    {
+      HexMesher::PolygonWithHoles& component = union_components[i];
+
+      int idx;
+      int total_vertices = component.outer_boundary().size();
+      for(const HexMesher::Polygon& hole : component.holes())
+      {
+        std::cout << "  Hole " << idx << " with " << hole.size() << " vertices\n";
+        total_vertices += hole.size();
+      }
+      std::cout << "Component " << i << ":\n";
+      std::cout << "  Boundary Vertices: " << component.outer_boundary().size() << "\n";
+      std::cout << "  Number of holes: " << component.holes().size() << "\n";
+      std::cout << "  Total vertices: " << total_vertices << "\n";
+
+      // Output the found shadow
+
+      auto pred = [](const std::vector<HexMesher::Vector2D>& normals, const HexMesher::Vector2D& next)
+      {
+        return angle(normals.back(), next) < 15.0 && angle(normals.front(), next) < 45.0;
+      };
+
+      HexMesher::Polygon simplified_boundary = HexMesher::simplify_by_normal(component.outer_boundary(), pred);
+
+      HexMesher::write_polygon("shadow_" + std::to_string(i) + ".vtp", component);
+      HexMesher::write_polygon("simplified_" + std::to_string(i) + ".vtp", simplified_boundary);
+      HexMesher::write_geo("union_" + std::to_string(i) + ".geo", simplified_boundary);
+      HexMesher::write_geo_compound_2d("union_2d_" + std::to_string(i) + ".geo", simplified_boundary);
     }
   }
   else

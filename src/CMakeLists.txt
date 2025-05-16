@@ -1,9 +1,12 @@
 set(HEXMESHER_SOURCES
   hexmesher.cpp
+  io.cpp
 )
 
 set(HEXMESHER_HEADERS
   hexmesher.hpp
+  types.hpp
+  io.hpp
 )
 
 add_library(HexMesher)

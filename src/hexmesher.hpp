@@ -1,13 +1,6 @@
 #pragma once
 
-#include <CGAL/Exact_predicates_exact_constructions_kernel.h>
-#include <CGAL/Surface_mesh.h>
-#include <CGAL/Polygon_mesh_slicer.h>
-#include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
-#include <CGAL/Polygon_2.h>
-#include <CGAL/Polygon_with_holes_2.h>
-
-#include <string>
+#include <types.hpp>
 
 namespace HexMesher
 {
@@ -129,5 +122,6 @@ namespace HexMesher
     CuttingPlane get_plane_through_vertex(Point p) const override;
   };
 
-  void union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler);
+  std::vector<PolygonWithHoles> union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler);
+  Polygon simplify_by_normal(const Polygon& polygon, const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred);
 }
