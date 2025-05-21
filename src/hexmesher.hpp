@@ -122,6 +122,13 @@ namespace HexMesher
     CuttingPlane get_plane_through_vertex(Point p) const override;
   };
 
+  double angle(const Vector2D& a, const Vector2D& b);
+
   std::vector<PolygonWithHoles> union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler);
-  Polygon simplify_by_normal(const Polygon& polygon, const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred);
+
+  std::pair<Polygon, std::vector<int>> simplify_by_normal(
+    const Polygon& polygon,
+    const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred);
+
+  Polygon grid_sample(const Polygon& polygon, Real min_dist);
 }

@@ -4,6 +4,7 @@
 #include <io.hpp>
 
 #include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
+#include <CGAL/Polygon_mesh_processing/measure.h>
 
 int main(int argc, char* argv[])
 {
@@ -62,6 +63,12 @@ int main(int argc, char* argv[])
       union_components = HexMesher::union_of_cross_sections(mesh, sampler);
     }
 
+    HexMesher::Real h = 100;
+    for(auto edge_iter = mesh.edges_begin(); edge_iter != mesh.edges_end(); edge_iter++)
+    {
+      h = std::min(CGAL::Polygon_mesh_processing::edge_length(*edge_iter, mesh), h);
+    }
+
     for(int i(0); i < union_components.size(); i++)
     {
       HexMesher::PolygonWithHoles& component = union_components[i];
@@ -82,15 +89,19 @@ int main(int argc, char* argv[])
 
       auto pred = [](const std::vector<HexMesher::Vector2D>& normals, const HexMesher::Vector2D& next)
       {
-        return angle(normals.back(), next) < 15.0 && angle(normals.front(), next) < 45.0;
+        return std::abs(HexMesher::angle(normals.back(), next)) < 10.0 && std::abs(HexMesher::angle(normals.front(), next)) < 45.0;
       };
 
-      HexMesher::Polygon simplified_boundary = HexMesher::simplify_by_normal(component.outer_boundary(), pred);
+      HexMesher::Polygon simplified_boundary = HexMesher::simplify_by_normal(component.outer_boundary(), pred).first;
+      HexMesher::Polygon grid_sampled_boundary = HexMesher::grid_sample(component.outer_boundary(), h);
 
       HexMesher::write_polygon("shadow_" + std::to_string(i) + ".vtp", component);
       HexMesher::write_polygon("simplified_" + std::to_string(i) + ".vtp", simplified_boundary);
       HexMesher::write_geo("union_" + std::to_string(i) + ".geo", simplified_boundary);
-      HexMesher::write_geo_compound_2d("union_2d_" + std::to_string(i) + ".geo", simplified_boundary);
+      //HexMesher::write_geo_compound_2d("union_2d_" + std::to_string(i) + ".geo", simplified_boundary);
+
+      HexMesher::write_polygon("grid_sampled_" + std::to_string(i) + ".vtp", grid_sampled_boundary);
+      HexMesher::write_geo("grid_sampled_" + std::to_string(i) + ".geo", grid_sampled_boundary);
     }
   }
   else
@@ -128,7 +139,49 @@ int main(int argc, char* argv[])
     //HexMesher::LineCrossSectionSampler sampler(50, start, end, normal, up);
     HexMesher::RadialCrossSectionSampler sampler(50, origin, normal, up);
 
-    HexMesher::union_of_cross_sections(mesh, sampler);
+    std::vector<HexMesher::PolygonWithHoles> union_components = HexMesher::union_of_cross_sections(mesh, sampler);
+
+
+    HexMesher::Real h = 100;
+    for(auto edge_iter = mesh.edges_begin(); edge_iter != mesh.edges_end(); edge_iter++)
+    {
+      h = std::min(CGAL::Polygon_mesh_processing::edge_length(*edge_iter, mesh), h);
+    }
+
+    for(int i(0); i < union_components.size(); i++)
+    {
+      HexMesher::PolygonWithHoles& component = union_components[i];
+
+      int idx;
+      int total_vertices = component.outer_boundary().size();
+      for(const HexMesher::Polygon& hole : component.holes())
+      {
+        std::cout << "  Hole " << idx << " with " << hole.size() << " vertices\n";
+        total_vertices += hole.size();
+      }
+      std::cout << "Component " << i << ":\n";
+      std::cout << "  Boundary Vertices: " << component.outer_boundary().size() << "\n";
+      std::cout << "  Number of holes: " << component.holes().size() << "\n";
+      std::cout << "  Total vertices: " << total_vertices << "\n";
+
+      // Output the found shadow
+
+      auto pred = [](const std::vector<HexMesher::Vector2D>& normals, const HexMesher::Vector2D& next)
+      {
+        return HexMesher::angle(normals.back(), next) < 15.0 && angle(normals.front(), next) < 45.0;
+      };
+
+      //HexMesher::Polygon simplified_boundary = HexMesher::simplify_by_normal(component.outer_boundary(), pred).first;
+      HexMesher::Polygon grid_sampled_boundary = HexMesher::grid_sample(component.outer_boundary(), h);
+
+      HexMesher::write_polygon("shadow_" + std::to_string(i) + ".vtp", component);
+      //HexMesher::write_polygon("simplified_" + std::to_string(i) + ".vtp", simplified_boundary);
+      //HexMesher::write_geo("union_" + std::to_string(i) + ".geo", simplified_boundary);
+      //HexMesher::write_geo_compound_2d("union_2d_" + std::to_string(i) + ".geo", simplified_boundary);
+
+      HexMesher::write_polygon("grid_sampled_" + std::to_string(i) + ".vtp", grid_sampled_boundary);
+      HexMesher::write_geo("grid_sampled_" + std::to_string(i) + ".geo", grid_sampled_boundary);
+    }
   }
 
   return 0;

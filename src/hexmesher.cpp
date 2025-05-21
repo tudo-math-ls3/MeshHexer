@@ -75,9 +75,9 @@ namespace HexMesher
     return -outside_normal(a, b, order);
   }
 
-  auto angle(const Vector2D& a, const Vector2D& b)
+  double angle(const Vector2D& a, const Vector2D& b)
   {
-    return CGAL::approximate_angle(Vector(a.x(), a.y(), 0), Vector(b.x(), b.y(), 0));
+    return CGAL::to_double(CGAL::approximate_angle(Vector(a.x(), a.y(), 0), Vector(b.x(), b.y(), 0)));
   }
 
   /**
@@ -88,11 +88,12 @@ namespace HexMesher
    * \param polyline The polyline to simplify
    * \param threshold Similarity threshold for normals, in degrees.
    */
-  Polygon simplify_by_normal(
+  std::pair<Polygon, std::vector<int>> simplify_by_normal(
     const Polygon& polygon, 
     const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred)
   {
     Polyline2D result;
+    std::vector<int> chosen_points;
 
     // Find vertex of polyline with smallest inside angle as a safe starting point
     const std::size_t size = polygon.size();
@@ -129,6 +130,7 @@ namespace HexMesher
     Vector2D link_normal = outside_normal(polygon[section_end], polygon[candidate], order);
 
     result.push_back(polygon[section_start]);
+    chosen_points.push_back(section_start);
 
     std::vector<Vector2D> section_normals;
     section_normals.push_back(reference_normal);
@@ -157,12 +159,13 @@ namespace HexMesher
         // The last vertex we pushed thus just gets connected to the inital vertex.
 
         std::cout << "Polygon simplification done. Reduced from " << polygon.size() << " vertices to " << result.size() << " vertices.\n";
-        return Polygon(result.begin(), result.end());
+        return {Polygon(result.begin(), result.end()), chosen_points};
       }
 
       // We have not yet covered all links of the original polyline.
       // Merge the current section into a single segment and then continue.
       result.push_back(polygon[section_end]);
+      chosen_points.push_back(section_end);
 
       section_start = section_end;
       section_end = candidate;
@@ -177,7 +180,7 @@ namespace HexMesher
       status("[SimplifyByNormal]: " + std::to_string(section_end) + " / " + std::to_string(starting_vertex));
     }
 
-    return Polygon();
+    return {Polygon(), std::vector<int>()};
   }
 
   /**
@@ -628,6 +631,7 @@ namespace HexMesher
     // we have missed a feature of the mesh.
     // In that case we place additional cutting planes through these vertices.
 
+    /*
     std::vector<Point> outside_vertices;
 
     for(const Point& vertex : mesh.points())
@@ -667,11 +671,353 @@ namespace HexMesher
     }
 
     std::cout << "Checked " << feature_planes_checked << " of " << outside_vertices.size() << " potential feature planes.\n";
+    */
 
 
     std::cout << "Done!\n";
     std::cout << "Found union of cross sections with " << union_components.size() << " components.\n";
 
     return union_components;
+  }
+
+  std::vector<Vector2D> laplace(const Polygon& polygon)
+  {
+    std::vector<Vector2D> result(polygon.size());
+
+    const std::size_t size = polygon.size();
+    for(int i(0); i < polygon.size(); i++)
+    {
+      const Point2D& a = polygon[i];
+      const Point2D& b = polygon[(i + 1) % size];
+      const Point2D& c = polygon[(i + 2) % size];
+
+      const Real length_ab = CGAL::approximate_sqrt((b - a).squared_length());
+      const Real length_bc = CGAL::approximate_sqrt((c - b).squared_length());
+      const Real total_length = length_ab + length_bc;
+
+      const Vector2D delta = (length_bc * Vector2D(b, a) + length_ab * Vector2D(b, c)) / total_length;
+
+      result[(i + 1) % size] = delta;
+    }
+
+    return result;
+  }
+
+  struct Ray
+  {
+    Point2D origin;
+    Vector2D direction;
+  };
+
+  struct Segment
+  {
+
+    Segment() = default;
+
+    Segment(const Point2D& a_, const Point2D& b_, const Vector2D& normal_) :
+      a(a_),
+      b(b_),
+      normal(normal_)
+    {
+    }
+
+    Point2D a;
+    Point2D b;
+
+    Vector2D normal;
+  };
+
+  struct Intersection
+  {
+    Real distance;
+    Point2D point;
+    Vector2D normal;
+    bool outside;
+
+    int index;
+  };
+
+  /**
+   * Returns the intersection between the given ray and the given segment, if they intersect.
+   */
+  std::optional<Intersection> ray_segment_intersection(const Ray& ray, const Segment& segment)
+  {
+    // We need to solve
+    // ray.origin + t * ray.direction = segment.a + u * (segment.b - segment.a)
+    // or in short
+    // o + td = a + u(b - a)
+    // for t, u.
+    // If t >= 0 and 0 <= u <= 1, the lines intersect.
+
+    // Rearrange to
+    // td - u(b - a) = a - o
+    // and use s = a - b, c = a - o
+    // td + us = c
+
+    // Segment direction
+    const Vector2D s = segment.a - segment.b;
+    // Rhs of system of equations
+    const Vector2D c = segment.a - ray.origin;
+    const Vector2D d = ray.direction;
+
+    // Solution via Cramers rule
+    const Real denom = d.x() * s.y() - s.x() * d.y();
+
+    if(denom == 0)
+    {
+      // Line and segment are either colinear or parallel
+      // There is technically a intersection in the colinear case
+      // but we don't handle that right know
+      return std::nullopt;
+    }
+
+    const Real t = (c.x() * s.y() - s.x() * c.y()) / denom;
+    const Real u = (d.x() * c.y() - c.x() * d.y()) / denom;
+
+    if(t > 0 && 0 < u && u < 1)
+    {
+      // Intersection between line and segment
+
+      const Point2D point = ray.origin + t * ray.direction;
+      const Real distance = CGAL::approximate_sqrt((t * ray.direction).squared_length());
+
+      Vector2D normal = segment.normal;
+      bool outside = true;
+      if(CGAL::scalar_product(normal, ray.direction) > 0)
+      {
+        normal = -normal;
+        outside = false;
+      }
+
+      std::cout << "Intersection:\n";
+      std::cout << "Ray { origin: " << ray.origin << ", direction: " << ray.direction << "}\n";
+      std::cout << "Segment {a: " << segment.a << ", " << segment.b << " }\n";
+      std::cout << "Intersection point: " << point << "\n";
+      std::cout << "t: " << t << "\n";
+      std::cout << "u: " << u << "\n";
+
+      return Intersection{distance, point, normal, outside};
+    }
+
+    return std::nullopt;
+  };
+
+  template<typename SegmentIter>
+  std::optional<Intersection> closest_ray_segment_intersection(const Ray& ray, SegmentIter begin, SegmentIter end)
+  {
+    std::optional<Intersection> result(std::nullopt);
+
+    int idx = 0;
+    for(SegmentIter it = begin; it != end; it++)
+    {
+      std::optional<Intersection> intersection = ray_segment_intersection(ray, *it);
+
+      if(!result && intersection)
+      {
+        result = intersection;
+        result.value().index = idx;
+      }
+
+      if(result && intersection && result.value().distance > intersection.value().distance)
+      {
+        result = intersection;
+        result.value().index = idx;
+      }
+
+      idx++;
+    }
+
+    return result;
+  }
+
+  Polygon grid_sample(const Polygon& polygon, Real min_dist)
+  {
+    // 1. Determine characteristic points of the polygon
+    // Characteristic points are those points we definitely want to keep in the
+    // final mesh, because they belong to geometric features we want to keep
+
+    // Choosing characteristic points is difficult.
+    // As a proof of concept we choose
+    // - points with interior angles <= 90deg
+    // - points with interior angles >= 270deg, i.e. inner and outer 90deg corners
+    // - points chosen by a simplify_by_normals with an allowed normal difference of 20deg.
+    // - points with large curvature, top 5%
+
+    // We have to be careful to balance capturing all geometric features
+    // with the number of chosen points.
+    // Gmsh does (per default) not discard boundary points,
+    // which means choosing too many points causes too small elements.
+
+    std::set<int> characteristic_points;
+
+    // Choose points by interior angle
+    const std::size_t size = polygon.size();
+    for(int i(0); i < polygon.size(); i++)
+    {
+      const Point2D& a = polygon[i];
+      const Point2D& b = polygon[(i + 1) % size];
+      const Point2D& c = polygon[(i + 2) % size];
+
+      Vector2D ba = a - b;
+      ba = ba / CGAL::approximate_sqrt(ba.squared_length());
+      Vector2D bc = c - b;
+      bc = bc / CGAL::approximate_sqrt(bc.squared_length());
+
+      const Real theta = angle(ba, bc);
+
+      if(theta <= 90)
+      {
+        characteristic_points.insert(i + 1);
+      }
+
+      if(theta >= 270)
+      {
+        characteristic_points.insert(i + 1);
+      }
+    }
+
+    // Choose points of simplified polygon
+    std::vector<int> simplified_points = simplify_by_normal(polygon, [](auto& normals, auto& next)
+    {
+      return angle(normals.front(), next) < 20.0;
+    }).second;;
+
+    characteristic_points.insert(simplified_points.begin(), simplified_points.end());
+
+    // Choose top points based on curvature
+
+    // Determine laplace for every vertex
+    std::vector<Vector2D> offsets = laplace(polygon);
+
+    // Sort indices based on laplace, in descending order
+    std::vector<int> indices(polygon.size());
+    for(int i(0); i < polygon.size(); i++)
+    {
+      indices[i] = i;
+    }
+    std::sort(indices.begin(), indices.end(), [&](int a, int b) {
+      return CGAL::approximate_sqrt(offsets[a].squared_length()) > CGAL::approximate_sqrt(offsets[b].squared_length());
+    });
+
+    // Pick top 5% of vertices by curvature
+
+    for(int i(0); i < (double)polygon.size() * 0.05; i++)
+    {
+      characteristic_points.insert(indices[i]);
+    }
+
+    // 2. Create a grid from the chosen characteristic points
+    // Each characteristic point describes an intersection of grid lines.
+    // The grid only extends into the interior of the polygon,
+    // i.e. a inner corner will stop the grid.
+    // This shields parts of the polygon from vertices, which shouldn't
+    // influence the meshing somewhere else.
+    // Imagine a lopsided y-pipe. Characteristic pipes in one of the
+    // pipes should not influence the meshing of the other pipe.
+    // Resample the polyline by choosing all characteristic points
+    // and collecting all segment-grid intersections.
+    // The resulting sampling lies on a tensor-grid,
+    // which should hopefully allow the mesher to create nicer meshes
+    // than when sampling the polyline at random.
+
+    // Build polyline from points chosen so far
+    std::vector<Point2D> polyline;
+    for(int idx : characteristic_points)
+    {
+      std::cout << "Adding vertex " << idx << " to new polyline\n";
+      polyline.push_back(polygon[idx]);
+    }
+
+    // Build list of segments
+    const WindingOrder order = polygon.is_clockwise_oriented() ? WindingOrder::Clockwise : WindingOrder::CounterClockwise;
+    std::vector<Segment> segments;
+    for(int i(0); i < polyline.size(); i++)
+    {
+      const Point2D a = polyline[i];
+      const Point2D b = polyline[(i + 1) % polyline.size()];
+      segments.push_back(Segment(a, b, outside_normal(a, b, order)));
+    }
+
+    std::array<Vector2D, 4> directions = {Vector2D(-1.0, 0.0), Vector2D(1.0, 0.0), Vector2D(0.0, -1.0), Vector2D(0.0, 1.0)};
+    for(const Point2D& point : polyline)
+    {
+      for(const Vector2D& dir : directions)
+      {
+        Ray ray{point, dir};
+        std::optional<Intersection> intersection = closest_ray_segment_intersection(ray, segments.begin(), segments.end());
+
+        if(intersection && !intersection.value().outside)
+        {
+          const int idx = intersection.value().index;
+          const Point2D intersection_point = intersection.value().point;
+
+          // Update segment list
+          // Erase the hit segment and insert the two new segments at its place
+          auto segment_iter = segments.begin() + idx;
+          Segment hit = *segment_iter;
+
+          segment_iter = segments.erase(segment_iter);
+          segment_iter = segments.insert(segment_iter, Segment(intersection_point, hit.b, outside_normal(intersection_point, hit.b, order)));
+          segments.insert(segment_iter, Segment(hit.a, intersection_point, outside_normal(hit.a, intersection_point, order)));
+        }
+      }
+    }
+
+    {
+      for(int i(0); i < segments.size() - 1; i++)
+      {
+        const Segment& a = segments[i];
+        const Segment& b = segments[i + 1];
+
+        if(a.b != b.a)
+        {
+          std::cerr << "Segments not contiguous!\n";
+          exit(1);
+        }
+      }
+      const Segment& start = segments[0];
+      const Segment& end = segments[segments.size() - 1];
+
+      if(start.a != end.b)
+      {
+        std::cerr << "Segments not contiguous!\n";
+        exit(1);
+      }
+
+    }
+
+    // Filter out too small segments
+    for(auto it = segments.begin() + 1; it <= segments.end() - 1;)
+    {
+      const Segment& segment = *it;
+      const auto length = CGAL::approximate_sqrt((segment.b - segment.a).squared_length());
+
+      const Point2D midpoint = segment.a + (length / 2.0) * (segment.b - segment.a);
+
+      if(length < min_dist)
+      {
+        Segment& prev = *std::prev(it);
+        Segment& next = *std::next(it);
+
+        prev.b = midpoint;
+        next.a = midpoint;
+
+        it = segments.erase(it);
+      }
+      else
+      {
+        it++;
+      }
+    }
+
+    std::vector<Point2D> grid_sampled_polyline;
+
+    for(const Segment& segment : segments)
+    {
+      grid_sampled_polyline.push_back(segment.a);
+    }
+
+    std::cout << "Finished grid sampling. Reduced from " << polygon.size() << " vertices to " << grid_sampled_polyline.size() << " vertices.\n";
+    return Polygon(grid_sampled_polyline.begin(), grid_sampled_polyline.end());
   }
 }
