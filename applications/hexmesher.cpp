@@ -10,7 +10,7 @@ int main(int argc, char* argv[])
 {
   std::cout << "Running hexmesher\n";
 
-  if(argc > 11)
+  if(argc > 1)
   {
     const std::string mode(argv[1]);
     const std::string filename(argv[2]);
@@ -61,6 +61,18 @@ int main(int argc, char* argv[])
       HexMesher::LineCrossSectionSampler sampler(steps, start, end, normal, up);
 
       union_components = HexMesher::union_of_cross_sections(mesh, sampler);
+    }
+
+    if(mode == "thickness")
+    {
+      HexMesher::compute_mesh_thickness(mesh);
+      std::ofstream output("thickness.ply");
+
+      if(output)
+      {
+        CGAL::IO::write_PLY(output, mesh);
+      }
+      return 0;
     }
 
     HexMesher::Real h = 100;
@@ -127,16 +139,25 @@ int main(int argc, char* argv[])
       return 1;
     }
 
-    //HexMesher::Point start(0.0, 0.0, 80.0);
-    //HexMesher::Point end(0.0, 0.0, 60.0);
-    //HexMesher::Vector normal(0.0, 0.0, 1.0);
-    //HexMesher::Vector up(0.0, 1.0, 0.0);
+    HexMesher::compute_mesh_thickness(mesh);
+    std::ofstream output("thickness.ply");
+
+    if(output)
+    {
+      CGAL::IO::write_PLY(output, mesh);
+    }
+
+    /*
+    HexMesher::Point start(0.0, 0.0, 80.0);
+    HexMesher::Point end(0.0, 0.0, 60.0);
+    HexMesher::Vector normal(0.0, 0.0, 1.0);
+    HexMesher::Vector up(0.0, 1.0, 0.0);
 
     HexMesher::Point origin(0.0, 0.0, 0.0);
     HexMesher::Vector up(0.0, 0.0, 1.0);
     HexMesher::Vector normal(1.0, 0.0, 0.0);
 
-    //HexMesher::LineCrossSectionSampler sampler(50, start, end, normal, up);
+    HexMesher::LineCrossSectionSampler sampler(50, start, end, normal, up);
     HexMesher::RadialCrossSectionSampler sampler(50, origin, normal, up);
 
     std::vector<HexMesher::PolygonWithHoles> union_components = HexMesher::union_of_cross_sections(mesh, sampler);
@@ -182,6 +203,7 @@ int main(int argc, char* argv[])
       HexMesher::write_polygon("grid_sampled_" + std::to_string(i) + ".vtp", grid_sampled_boundary);
       HexMesher::write_geo("grid_sampled_" + std::to_string(i) + ".geo", grid_sampled_boundary);
     }
+    */
   }
 
   return 0;

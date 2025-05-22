@@ -3,10 +3,17 @@
 #include <iostream>
 #include <math.h>
 #include <unistd.h>
+#include <optional>
+#include <variant>
 
 #include <CGAL/Boolean_set_operations_2.h>
 #include <CGAL/Polyline_simplification_2/simplify.h>
 #include <CGAL/Polygon_mesh_slicer.h>
+
+#include <CGAL/AABB_tree.h>
+#include <CGAL/AABB_face_graph_triangle_primitive.h>
+
+#include <CGAL/Polygon_mesh_processing/compute_normal.h>
 
 namespace HexMesher
 {
@@ -1019,5 +1026,150 @@ namespace HexMesher
 
     std::cout << "Finished grid sampling. Reduced from " << polygon.size() << " vertices to " << grid_sampled_polyline.size() << " vertices.\n";
     return Polygon(grid_sampled_polyline.begin(), grid_sampled_polyline.end());
+  }
+
+  void compute_mesh_thickness(Mesh& mesh)
+  {
+    if(mesh.num_faces() == 0)
+    {
+      // No work to be done
+      return;
+    }
+
+    // Create AABB tree for intersection and distance queries
+    using Primitive = CGAL::AABB_face_graph_triangle_primitive<Mesh>;
+    using AABBTraits = CGAL::AABB_traits_3<CGALKernel, Primitive>;
+    using AABBTree = CGAL::AABB_tree<AABBTraits>;
+
+    using FaceIndex = Mesh::Face_index;
+
+    using Ray3 = CGALKernel::Ray_3;
+    using Segment3 = CGALKernel::Segment_3;
+
+    using RayIntersection = std::optional<AABBTree::Intersection_and_primitive_id<Ray3>::Type>;
+
+    AABBTree aabb_tree(mesh.faces_begin(), mesh.faces_end(), mesh);
+
+    // Create mesh property for storing thicknesses
+    Mesh::Property_map<FaceIndex, double> diameter_property = 
+      mesh.add_property_map<FaceIndex, double>("f:MIS_diameter", 0).first;
+
+    Mesh::Property_map<FaceIndex, FaceIndex> id_property = 
+      mesh.add_property_map<FaceIndex, FaceIndex>("f:MIS_id", FaceIndex(0)).first;
+
+    // Determine bounding box of mesh
+    Real max_radius = std::min(
+      {
+        aabb_tree.bbox().xmax() - aabb_tree.bbox().xmin(),
+        aabb_tree.bbox().ymax() - aabb_tree.bbox().ymin(),
+        aabb_tree.bbox().zmax() - aabb_tree.bbox().zmin(),
+      }
+    ) / Real(2.0);
+
+    for(FaceIndex face_index : mesh.faces())
+    {
+      // Determine centroid of face
+      Point centroid(0.0, 0.0, 0.0);
+      auto circulators = CGAL::vertices_around_face(mesh.halfedge(face_index), mesh);
+      for(auto vcirc = circulators.first; vcirc != circulators.second; vcirc++)
+      {
+        centroid += Real(1.0 / 3.0) * Vector(Point(CGAL::Origin()), mesh.point(*vcirc));
+      }
+
+      // Determine initial sphere radius 
+      // We need an initial radius that is large enough for our initial sphere
+      // to intersect at least one object other than the current face.
+      // We cast a ray from the centroid towards the face normal.
+      // If we hit something, we have an initial guess for the radius.
+      // Otherwise the current face is pointing towards a hole in the surface mesh.
+      // In that case we use the smallest length of the axis aligned bounding box as the initial diameter.
+      // This is the largest value any MIS can be.
+
+      Real initial_radius(max_radius);
+      FaceIndex initial_id(0);
+
+      // Determine (inward) normal
+      Vector normal = -CGAL::Polygon_mesh_processing::compute_face_normal(face_index, mesh);
+
+      // Cast ray
+      Ray3 ray(centroid, normal);
+      auto skip = [=](FaceIndex idx) { return idx == face_index; };
+      RayIntersection intersection = aabb_tree.first_intersection(ray, skip);
+
+      if(intersection && std::holds_alternative<Point>(intersection.value().first))
+      {
+        const Point& p = std::get<Point>(intersection.value().first);
+        Real distance = CGAL::approximate_sqrt(Vector(centroid, p).squared_length());
+        initial_radius = std::min(initial_radius, distance / 2.0);
+        initial_id = intersection.value().second;
+      }
+
+      if(intersection && std::holds_alternative<Segment3>(intersection.value().first))
+      {
+        const Segment3& segment = std::get<Segment3>(intersection.value().first);
+        Real distance = CGAL::approximate_sqrt(Vector(centroid, segment.source()).squared_length());
+        initial_radius = std::min(initial_radius, distance / 2.0);
+        initial_id = intersection.value().second;
+      }
+
+      Real prev_radius = initial_radius + 1;
+      Real radius = initial_radius;
+      FaceIndex id = initial_id;
+
+      // Shrink sphere until change in radius becomes too small
+      while(prev_radius - radius > 1e-6)
+      {
+        Point center = centroid + radius * normal;
+        auto closest_point_data = aabb_tree.closest_point_and_primitive(center);
+
+        Point closest_point = closest_point_data.first;
+        Real distance_to_closest = CGAL::approximate_sqrt(Vector(center, closest_point).squared_length());
+
+        if(distance_to_closest >= radius - 1e-6)
+        {
+          // Closest point is not in sphere. Current sphere is correct
+          break;
+        }
+
+        // We now need to find the radius r' of the new sphere that touches both the
+        // centroid of our face and the closest point we just found.
+        // Let the centroid be p, the closest point p' and let c' be the center of the new sphere.
+        // p, p', and c' prime form a isosceles triangle with two sides of length r', a side of length d.
+        //
+        //     r'
+        // p'------c'
+        // \       |
+        //  \      |
+        //   \     |
+        //  d \    | r'
+        //     \   |
+        //      \  |
+        //       \a|
+        //        p
+        //
+        // The angle a is the angle between the normal of the face and the vector pp'.
+        // We can then determine r' via the law of sines as r' = d * sin(a) * sin(180 - 2a)
+
+        double alpha = CGAL::to_double(CGAL::approximate_angle(normal, Vector(centroid, closest_point))) / 180.0 * M_PI;
+
+        if(alpha > 1.3)
+        {
+          // Closest point is at a very shallow angle.
+          // Likely a meshing artifact. Ignore it.
+          break;
+        }
+
+        double d = CGAL::to_double(CGAL::approximate_sqrt((closest_point - centroid).squared_length()));
+        Real new_radius = Real(d * std::sin(alpha) / std::sin(M_PI - 2.0 * alpha));
+
+        prev_radius = radius;
+        radius = std::min(new_radius, radius);
+        id = closest_point_data.second;
+      }
+
+      // Record thickness
+      diameter_property[face_index] = CGAL::to_double(2.0 * radius);
+      id_property[face_index] = id;
+    }
   }
 }

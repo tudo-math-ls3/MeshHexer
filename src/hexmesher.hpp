@@ -131,4 +131,22 @@ namespace HexMesher
     const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred);
 
   Polygon grid_sample(const Polygon& polygon, Real min_dist);
+
+  /**
+   * \brief Compute a measure of mesh thickness at each face of a mesh.
+   * 
+   * Determines the maximum inscribed sphere at each face of the mesh,
+   * i.e. the largest possible sphere that touches the centroid of the mesh and any other point of the mesh,
+   * without intersecting the mesh.
+   * 
+   * The diameter of each sphere is made available in a "f:MIS_diameter" mesh property of type double.
+   * The id of the _other_ primitive that is touched by the sphere is made available in a "f:MIS_id" mesh property.
+   * 
+   * See the following for details on the algorithm:
+   * Shrinking sphere: A parallel algorithm for computing the thickness of 3D objects
+   * Masatomo Inui, Nobuyuki Umezu, Ryohei Shimane
+   * COMPUTER-AIDED DESIGN & APPLICATIONS, 2016, VOL. 13, NO. 2, 199–207
+   * http://dx.doi.org/10.1080/16864360.2015.1084186
+   */
+  void compute_mesh_thickness(Mesh& mesh);
 }
