@@ -1041,7 +1041,6 @@ namespace HexMesher
     using AABBTraits = CGAL::AABB_traits_3<CGALKernel, Primitive>;
     using AABBTree = CGAL::AABB_tree<AABBTraits>;
 
-    using FaceIndex = Mesh::Face_index;
 
     using Ray3 = CGALKernel::Ray_3;
     using Segment3 = CGALKernel::Segment_3;
@@ -1070,10 +1069,9 @@ namespace HexMesher
     {
       // Determine centroid of face
       Point centroid(0.0, 0.0, 0.0);
-      auto circulators = CGAL::vertices_around_face(mesh.halfedge(face_index), mesh);
-      for(auto vcirc = circulators.first; vcirc != circulators.second; vcirc++)
+      for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(face_index)))
       {
-        centroid += Real(1.0 / 3.0) * Vector(Point(CGAL::Origin()), mesh.point(*vcirc));
+        centroid += Real(1.0 / 3.0) * Vector(Point(CGAL::Origin()), mesh.point(v));
       }
 
       // Determine initial sphere radius 
@@ -1170,6 +1168,122 @@ namespace HexMesher
       // Record thickness
       diameter_property[face_index] = CGAL::to_double(2.0 * radius);
       id_property[face_index] = id;
+    }
+  }
+
+  double topological_distance(FaceIndex a, FaceIndex b, const Mesh& mesh)
+  {
+    // Set up priority queue for choosing next vertex to explore
+    struct FrontierEntry
+    {
+      VertexIndex idx;
+      double priority;
+
+      FrontierEntry() : idx(0), priority(0) {}
+      FrontierEntry(VertexIndex v, double p) : idx(v), priority(p) {}
+    };
+
+    // The priority_queue returns the last element of the defined ordering first.
+    // We want the last element to be the one with the lowest estimated distance.
+    // Thus we sort in descending order.
+    struct Comparator
+    {
+      bool operator()(FrontierEntry a, FrontierEntry b)
+      {
+        return a.priority > b.priority;
+      }
+    };
+
+    std::priority_queue<FrontierEntry, std::vector<FrontierEntry>, Comparator> frontier;
+    std::unordered_map<VertexIndex, VertexIndex> came_from;
+    std::unordered_map<VertexIndex, double> distance;
+
+    // Initialise starting points.
+    for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(a)))
+    {
+      // Add start point to frontier
+      frontier.push(FrontierEntry(v, 0));
+
+      // Indicate start of path via self loop
+      came_from.insert({v, v});
+
+      // Start point has best known distance 0.0
+      distance.insert({v, 0.0});
+    }
+
+    // Determine end points
+    std::vector<VertexIndex> goal_vertices;
+    for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(b)))
+    {
+      goal_vertices.push_back(v);
+    }
+
+    // Set up heuristic
+    // Heuristic is shortest direct distance to any of the goal vertices
+    auto heuristic = [&](VertexIndex v)
+    {
+      double result = std::numeric_limits<double>::max();
+      for(VertexIndex g : goal_vertices)
+      {
+        const Point& a = mesh.point(v);
+        const Point& b = mesh.point(g);
+        double distance = CGAL::to_double(CGAL::approximate_sqrt(Vector(a, b).squared_length()));
+        result = std::min(result, distance);
+      }
+      return result;
+    };
+
+    while(!frontier.empty())
+    {
+      // Remove next best element from the frontier
+      VertexIndex current = frontier.top().idx;
+      frontier.pop();
+
+      if(std::find(goal_vertices.begin(), goal_vertices.end(), current) != goal_vertices.end())
+      {
+        // We found one of the target vertices.
+        return distance[current];
+      }
+
+      for(VertexIndex neighbor : mesh.vertices_around_target(mesh.halfedge(current)))
+      {
+        Point current_point = mesh.point(current);
+        Point neighbor_point = mesh.point(neighbor);
+
+        double edge_length = CGAL::to_double(CGAL::approximate_sqrt(Vector(current_point, neighbor_point).squared_length()));
+        double new_cost = distance[current] + edge_length;
+
+        if(distance.find(neighbor) == distance.end() || new_cost < distance[neighbor])
+        {
+          distance[neighbor] = new_cost;
+
+          double priority = new_cost + heuristic(neighbor);
+          frontier.push(FrontierEntry(neighbor, priority));
+          came_from[neighbor] = current;
+        }
+      }
+    }
+
+    return -1.0;
+  }
+
+  void topological_distances(Mesh& mesh, const std::string& property)
+  {
+    // Get targets
+    auto maybe_target_map = mesh.property_map<FaceIndex, FaceIndex>(property);
+    if(!maybe_target_map.has_value())
+    {
+      return;
+    }
+    Mesh::Property_map<FaceIndex, FaceIndex> targets = maybe_target_map.value();
+
+    // Get output property
+    Mesh::Property_map<FaceIndex, double> topo_distance = 
+      mesh.add_property_map<FaceIndex, double>("f:topological_distance", 0).first;
+
+    for(FaceIndex f : mesh.faces())
+    {
+      topo_distance[f] = topological_distance(f, targets[f], mesh);
     }
   }
 }

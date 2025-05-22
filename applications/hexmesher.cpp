@@ -65,7 +65,10 @@ int main(int argc, char* argv[])
 
     if(mode == "thickness")
     {
+      std::cout << "Computing thickness\n";
       HexMesher::compute_mesh_thickness(mesh);
+      std::cout << "Computing topological distances\n";
+      HexMesher::topological_distances(mesh, "f:MIS_id");
       std::ofstream output("thickness.ply");
 
       if(output)

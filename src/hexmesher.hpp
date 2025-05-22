@@ -5,7 +5,12 @@
 namespace HexMesher
 {
   using CGALKernel = CGAL::Exact_predicates_exact_constructions_kernel;
+
   using Mesh = CGAL::Surface_mesh<CGALKernel::Point_3>;
+
+  using VertexIndex = Mesh::Vertex_index;
+  using EdgeIndex = Mesh::Edge_index;
+  using FaceIndex = Mesh::Face_index;
 
   using Real = CGALKernel::RT;
 
@@ -149,4 +154,20 @@ namespace HexMesher
    * http://dx.doi.org/10.1080/16864360.2015.1084186
    */
   void compute_mesh_thickness(Mesh& mesh);
+
+  /**
+   * \brief Returns the smallest distance along the edges of the mesh between any two vertices of the given faces
+   */
+  double topological_distance(FaceIndex a, FaceIndex b, const Mesh& mesh);
+
+  /**
+   * \brief Calculates topological distances on the mesh
+   * 
+   * \param mesh Mesh to calculate distances on
+   * \param property Name of a mesh property of with type FaceIndex
+   * 
+   * Calculates the smallest distance along the edges of the mesh between any face f
+   * and the corresponding face property[f].
+   */
+  void topological_distances(Mesh& mesh, const std::string& property);
 }
