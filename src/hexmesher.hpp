@@ -170,4 +170,7 @@ namespace HexMesher
    * and the corresponding face property[f].
    */
   void topological_distances(Mesh& mesh, const std::string& property);
+
+  double determine_min_gap_weighted(Mesh& mesh, std::function<double(double, double)> weighting, const std::string& property = std::string("f:gap"));
+  double determine_min_gap_direct(Mesh& mesh, std::function<double(double, double)> gap_calc, const std::string& property = std::string("f:gap"));
 }

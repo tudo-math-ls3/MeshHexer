@@ -1053,8 +1053,8 @@ namespace HexMesher
     Mesh::Property_map<FaceIndex, double> diameter_property = 
       mesh.add_property_map<FaceIndex, double>("f:MIS_diameter", 0).first;
 
-    Mesh::Property_map<FaceIndex, FaceIndex> id_property = 
-      mesh.add_property_map<FaceIndex, FaceIndex>("f:MIS_id", FaceIndex(0)).first;
+    Mesh::Property_map<FaceIndex, std::uint32_t> id_property = 
+      mesh.add_property_map<FaceIndex, std::uint32_t>("f:MIS_id", 0).first;
 
     // Determine bounding box of mesh
     Real max_radius = std::min(
@@ -1270,12 +1270,12 @@ namespace HexMesher
   void topological_distances(Mesh& mesh, const std::string& property)
   {
     // Get targets
-    auto maybe_target_map = mesh.property_map<FaceIndex, FaceIndex>(property);
+    auto maybe_target_map = mesh.property_map<FaceIndex, std::uint32_t>(property);
     if(!maybe_target_map.has_value())
     {
       return;
     }
-    Mesh::Property_map<FaceIndex, FaceIndex> targets = maybe_target_map.value();
+    Mesh::Property_map<FaceIndex, std::uint32_t> targets = maybe_target_map.value();
 
     // Get output property
     Mesh::Property_map<FaceIndex, double> topo_distance = 
@@ -1283,7 +1283,86 @@ namespace HexMesher
 
     for(FaceIndex f : mesh.faces())
     {
-      topo_distance[f] = topological_distance(f, targets[f], mesh);
+      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh);
     }
+  }
+
+  double determine_min_gap_weighted(Mesh& mesh, std::function<double(double, double)> weighting, const std::string& property)
+  {
+    // Get diameters
+    auto maybe_diameter_map = mesh.property_map<FaceIndex, double>("f:MIS_diameter");
+    if(!maybe_diameter_map.has_value())
+    {
+      // TODO: Should be an assert
+      std::cout << "determine_min_gap failed: missing property f:MIS_diameter\n";
+      return std::numeric_limits<double>::max();
+    }
+    Mesh::Property_map<FaceIndex, double> diameter = maybe_diameter_map.value();
+
+    // Get topological distances
+    auto maybe_topo_dist_map = mesh.property_map<FaceIndex, double>("f:topological_distance");
+    if(!maybe_topo_dist_map.has_value())
+    {
+      // TODO: Should be an assert
+      std::cout << "determine_min_gap failed: missing property f:topological_distance\n";
+      return std::numeric_limits<double>::max();
+    }
+    Mesh::Property_map<FaceIndex, double> topo_dist = maybe_topo_dist_map.value();
+
+    // Get output property
+    Mesh::Property_map<FaceIndex, double> gap = 
+      mesh.add_property_map<FaceIndex, double>(property, 0).first;
+
+    double min_weight = weighting(diameter[FaceIndex(0)], topo_dist[FaceIndex(0)]);
+    double min_gap = diameter[FaceIndex(0)];
+
+    for(FaceIndex f : mesh.faces())
+    {
+      gap[f] = weighting(diameter[f], topo_dist[f]);
+
+      if(gap[f] < min_weight)
+      {
+        min_weight = gap[f];
+        min_gap = diameter[f];
+      }
+    }
+
+    return min_gap;
+  }
+
+  double determine_min_gap_direct(Mesh& mesh, std::function<double(double, double)> gap_calc, const std::string& property)
+  {
+    // Get diameters
+    auto maybe_diameter_map = mesh.property_map<FaceIndex, double>("f:MIS_diameter");
+    if(!maybe_diameter_map.has_value())
+    {
+      // TODO: Should be an assert
+      std::cout << "determine_min_gap failed: missing property f:MIS_diameter\n";
+      return std::numeric_limits<double>::max();
+    }
+    Mesh::Property_map<FaceIndex, double> diameter = maybe_diameter_map.value();
+
+    // Get topological distances
+    auto maybe_topo_dist_map = mesh.property_map<FaceIndex, double>("f:topological_distance");
+    if(!maybe_topo_dist_map.has_value())
+    {
+      // TODO: Should be an assert
+      std::cout << "determine_min_gap failed: missing property f:topological_distance\n";
+      return std::numeric_limits<double>::max();
+    }
+    Mesh::Property_map<FaceIndex, double> topo_dist = maybe_topo_dist_map.value();
+
+    // Get output property
+    Mesh::Property_map<FaceIndex, double> gap = 
+      mesh.add_property_map<FaceIndex, double>(property, 0).first;
+
+    double min_gap = gap_calc(diameter[FaceIndex(0)], topo_dist[FaceIndex(0)]);
+    for(FaceIndex f : mesh.faces())
+    {
+      gap[f] = gap_calc(diameter[f], topo_dist[f]);
+      min_gap = std::min(min_gap, gap[f]);
+    }
+
+    return min_gap;
   }
 }

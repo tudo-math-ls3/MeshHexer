@@ -4,7 +4,17 @@
 #include <io.hpp>
 
 #include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
+#include <CGAL/Surface_mesh/IO.h>
 #include <CGAL/Polygon_mesh_processing/measure.h>
+
+static bool ends_with(const std::string& string, const std::string& ending)
+{
+  if(ending.size() > string.size())
+  {
+    return false;
+  }
+  return std::equal(ending.rbegin(), ending.rend(), string.rbegin());
+}
 
 int main(int argc, char* argv[])
 {
@@ -16,7 +26,25 @@ int main(int argc, char* argv[])
     const std::string filename(argv[2]);
 
     HexMesher::Mesh mesh;
-    if(!CGAL::Polygon_mesh_processing::IO::read_polygon_mesh(filename, mesh))
+    std::cout << "Reading mesh " << filename << "\n";
+    if(ends_with(filename, ".ply"))
+    {
+      std::cout << "Reading .ply\n";
+      std::ifstream mesh_file(filename);
+      std::string comment("");
+      if(!CGAL::IO::read_PLY(mesh_file, mesh, comment, true))
+      {
+        std::cerr << "Could not read mesh!\n";
+        return 1;
+      }
+
+      std::cout << "Read mesh with double properties:\n";
+      for(auto prop : mesh.properties<HexMesher::FaceIndex>())
+      {
+        std::cout << prop << "\n";
+      }
+    }
+    else if(!CGAL::Polygon_mesh_processing::IO::read_polygon_mesh(filename, mesh))
     {
       std::cerr << "Could not read mesh!\n";
       return 1;
@@ -65,10 +93,92 @@ int main(int argc, char* argv[])
 
     if(mode == "thickness")
     {
-      std::cout << "Computing thickness\n";
-      HexMesher::compute_mesh_thickness(mesh);
-      std::cout << "Computing topological distances\n";
-      HexMesher::topological_distances(mesh, "f:MIS_id");
+      double h = std::numeric_limits<double>::max();
+      for(auto edge_iter = mesh.edges_begin(); edge_iter != mesh.edges_end(); edge_iter++)
+      {
+        h = std::min(CGAL::to_double(CGAL::Polygon_mesh_processing::edge_length(*edge_iter, mesh)), h);
+      }
+
+      if(!mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter"))
+      {
+        std::cout << "Missing property f:MIS_diameter. Computing thickness\n";
+        HexMesher::compute_mesh_thickness(mesh);
+      }
+      if(!mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id"))
+      {
+        std::cout << "Missing property f:MIS_id. Computing thickness\n";
+        HexMesher::compute_mesh_thickness(mesh);
+      }
+      if(!mesh.property_map<HexMesher::FaceIndex, double>("f:topological_distance"))
+      {
+        std::cout << "Computing topological distances\n";
+        HexMesher::topological_distances(mesh, "f:MIS_id");
+      }
+      std::cout << "Computing possible min-gaps (width * 1/topo_dist)\n";
+      double min_gap = HexMesher::determine_min_gap_weighted(mesh, [](double msi_radius, double topo_distance) {
+        if(topo_distance != 0)
+        {
+          return msi_radius / topo_distance;
+        }
+        else
+        {
+          return 100.0;
+        }},
+        std::string("f:gap_ratio"));
+      std::cout << "Min-gap (width * 1 / topo_dist) is " << min_gap << "\n";
+
+      std::cout << "Computing possible min-gaps (cutoff topo_dist > 5h)\n";
+      min_gap = HexMesher::determine_min_gap_weighted(mesh, [&](double msi_radius, double topo_distance) { 
+        if(topo_distance > 5.0 * h)
+        {
+          return msi_radius;
+        }
+        else
+        {
+          return 100.0;
+        }
+      }, std::string("f:gap_cutoff"));
+      std::cout << "Min-gap (cutoff) is " << min_gap << "\n";
+
+      std::cout << "Computing possible min-gaps (gap = diameter * (1 + 1/topo_dist^3))\n";
+      min_gap = HexMesher::determine_min_gap_direct(mesh, [&](double mis_radius, double topo_distance) {
+        if(topo_distance != 0)
+        {
+          return mis_radius * (1.0 + 1.0 / std::pow(topo_distance, 3.0));
+        }
+        else
+        {
+          return 100.0;
+        }
+      }, std::string("f:gap_cubed"));
+      std::cout << "Min-gap (gap = diameter * (1 + 1/topo_dist^3)) is " << min_gap << "\n";
+
+      std::cout << "Computing possible min-gaps (gap = diameter * (1 + 95/topo_dist^5))\n";
+      min_gap = HexMesher::determine_min_gap_direct(mesh, [&](double mis_radius, double topo_distance) {
+        if(topo_distance != 0)
+        {
+          return mis_radius * (1.0 + 95.0 / std::pow(topo_distance, 5.0));
+        }
+        else
+        {
+          return 100.0;
+        }
+      }, std::string("f:gap_^5"));
+      std::cout << "Min-gap (gap = diameter * (1 + 95/topo_dist^5)) is " << min_gap << "\n";
+
+      std::cout << "Computing possible min-gaps (gap = diameter * (1 + 95/e^topo_dist))\n";
+      min_gap = HexMesher::determine_min_gap_direct(mesh, [&](double mis_radius, double topo_distance) {
+        if(topo_distance != 0)
+        {
+          return mis_radius * (1.0 + 95.0 / std::exp(topo_distance));
+        }
+        else
+        {
+          return 100.0;
+        }
+      }, std::string("f:gap_exp"));
+      std::cout << "Min-gap (gap = diameter * (1 + 95/e^topo_dist)) is " << min_gap << "\n";
+
       std::ofstream output("thickness.ply");
 
       if(output)
