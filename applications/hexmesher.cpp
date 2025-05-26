@@ -100,6 +100,32 @@ int main(int argc, char* argv[])
         h = std::min(CGAL::to_double(CGAL::Polygon_mesh_processing::edge_length(*edge_iter, mesh)), h);
       }
 
+      // NOTE(mmuegge): Tried to store these as HexMesher::Points,
+      // but CGAL produced a stack overflow on cleanup,
+      // because it reuses values of the points in the exact kernel
+      // and cleans them up recursively.
+      // Try again once we support the inexact kernel.
+      double min_x;
+      double min_y;
+      double min_z;
+
+      double max_x;
+      double max_y;
+      double max_z;
+
+      for(const HexMesher::Point& p : mesh.points())
+      {
+        min_x = std::min(CGAL::to_double(p.x()), min_x);
+        min_y = std::min(CGAL::to_double(p.y()), min_y);
+        min_z = std::min(CGAL::to_double(p.z()), min_z);
+
+        max_x = std::max(CGAL::to_double(p.x()), max_x);
+        max_y = std::max(CGAL::to_double(p.y()), max_y);
+        max_z = std::max(CGAL::to_double(p.z()), max_z);
+      }
+
+      double max_mesh_delta = std::max({max_x - min_x, max_y - min_y, max_z - min_z});
+
       if(!mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter") || !mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id"))
       {
         std::cout << "Missing mesh properties f:MIS_diameter and/or f:MIS_id. Computing maximum inscribed spheres...\n";
@@ -128,70 +154,116 @@ int main(int argc, char* argv[])
           << (double)mesh.num_faces() / sw.elapsed() << " Elements per second)\n";
       }
 
+      if(!mesh.property_map<HexMesher::FaceIndex, double>("f:similarity_of_normals"))
+      {
+        std::cout << "Missing mesh property f:similarity_of_normals. Computing similarities...\n";
+
+        HexMesher::similarity_of_normals(mesh, "f:similarity_of_normals");
+      }
+
+      HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> topo_dist =
+        mesh.property_map<HexMesher::FaceIndex, double>("f:topological_distance").value();
+
+      HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameter =
+        mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter").value();
+
+      HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> similarity =
+        mesh.property_map<HexMesher::FaceIndex, double>("f:similarity_of_normals").value();
+
+      // Find maximum topological distance for normalization
+      double max_topo_dist = *std::max_element(topo_dist.begin(), topo_dist.end());
+      double max_diameter = *std::max_element(diameter.begin(), diameter.end());
+
       std::cout << "Computing possible min-gaps (width * 1/topo_dist)\n";
-      double min_gap = HexMesher::determine_min_gap_weighted(mesh, [](double msi_radius, double topo_distance) {
-        if(topo_distance != 0)
+      double min_gap = HexMesher::determine_min_gap_weighted(mesh, [&](HexMesher::FaceIndex idx) {
+        if(topo_dist[idx] != 0)
         {
-          return msi_radius / topo_distance;
+          return diameter[idx] / topo_dist[idx];
         }
         else
         {
-          return 100.0;
+          return max_diameter;
         }},
-        std::string("f:gap_ratio"));
+        std::string("f:MIS_diameter"), std::string("f:gap_ratio"));
       std::cout << "Min-gap (width * 1 / topo_dist) is " << min_gap << "\n";
 
       std::cout << "Computing possible min-gaps (cutoff topo_dist > 5h)\n";
-      min_gap = HexMesher::determine_min_gap_weighted(mesh, [&](double msi_radius, double topo_distance) { 
-        if(topo_distance > 5.0 * h)
+      min_gap = HexMesher::determine_min_gap_weighted(mesh, [&](HexMesher::FaceIndex idx) {
+        if(topo_dist[idx] > 5.0 * h)
         {
-          return msi_radius;
+          return diameter[idx];
         }
         else
         {
-          return 100.0;
+          return max_diameter;
         }
-      }, std::string("f:gap_cutoff"));
+      }, std::string("f:MIS_diameter"), std::string("f:gap_cutoff"));
       std::cout << "Min-gap (cutoff) is " << min_gap << "\n";
 
       std::cout << "Computing possible min-gaps (gap = diameter * (1 + 1/topo_dist^3))\n";
-      min_gap = HexMesher::determine_min_gap_direct(mesh, [&](double mis_radius, double topo_distance) {
-        if(topo_distance != 0)
+      min_gap = HexMesher::determine_min_gap_direct(mesh, [&](HexMesher::FaceIndex idx) {
+        if(topo_dist[idx] != 0)
         {
-          return mis_radius * (1.0 + 1.0 / std::pow(topo_distance, 3.0));
+          return diameter[idx] * (1.0 + 1.0 / std::pow(topo_dist[idx], 3.0));
         }
         else
         {
-          return 100.0;
+          return max_diameter;
         }
       }, std::string("f:gap_cubed"));
       std::cout << "Min-gap (gap = diameter * (1 + 1/topo_dist^3)) is " << min_gap << "\n";
 
-      std::cout << "Computing possible min-gaps (gap = diameter * (1 + 95/topo_dist^5))\n";
-      min_gap = HexMesher::determine_min_gap_direct(mesh, [&](double mis_radius, double topo_distance) {
-        if(topo_distance != 0)
+      std::cout << "Computing possible min-gaps (gap = diameter * (1 + max_topo_dist/topo_dist^5))\n";
+      min_gap = HexMesher::determine_min_gap_direct(mesh, [&](HexMesher::FaceIndex idx) {
+        if(topo_dist[idx] != 0)
         {
-          return mis_radius * (1.0 + 95.0 / std::pow(topo_distance, 5.0));
+          return diameter[idx] * (1.0 + max_topo_dist / std::pow(topo_dist[idx], 5.0));
         }
         else
         {
-          return 100.0;
+          return max_diameter;
         }
       }, std::string("f:gap_^5"));
-      std::cout << "Min-gap (gap = diameter * (1 + 95/topo_dist^5)) is " << min_gap << "\n";
+      std::cout << "Min-gap (gap = diameter * (1 + max_topo_dist/topo_dist^5)) is " << min_gap << "\n";
 
-      std::cout << "Computing possible min-gaps (gap = diameter * (1 + 95/e^topo_dist))\n";
-      min_gap = HexMesher::determine_min_gap_direct(mesh, [&](double mis_radius, double topo_distance) {
-        if(topo_distance != 0)
+      std::cout << "Computing possible min-gaps (gap = diameter * (1 + max_topo_dist/e^topo_dist))\n";
+      min_gap = HexMesher::determine_min_gap_direct(mesh, [&](HexMesher::FaceIndex idx) {
+        if(topo_dist[idx] != 0)
         {
-          return mis_radius * (1.0 + 95.0 / std::exp(topo_distance));
+          return diameter[idx] * (1.0 + max_topo_dist / std::exp(topo_dist[idx]));
         }
         else
         {
-          return 100.0;
+          return max_diameter;
         }
       }, std::string("f:gap_exp"));
-      std::cout << "Min-gap (gap = diameter * (1 + 95/e^topo_dist)) is " << min_gap << "\n";
+      std::cout << "Min-gap (gap = diameter * (1 + max_topo_dist/e^topo_dist)) is " << min_gap << "\n";
+
+      std::cout << "Computing possible min-gaps (gap = diameter * (1 + max_topo_dist/e^topo_dist) + similarity * mesh_size)\n";
+      min_gap = HexMesher::determine_min_gap_direct(mesh, [&](HexMesher::FaceIndex idx) {
+        if(topo_dist[idx] == 0)
+        {
+          return max_diameter;
+        }
+
+        double topo_penalty = max_topo_dist / std::exp(topo_dist[idx]);
+        double similarity_penalty = std::pow(1.0 - similarity[idx], 0.2) * max_mesh_delta;
+        return diameter[idx] * (1.0 + topo_penalty) + similarity_penalty;
+      }, std::string("f:gap_exp_similarity"));
+      std::cout << "Min-gap (gap = diameter * (1 + max_topo_dist/e^topo_dist) + similarity * mesh_size) is " << min_gap << "\n";
+
+      std::cout << "Computing possible min-gaps (weighted score)\n";
+      min_gap = HexMesher::determine_min_gap_weighted(mesh, [&](HexMesher::FaceIndex idx) {
+        double topo_factor(0.0);
+
+        if(topo_dist[idx] != 0)
+        {
+          topo_factor = topo_dist[idx] / max_topo_dist;
+        }
+
+        return (1.0 / 2.0) * topo_factor + (1.0 / 2.0) * similarity[idx];
+      }, std::string("f:MIS_diameter"), std::string("f:gap_score"));
+      std::cout << "Min-gap (weighted score) is " << min_gap << "\n";
 
       std::ofstream output("thickness.ply");
 

@@ -89,14 +89,14 @@ namespace HexMesher
 
   /**
    * \brief Simplifies a polyline by merging runs of segments with similar normals
-   * 
+   *
    * Normals whose angles differ by at most \c threshold are considered similar.
-   * 
+   *
    * \param polyline The polyline to simplify
    * \param threshold Similarity threshold for normals, in degrees.
    */
   std::pair<Polygon, std::vector<int>> simplify_by_normal(
-    const Polygon& polygon, 
+    const Polygon& polygon,
     const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred)
   {
     Polyline2D result;
@@ -141,7 +141,7 @@ namespace HexMesher
 
     std::vector<Vector2D> section_normals;
     section_normals.push_back(reference_normal);
-    
+
     while(true)
     {
       while(continue_pred(section_normals, link_normal) && section_end != starting_vertex)
@@ -410,7 +410,7 @@ namespace HexMesher
   {
     idx = std::max(0, std::min(idx, _num_planes - 1));
 
-    const double delta_angle = 
+    const double delta_angle =
       _num_planes > 1 ? (2.0 * M_PI) / double(_num_planes - 1) : 2.0 * M_PI;
     const double angle = idx * delta_angle;
 
@@ -1050,10 +1050,10 @@ namespace HexMesher
     AABBTree aabb_tree(mesh.faces_begin(), mesh.faces_end(), mesh);
 
     // Create mesh property for storing thicknesses
-    Mesh::Property_map<FaceIndex, double> diameter_property = 
+    Mesh::Property_map<FaceIndex, double> diameter_property =
       mesh.add_property_map<FaceIndex, double>("f:MIS_diameter", 0).first;
 
-    Mesh::Property_map<FaceIndex, std::uint32_t> id_property = 
+    Mesh::Property_map<FaceIndex, std::uint32_t> id_property =
       mesh.add_property_map<FaceIndex, std::uint32_t>("f:MIS_id", 0).first;
 
     // Determine bounding box of mesh
@@ -1074,7 +1074,7 @@ namespace HexMesher
         centroid += Real(1.0 / 3.0) * Vector(Point(CGAL::Origin()), mesh.point(v));
       }
 
-      // Determine initial sphere radius 
+      // Determine initial sphere radius
       // We need an initial radius that is large enough for our initial sphere
       // to intersect at least one object other than the current face.
       // We cast a ray from the centroid towards the face normal.
@@ -1278,7 +1278,7 @@ namespace HexMesher
     Mesh::Property_map<FaceIndex, std::uint32_t> targets = maybe_target_map.value();
 
     // Get output property
-    Mesh::Property_map<FaceIndex, double> topo_distance = 
+    Mesh::Property_map<FaceIndex, double> topo_distance =
       mesh.add_property_map<FaceIndex, double>("f:topological_distance", 0).first;
 
     for(FaceIndex f : mesh.faces())
@@ -1287,82 +1287,81 @@ namespace HexMesher
     }
   }
 
-  double determine_min_gap_weighted(Mesh& mesh, std::function<double(double, double)> weighting, const std::string& property)
+  double determine_min_gap_weighted(Mesh& mesh, std::function<double(FaceIndex)> weighting, const std::string& diameter_property, const std::string& property)
   {
-    // Get diameters
-    auto maybe_diameter_map = mesh.property_map<FaceIndex, double>("f:MIS_diameter");
-    if(!maybe_diameter_map.has_value())
-    {
-      // TODO: Should be an assert
-      std::cout << "determine_min_gap failed: missing property f:MIS_diameter\n";
-      return std::numeric_limits<double>::max();
-    }
-    Mesh::Property_map<FaceIndex, double> diameter = maybe_diameter_map.value();
-
-    // Get topological distances
-    auto maybe_topo_dist_map = mesh.property_map<FaceIndex, double>("f:topological_distance");
-    if(!maybe_topo_dist_map.has_value())
-    {
-      // TODO: Should be an assert
-      std::cout << "determine_min_gap failed: missing property f:topological_distance\n";
-      return std::numeric_limits<double>::max();
-    }
-    Mesh::Property_map<FaceIndex, double> topo_dist = maybe_topo_dist_map.value();
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameter =
+      mesh.property_map<HexMesher::FaceIndex, double>(diameter_property).value();
 
     // Get output property
-    Mesh::Property_map<FaceIndex, double> gap = 
+    Mesh::Property_map<FaceIndex, double> gap =
       mesh.add_property_map<FaceIndex, double>(property, 0).first;
 
-    double min_weight = weighting(diameter[FaceIndex(0)], topo_dist[FaceIndex(0)]);
-    double min_gap = diameter[FaceIndex(0)];
+    FaceIndex min_gap_face = FaceIndex(0);
+    double min_weight = weighting(min_gap_face);
+    double min_gap = diameter[min_gap_face];
 
     for(FaceIndex f : mesh.faces())
     {
-      gap[f] = weighting(diameter[f], topo_dist[f]);
+      gap[f] = weighting(f);
 
       if(gap[f] < min_weight)
       {
         min_weight = gap[f];
         min_gap = diameter[f];
+        min_gap_face = f;
       }
     }
+
+    std::cout << "Found min-gap at face: " << min_gap_face << "\n";
 
     return min_gap;
   }
 
-  double determine_min_gap_direct(Mesh& mesh, std::function<double(double, double)> gap_calc, const std::string& property)
+  double determine_min_gap_direct(Mesh& mesh, std::function<double(FaceIndex)> gap_calc, const std::string& property)
   {
-    // Get diameters
-    auto maybe_diameter_map = mesh.property_map<FaceIndex, double>("f:MIS_diameter");
-    if(!maybe_diameter_map.has_value())
-    {
-      // TODO: Should be an assert
-      std::cout << "determine_min_gap failed: missing property f:MIS_diameter\n";
-      return std::numeric_limits<double>::max();
-    }
-    Mesh::Property_map<FaceIndex, double> diameter = maybe_diameter_map.value();
-
-    // Get topological distances
-    auto maybe_topo_dist_map = mesh.property_map<FaceIndex, double>("f:topological_distance");
-    if(!maybe_topo_dist_map.has_value())
-    {
-      // TODO: Should be an assert
-      std::cout << "determine_min_gap failed: missing property f:topological_distance\n";
-      return std::numeric_limits<double>::max();
-    }
-    Mesh::Property_map<FaceIndex, double> topo_dist = maybe_topo_dist_map.value();
-
     // Get output property
-    Mesh::Property_map<FaceIndex, double> gap = 
+    Mesh::Property_map<FaceIndex, double> gap =
       mesh.add_property_map<FaceIndex, double>(property, 0).first;
 
-    double min_gap = gap_calc(diameter[FaceIndex(0)], topo_dist[FaceIndex(0)]);
+    FaceIndex min_gap_face = FaceIndex(0);
+    double min_gap = gap_calc(min_gap_face);
+
     for(FaceIndex f : mesh.faces())
     {
-      gap[f] = gap_calc(diameter[f], topo_dist[f]);
-      min_gap = std::min(min_gap, gap[f]);
+      double new_gap = gap_calc(f);
+      gap[f] = new_gap;
+      if(new_gap < min_gap)
+      {
+        min_gap = new_gap;
+        min_gap_face = f;
+      }
     }
 
+    std::cout << "Found min-gap at face " << min_gap_face << "\n";
+
     return min_gap;
+  }
+
+  void similarity_of_normals(Mesh& mesh, const std::string& property)
+  {
+    // Get ids of opposite faces
+    auto maybe_id_map = mesh.property_map<FaceIndex, std::uint32_t>("f:MIS_id");
+    if(!maybe_id_map.has_value())
+    {
+      // TODO: Should be an assert
+      std::cout << "similarity_of_normals failed: missing property f:MIS_id\n";
+    }
+    Mesh::Property_map<FaceIndex, std::uint32_t> ids = maybe_id_map.value();
+
+    // Get output property
+    Mesh::Property_map<FaceIndex, double> similarity =
+      mesh.add_property_map<FaceIndex, double>(property, 0).first;
+
+    for(FaceIndex f : mesh.faces())
+    {
+      Vector normal = CGAL::Polygon_mesh_processing::compute_face_normal(f, mesh);
+      Vector normal_opposite = CGAL::Polygon_mesh_processing::compute_face_normal(FaceIndex(ids[f]), mesh);
+      similarity[f] = std::abs(CGAL::to_double(CGAL::scalar_product(normal, normal_opposite)));
+    }
   }
 }
