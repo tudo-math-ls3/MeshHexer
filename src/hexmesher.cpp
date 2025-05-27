@@ -14,6 +14,7 @@
 #include <CGAL/AABB_face_graph_triangle_primitive.h>
 
 #include <CGAL/Polygon_mesh_processing/compute_normal.h>
+#include <CGAL/Polygon_mesh_processing/locate.h>
 
 namespace HexMesher
 {
@@ -1056,6 +1057,9 @@ namespace HexMesher
     Mesh::Property_map<FaceIndex, std::uint32_t> id_property =
       mesh.add_property_map<FaceIndex, std::uint32_t>("f:MIS_id", 0).first;
 
+    Mesh::Property_map<FaceIndex, double> similarity =
+      mesh.add_property_map<FaceIndex, double>("f:similarity_of_normals", 0).first;
+
     // Determine bounding box of mesh
     Real max_radius = std::min(
       {
@@ -1087,7 +1091,7 @@ namespace HexMesher
       FaceIndex initial_id(0);
 
       // Determine (inward) normal
-      Vector normal = -CGAL::Polygon_mesh_processing::compute_face_normal(face_index, mesh);
+      Vector normal = -surface_normal(mesh, face_index, centroid);
 
       // Cast ray
       Ray3 ray(centroid, normal);
@@ -1113,6 +1117,7 @@ namespace HexMesher
       Real prev_radius = initial_radius + 1;
       Real radius = initial_radius;
       FaceIndex id = initial_id;
+      Point closest_point;
 
       // Shrink sphere until change in radius becomes too small
       while(prev_radius - radius > 1e-6)
@@ -1120,7 +1125,7 @@ namespace HexMesher
         Point center = centroid + radius * normal;
         auto closest_point_data = aabb_tree.closest_point_and_primitive(center);
 
-        Point closest_point = closest_point_data.first;
+        closest_point = closest_point_data.first;
         Real distance_to_closest = CGAL::approximate_sqrt(Vector(center, closest_point).squared_length());
 
         if(distance_to_closest >= radius - 1e-6)
@@ -1168,6 +1173,9 @@ namespace HexMesher
       // Record thickness
       diameter_property[face_index] = CGAL::to_double(2.0 * radius);
       id_property[face_index] = id;
+
+      // Record abs(cos(theta))
+      similarity[face_index] = std::abs(CGAL::to_double(CGAL::scalar_product(normal, surface_normal(mesh, id, closest_point))));
     }
   }
 
@@ -1342,26 +1350,57 @@ namespace HexMesher
     return min_gap;
   }
 
-  void similarity_of_normals(Mesh& mesh, const std::string& property)
+  void compute_vertex_normals(Mesh& mesh)
   {
-    // Get ids of opposite faces
-    auto maybe_id_map = mesh.property_map<FaceIndex, std::uint32_t>("f:MIS_id");
-    if(!maybe_id_map.has_value())
+    Mesh::Property_map<VertexIndex, Vector> normals =
+      mesh.add_property_map<VertexIndex, Vector>("v:normals", Vector(0.0, 0.0, 0.0)).first;
+
+    Mesh::Property_map<VertexIndex, double> xs =
+      mesh.add_property_map<VertexIndex, double>("v:nx", 0.0).first;
+    Mesh::Property_map<VertexIndex, double> ys =
+      mesh.add_property_map<VertexIndex, double>("v:ny", 0.0).first;
+    Mesh::Property_map<VertexIndex, double> zs =
+      mesh.add_property_map<VertexIndex, double>("v:nz", 0.0).first;
+
+    CGAL::Polygon_mesh_processing::compute_vertex_normals(mesh, normals);
+
+    for(VertexIndex v : mesh.vertices())
+    {
+      xs[v] = CGAL::to_double(normals[v].x());
+      ys[v] = CGAL::to_double(normals[v].y());
+      zs[v] = CGAL::to_double(normals[v].z());
+    }
+  }
+
+  Vector surface_normal(Mesh& mesh, FaceIndex f, Point point)
+  {
+    auto maybe_normals_map = mesh.property_map<VertexIndex, Vector>("v:normals");
+    if(!maybe_normals_map.has_value())
     {
       // TODO: Should be an assert
-      std::cout << "similarity_of_normals failed: missing property f:MIS_id\n";
+      std::cout << "surface_normals failed: missing property v:normals\n";
+      return Vector(0.0, 0.0, 0.0);
     }
-    Mesh::Property_map<FaceIndex, std::uint32_t> ids = maybe_id_map.value();
+    Mesh::Property_map<VertexIndex, Vector> vertex_normals = maybe_normals_map.value();
 
-    // Get output property
-    Mesh::Property_map<FaceIndex, double> similarity =
-      mesh.add_property_map<FaceIndex, double>(property, 0).first;
+    // Get barycentric coordinates of point
+    auto location = CGAL::Polygon_mesh_processing::locate_in_face(point, f, mesh);
 
-    for(FaceIndex f : mesh.faces())
+    std::array<Vector, 3> normals;
+
+    // Get vertex normals
+    int i(0);
+    //std::cout << "Point: " << point << "\n";
+    for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(f)))
     {
-      Vector normal = CGAL::Polygon_mesh_processing::compute_face_normal(f, mesh);
-      Vector normal_opposite = CGAL::Polygon_mesh_processing::compute_face_normal(FaceIndex(ids[f]), mesh);
-      similarity[f] = std::abs(CGAL::to_double(CGAL::scalar_product(normal, normal_opposite)));
+      //std::cout << "vertex_point[" << i << "] = " << mesh.point(v) << "\n";
+      //std::cout << "vertex_normals[" << i << "] = " << vertex_normals[v] << "\n";
+      //std::cout << "barycentric_coordinate[" << i << "] = " << location.second[i] << "\n";
+      normals[i++] = vertex_normals[v];
     }
+
+    // Interpolate
+    Vector result = location.second[0] * normals[0] + location.second[1] * normals[1] + location.second[2] * normals[2];
+    return result;
   }
 }

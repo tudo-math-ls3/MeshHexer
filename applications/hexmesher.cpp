@@ -126,9 +126,13 @@ int main(int argc, char* argv[])
 
       double max_mesh_delta = std::max({max_x - min_x, max_y - min_y, max_z - min_z});
 
-      if(!mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter") || !mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id"))
+      HexMesher::compute_vertex_normals(mesh);
+
+      if(!mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter") ||
+         !mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id") ||
+         !mesh.property_map<HexMesher::FaceIndex, double>("f:similarity_of_normals"))
       {
-        std::cout << "Missing mesh properties f:MIS_diameter and/or f:MIS_id. Computing maximum inscribed spheres...\n";
+        std::cout << "Missing mesh properties f:MIS_diameter and/or f:MIS_id and/or f:similarity_of_normals. Computing maximum inscribed spheres...\n";
 
         HexMesher::StopWatch thickness_stopwatch;
         thickness_stopwatch.start();
@@ -152,13 +156,6 @@ int main(int argc, char* argv[])
         std::cout << "Finished computing topological distances. Took "
           << sw.elapsed_string() << " ("
           << (double)mesh.num_faces() / sw.elapsed() << " Elements per second)\n";
-      }
-
-      if(!mesh.property_map<HexMesher::FaceIndex, double>("f:similarity_of_normals"))
-      {
-        std::cout << "Missing mesh property f:similarity_of_normals. Computing similarities...\n";
-
-        HexMesher::similarity_of_normals(mesh, "f:similarity_of_normals");
       }
 
       HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> topo_dist =

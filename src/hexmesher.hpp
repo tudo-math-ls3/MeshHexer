@@ -174,5 +174,10 @@ namespace HexMesher
   double determine_min_gap_weighted(Mesh& mesh, std::function<double(FaceIndex)> weighting, const std::string& diameter_property, const std::string& property = std::string("f:gap"));
   double determine_min_gap_direct(Mesh& mesh, std::function<double(FaceIndex)> gap_calc, const std::string& property = std::string("f:gap"));
 
-  void similarity_of_normals(Mesh& mesh, const std::string& property);
+  /**
+   * \brief Computes vertex normals and makes them available as v:normals
+   */
+  void compute_vertex_normals(Mesh& mesh);
+
+  Vector surface_normal(Mesh& mesh, FaceIndex f, Point point);
 }
