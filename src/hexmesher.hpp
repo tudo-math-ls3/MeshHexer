@@ -4,66 +4,40 @@
 
 namespace HexMesher
 {
-  using CGALKernel = CGAL::Exact_predicates_exact_constructions_kernel;
-
-  using Mesh = CGAL::Surface_mesh<CGALKernel::Point_3>;
-
-  using VertexIndex = Mesh::Vertex_index;
-  using EdgeIndex = Mesh::Edge_index;
-  using FaceIndex = Mesh::Face_index;
-
-  using Real = CGALKernel::RT;
-
-  using Point = CGALKernel::Point_3;
-  using Vector = CGALKernel::Vector_3;
-  using Plane = CGALKernel::Plane_3;
-
-  using Polyline = std::vector<Point>;
-  using Polylines = std::list<Polyline>;
-
-  using Point2D = CGALKernel::Point_2;
-  using Vector2D = CGALKernel::Vector_2;
-
-  using Polyline2D = std::vector<Point2D>;
-  using Polylines2D = std::list<Polyline2D>;
-
-  using Polygon = CGAL::Polygon_2<CGALKernel>;
-  using PolygonWithHoles = CGAL::Polygon_with_holes_2<CGALKernel>;
-
   struct CuttingPlane
   {
-    Plane plane;
+    Plane3D plane;
 
-    Point origin;
-    Vector x_axis;
-    Vector y_axis;
+    Point3D origin;
+    Vector3D x_axis;
+    Vector3D y_axis;
 
-    Point2D project(const Point&) const;
+    Point2D project(const Point3D&) const;
   };
 
   class CrossSectionSampler
   {
   public:
-    virtual Point origin() const = 0;
+    virtual Point3D origin() const = 0;
     virtual int num_planes() const = 0;
     virtual CuttingPlane get_plane(int) const = 0;
-    virtual Point2D project(Point p) const = 0;
-    virtual CuttingPlane get_plane_through_vertex(Point p) const = 0;
+    virtual Point2D project(Point3D p) const = 0;
+    virtual CuttingPlane get_plane_through_vertex(Point3D p) const = 0;
   };
 
   class RadialCrossSectionSampler : public CrossSectionSampler
   {
     int _num_planes;
 
-    Point _origin;
+    Point3D _origin;
 
-    Vector _up;
-    Vector _u;
-    Vector _v;
+    Vector3D _up;
+    Vector3D _u;
+    Vector3D _v;
 
   public:
 
-    RadialCrossSectionSampler(int num_planes, const Point& o, const Vector& normal, const Vector& up) :
+    RadialCrossSectionSampler(int num_planes, const Point3D& o, const Vector3D& normal, const Vector3D& up) :
       _num_planes(num_planes),
       _origin(o),
       _up(up),
@@ -80,28 +54,28 @@ namespace HexMesher
       _v = _v / CGAL::approximate_sqrt(_v.squared_length());
     }
 
-    Point origin() const override;
+    Point3D origin() const override;
     int num_planes() const override;
     CuttingPlane get_plane(int idx) const override;
 
-    Point2D project(Point p) const override;
-    CuttingPlane get_plane_through_vertex(Point p) const override;
+    Point2D project(Point3D p) const override;
+    CuttingPlane get_plane_through_vertex(Point3D p) const override;
   };
 
   class LineCrossSectionSampler : public CrossSectionSampler
   {
     int _num_planes;
 
-    Point _start;
-    Point _end;
+    Point3D _start;
+    Point3D _end;
 
-    Vector _normal;
-    Vector _x_axis;
-    Vector _y_axis;
+    Vector3D _normal;
+    Vector3D _x_axis;
+    Vector3D _y_axis;
 
   public:
 
-    LineCrossSectionSampler(int num_planes, const Point& start, const Point& end, const Vector& normal, const Vector& up) :
+    LineCrossSectionSampler(int num_planes, const Point3D& start, const Point3D& end, const Vector3D& normal, const Vector3D& up) :
       _num_planes(num_planes),
       _start(start),
       _end(end),
@@ -119,23 +93,23 @@ namespace HexMesher
       _y_axis = _y_axis / CGAL::approximate_sqrt(_y_axis.squared_length());
     }
 
-    Point origin() const override;
+    Point3D origin() const override;
     int num_planes() const override;
     CuttingPlane get_plane(int idx) const override;
 
-    Point2D project(Point p) const override;
-    CuttingPlane get_plane_through_vertex(Point p) const override;
+    Point2D project(Point3D p) const override;
+    CuttingPlane get_plane_through_vertex(Point3D p) const override;
   };
 
   double angle(const Vector2D& a, const Vector2D& b);
 
-  std::vector<PolygonWithHoles> union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler);
+  std::vector<PolygonWithHoles2D> union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler);
 
-  std::pair<Polygon, std::vector<int>> simplify_by_normal(
-    const Polygon& polygon,
+  std::pair<Polygon2D, std::vector<int>> simplify_by_normal(
+    const Polygon2D& polygon,
     const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred);
 
-  Polygon grid_sample(const Polygon& polygon, Real min_dist);
+  Polygon2D grid_sample(const Polygon2D& polygon, Real min_dist);
 
   /**
    * \brief Compute a measure of mesh thickness at each face of a mesh.
@@ -179,5 +153,5 @@ namespace HexMesher
    */
   void compute_vertex_normals(Mesh& mesh);
 
-  Vector surface_normal(Mesh& mesh, FaceIndex f, Point point);
+  Vector3D surface_normal(Mesh& mesh, FaceIndex f, Point3D point);
 }

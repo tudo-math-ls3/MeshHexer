@@ -2,7 +2,7 @@
 
 namespace HexMesher
 {
-  void write_geo_compound_2d(const std::string& filename, const Polygon& poly)
+  void write_geo_compound_2d(const std::string& filename, const Polygon2D& poly)
   {
     std::ofstream output(filename);
 
@@ -63,7 +63,7 @@ namespace HexMesher
   }
 
 
-  void write_geo(const std::string& filename, const Polygon& poly)
+  void write_geo(const std::string& filename, const Polygon2D& poly)
   {
     std::ofstream output(filename);
 
@@ -113,7 +113,7 @@ namespace HexMesher
     output << "Mesh 2\n";
   }
 
-  void write_polygon_brep(const std::string& filename, const Polygon& poly)
+  void write_polygon_brep(const std::string& filename, const Polygon2D& poly)
   {
     std::ofstream output(filename);
 
@@ -145,7 +145,7 @@ namespace HexMesher
     output << "TShapes 0\n";
   }
 
-  void write_polygon(const std::string& filename, const Polygon& poly)
+  void write_polygon(const std::string& filename, const Polygon2D& poly)
   {
     std::ofstream output(filename);
 
@@ -192,7 +192,7 @@ namespace HexMesher
       }
   }
 
-  void write_polygon(const std::string& filename, const PolygonWithHoles& poly)
+  void write_polygon(const std::string& filename, const PolygonWithHoles2D& poly)
   {
     std::ofstream output(filename);
 
@@ -203,7 +203,7 @@ namespace HexMesher
 
       starting_points.push_back(total_points);
       total_points += poly.outer_boundary().size();
-      for(const Polygon& hole : poly.holes())
+      for(const Polygon2D& hole : poly.holes())
       {
         starting_points.push_back(total_points);
         total_points += hole.size();
@@ -222,7 +222,7 @@ namespace HexMesher
         output << p.x() << " " << p.y() << " 0\n";
       }
 
-      for(const Polygon& hole : poly.holes())
+      for(const Polygon2D& hole : poly.holes())
       {
         for(const Point2D& p : hole.vertices())
         {
@@ -246,7 +246,7 @@ namespace HexMesher
         output << starting_points[idx] << "\n";
         idx++;
 
-        for(const Polygon& hole : poly.holes())
+        for(const Polygon2D& hole : poly.holes())
         {
           int starting_index = starting_points[idx];
           for(int i(0); i < hole.size() - 1; i++)
@@ -280,7 +280,7 @@ namespace HexMesher
     }
   }
 
-  void write_polylines(const std::string& filename, const Polylines& polylines)
+  void write_polylines(const std::string& filename, const Polylines3D& polylines)
   {
     std::ofstream output(filename);
 
@@ -289,7 +289,7 @@ namespace HexMesher
       int total_points = 0;
       std::vector<int> starting_points;
 
-      for(const Polyline& line : polylines)
+      for(const Polyline3D& line : polylines)
       {
         starting_points.push_back(total_points);
         total_points += line.size();
@@ -303,9 +303,9 @@ namespace HexMesher
       output << "<Points>\n";
       output << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" Format=\"ascii\">\n";
 
-      for(const Polyline& polyline : polylines)
+      for(const Polyline3D& polyline : polylines)
       {
-        for(const Point& p : polyline)
+        for(const Point3D& p : polyline)
         {
           output << p.x() << " " << p.y() << " " << p.z() << "\n";
         }

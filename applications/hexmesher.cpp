@@ -63,13 +63,13 @@ int main(int argc, char* argv[])
       return 1;
     }
 
-    std::vector<HexMesher::PolygonWithHoles> union_components;
+    std::vector<HexMesher::PolygonWithHoles2D> union_components;
 
     if(mode == "radial")
     {
-      HexMesher::Point p(std::atof(argv[3]), std::atof(argv[4]), std::atof(argv[5]));
-      HexMesher::Vector up(std::atof(argv[6]), std::atof(argv[7]), std::atof(argv[8]));
-      HexMesher::Vector u(std::atof(argv[9]), std::atof(argv[10]), std::atof(argv[11]));
+      HexMesher::Point3D p(std::atof(argv[3]), std::atof(argv[4]), std::atof(argv[5]));
+      HexMesher::Vector3D up(std::atof(argv[6]), std::atof(argv[7]), std::atof(argv[8]));
+      HexMesher::Vector3D u(std::atof(argv[9]), std::atof(argv[10]), std::atof(argv[11]));
 
       int steps = std::atoi(argv[12]);
 
@@ -80,10 +80,10 @@ int main(int argc, char* argv[])
 
     if(mode == "line")
     {
-      HexMesher::Point start(std::atof(argv[3]), std::atof(argv[4]), std::atof(argv[5]));
-      HexMesher::Point end(std::atof(argv[6]), std::atof(argv[7]), std::atof(argv[8]));
-      HexMesher::Vector normal(std::atof(argv[9]), std::atof(argv[10]), std::atof(argv[11]));
-      HexMesher::Vector up(std::atof(argv[12]), std::atof(argv[13]), std::atof(argv[14]));
+      HexMesher::Point3D start(std::atof(argv[3]), std::atof(argv[4]), std::atof(argv[5]));
+      HexMesher::Point3D end(std::atof(argv[6]), std::atof(argv[7]), std::atof(argv[8]));
+      HexMesher::Vector3D normal(std::atof(argv[9]), std::atof(argv[10]), std::atof(argv[11]));
+      HexMesher::Vector3D up(std::atof(argv[12]), std::atof(argv[13]), std::atof(argv[14]));
 
       int steps = std::atoi(argv[15]);
 
@@ -113,7 +113,7 @@ int main(int argc, char* argv[])
       double max_y;
       double max_z;
 
-      for(const HexMesher::Point& p : mesh.points())
+      for(const HexMesher::Point3D& p : mesh.points())
       {
         min_x = std::min(CGAL::to_double(p.x()), min_x);
         min_y = std::min(CGAL::to_double(p.y()), min_y);
@@ -279,11 +279,11 @@ int main(int argc, char* argv[])
 
     for(int i(0); i < union_components.size(); i++)
     {
-      HexMesher::PolygonWithHoles& component = union_components[i];
+      HexMesher::PolygonWithHoles2D& component = union_components[i];
 
       int idx;
       int total_vertices = component.outer_boundary().size();
-      for(const HexMesher::Polygon& hole : component.holes())
+      for(const HexMesher::Polygon2D& hole : component.holes())
       {
         std::cout << "  Hole " << idx << " with " << hole.size() << " vertices\n";
         total_vertices += hole.size();
@@ -300,8 +300,8 @@ int main(int argc, char* argv[])
         return std::abs(HexMesher::angle(normals.back(), next)) < 10.0 && std::abs(HexMesher::angle(normals.front(), next)) < 45.0;
       };
 
-      HexMesher::Polygon simplified_boundary = HexMesher::simplify_by_normal(component.outer_boundary(), pred).first;
-      HexMesher::Polygon grid_sampled_boundary = HexMesher::grid_sample(component.outer_boundary(), h);
+      HexMesher::Polygon2D simplified_boundary = HexMesher::simplify_by_normal(component.outer_boundary(), pred).first;
+      HexMesher::Polygon2D grid_sampled_boundary = HexMesher::grid_sample(component.outer_boundary(), h);
 
       HexMesher::write_polygon("shadow_" + std::to_string(i) + ".vtp", component);
       HexMesher::write_polygon("simplified_" + std::to_string(i) + ".vtp", simplified_boundary);

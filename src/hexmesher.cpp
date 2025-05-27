@@ -85,7 +85,7 @@ namespace HexMesher
 
   double angle(const Vector2D& a, const Vector2D& b)
   {
-    return CGAL::to_double(CGAL::approximate_angle(Vector(a.x(), a.y(), 0), Vector(b.x(), b.y(), 0)));
+    return CGAL::to_double(CGAL::approximate_angle(Vector3D(a.x(), a.y(), 0), Vector3D(b.x(), b.y(), 0)));
   }
 
   /**
@@ -96,8 +96,8 @@ namespace HexMesher
    * \param polyline The polyline to simplify
    * \param threshold Similarity threshold for normals, in degrees.
    */
-  std::pair<Polygon, std::vector<int>> simplify_by_normal(
-    const Polygon& polygon,
+  std::pair<Polygon2D, std::vector<int>> simplify_by_normal(
+    const Polygon2D& polygon,
     const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred)
   {
     Polyline2D result;
@@ -167,7 +167,7 @@ namespace HexMesher
         // The last vertex we pushed thus just gets connected to the inital vertex.
 
         std::cout << "Polygon simplification done. Reduced from " << polygon.size() << " vertices to " << result.size() << " vertices.\n";
-        return {Polygon(result.begin(), result.end()), chosen_points};
+        return {Polygon2D(result.begin(), result.end()), chosen_points};
       }
 
       // We have not yet covered all links of the original polyline.
@@ -188,13 +188,13 @@ namespace HexMesher
       status("[SimplifyByNormal]: " + std::to_string(section_end) + " / " + std::to_string(starting_vertex));
     }
 
-    return {Polygon(), std::vector<int>()};
+    return {Polygon2D(), std::vector<int>()};
   }
 
   /**
    * \brief Returns true if all vertices of \c b are contained in \c a.
    */
-  bool contains(const Polygon& a, const Polygon& b)
+  bool contains(const Polygon2D& a, const Polygon2D& b)
   {
     for(const Point2D& p : b)
     {
@@ -206,18 +206,18 @@ namespace HexMesher
     return true;
   }
 
-  std::vector<PolygonWithHoles> make_polygon(Polylines2D& polylines)
+  std::vector<PolygonWithHoles2D> make_polygon(Polylines2D& polylines)
   {
 
     // Create polygons from the polylines.
     // This gives us inside-out tests without
     // without having to think about the orientation
     // of the polyline
-    std::vector<Polygon> polygons;
+    std::vector<Polygon2D> polygons;
 
     for(auto it = polylines.begin(); it != polylines.end(); it++)
     {
-      Polygon poly(it->begin(), it->end() - 1);
+      Polygon2D poly(it->begin(), it->end() - 1);
       if(poly.is_clockwise_oriented())
       {
         polygons.emplace_back(std::reverse_iterator(it->end() - 1), std::reverse_iterator(it->begin()));
@@ -231,7 +231,7 @@ namespace HexMesher
     // Simplyify polygons
     int total_vertices_pre = 0;
     int total_vertices_post = 0;
-    for(Polygon& poly : polygons)
+    for(Polygon2D& poly : polygons)
     {
       total_vertices_pre += poly.size();
       poly = PS::simplify(poly, PS::Squared_distance_cost(), PS::Stop_above_cost_threshold(1e-4));
@@ -242,7 +242,7 @@ namespace HexMesher
     std::sort(
       polygons.begin(),
       polygons.end(),
-      [](const Polygon& a, const Polygon& b) { return a.area() > b.area(); }
+      [](const Polygon2D& a, const Polygon2D& b) { return a.area() > b.area(); }
     );
 
     // Create inclusion tree for polygons.
@@ -251,7 +251,7 @@ namespace HexMesher
     std::vector<int> parents(num_polygons, -1);
 
     std::size_t current_idx = 0;
-    for(const Polygon& polygon : polygons)
+    for(const Polygon2D& polygon : polygons)
     {
       int parent_candidate = -1;
       int parent_depth = -1;
@@ -282,7 +282,7 @@ namespace HexMesher
     }
 
     std::vector<std::size_t> root_mapping(num_polygons, -1);
-    std::vector<PolygonWithHoles> result;
+    std::vector<PolygonWithHoles2D> result;
 
     std::size_t handled_polygons = 0;
 
@@ -317,11 +317,11 @@ namespace HexMesher
     return result;
   }
 
-  bool merge_polygons_with_holes(const PolygonWithHoles& a, const PolygonWithHoles& b, PolygonWithHoles& res)
+  bool merge_polygons_with_holes(const PolygonWithHoles2D& a, const PolygonWithHoles2D& b, PolygonWithHoles2D& res)
   {
     if(CGAL::join(a.outer_boundary(), b.outer_boundary(), res))
     {
-      std::vector<PolygonWithHoles> intersections;
+      std::vector<PolygonWithHoles2D> intersections;
 
       for(auto& hole_a : a.holes())
       {
@@ -331,7 +331,7 @@ namespace HexMesher
         }
       }
 
-      std::vector<Polygon> new_holes;
+      std::vector<Polygon2D> new_holes;
 
       for(auto& intersection : intersections)
       {
@@ -348,12 +348,12 @@ namespace HexMesher
     }
   }
 
-  std::vector<PolygonWithHoles> merge(std::vector<PolygonWithHoles>& cross_sections)
+  std::vector<PolygonWithHoles2D> merge(std::vector<PolygonWithHoles2D>& cross_sections)
   {
-    std::vector<PolygonWithHoles> result;
+    std::vector<PolygonWithHoles2D> result;
     while(!cross_sections.empty())
     {
-      PolygonWithHoles merged = cross_sections.back();
+      PolygonWithHoles2D merged = cross_sections.back();
       cross_sections.pop_back();
 
       bool progress = false;
@@ -368,7 +368,7 @@ namespace HexMesher
             continue;
           }
 
-          PolygonWithHoles new_shadow;
+          PolygonWithHoles2D new_shadow;
           if(merge_polygons_with_holes(merged, *it, new_shadow))
           {
             it = decltype(it){cross_sections.erase(std::next(it).base())};
@@ -389,15 +389,15 @@ namespace HexMesher
   }
 
 
-  Point2D CuttingPlane::project(const Point& point) const
+  Point2D CuttingPlane::project(const Point3D& point) const
   {
-    auto x = CGAL::scalar_product(Vector(origin, point), x_axis);
-    auto y = CGAL::scalar_product(Vector(origin, point), y_axis);
+    auto x = CGAL::scalar_product(Vector3D(origin, point), x_axis);
+    auto y = CGAL::scalar_product(Vector3D(origin, point), y_axis);
 
     return Point2D(x, y);
   }
 
-  Point RadialCrossSectionSampler::origin() const
+  Point3D RadialCrossSectionSampler::origin() const
   {
     return _origin;
   }
@@ -415,11 +415,11 @@ namespace HexMesher
       _num_planes > 1 ? (2.0 * M_PI) / double(_num_planes - 1) : 2.0 * M_PI;
     const double angle = idx * delta_angle;
 
-    Vector plane_normal = std::cos(angle) * _u + std::sin(angle) * _v;
-    CGALKernel::Plane_3 plane(_origin, plane_normal);
+    Vector3D plane_normal = std::cos(angle) * _u + std::sin(angle) * _v;
+    Plane3D plane(_origin, plane_normal);
 
-    Vector y_axis = _up;
-    Vector x_axis = CGAL::cross_product(plane_normal, y_axis);
+    Vector3D y_axis = _up;
+    Vector3D x_axis = CGAL::cross_product(plane_normal, y_axis);
 
     return CuttingPlane {
       plane,
@@ -429,41 +429,41 @@ namespace HexMesher
     };
   }
 
-  Point2D RadialCrossSectionSampler::project(Point p) const
+  Point2D RadialCrossSectionSampler::project(Point3D p) const
   {
     // We need a radial projection onto the 0-th cutting plane
     CuttingPlane plane = get_plane(0);
 
     // Figure out height
-    const auto height = CGAL::scalar_product(Vector(plane.origin, p), plane.y_axis);
+    const auto height = CGAL::scalar_product(Vector3D(plane.origin, p), plane.y_axis);
 
-    Point ref = plane.origin + height * plane.y_axis;
+    Point3D ref = plane.origin + height * plane.y_axis;
 
     // p, ref, and the projected point now all lie on a plane orthogonal to the axis
     // Target point is then the point on the 0-th cutting plane with the same distance
     // as the vector p - ref.
 
-    const auto dist = CGAL::approximate_sqrt(Vector(ref, p).squared_length());
+    const auto dist = CGAL::approximate_sqrt(Vector3D(ref, p).squared_length());
 
     return Point2D(dist, height);
   }
 
-  CuttingPlane RadialCrossSectionSampler::get_plane_through_vertex(Point p) const
+  CuttingPlane RadialCrossSectionSampler::get_plane_through_vertex(Point3D p) const
   {
-    Vector y_axis = _up;
-    Vector x_axis = Vector(_origin, p) - y_axis * CGAL::scalar_product(Vector(_origin, p), y_axis);
+    Vector3D y_axis = _up;
+    Vector3D x_axis = Vector3D(_origin, p) - y_axis * CGAL::scalar_product(Vector3D(_origin, p), y_axis);
     x_axis = x_axis / CGAL::approximate_sqrt(x_axis.squared_length());
-    Vector normal = CGAL::cross_product(x_axis, y_axis);
+    Vector3D normal = CGAL::cross_product(x_axis, y_axis);
 
     return CuttingPlane {
-      CGALKernel::Plane_3(_origin, normal),
+      Plane3D(_origin, normal),
       _origin,
       x_axis,
       y_axis
     };
   }
 
-  Point LineCrossSectionSampler::origin() const
+  Point3D LineCrossSectionSampler::origin() const
   {
     return _start;
   }
@@ -479,9 +479,9 @@ namespace HexMesher
 
     const double delta = 1.0 / double(_num_planes - 1);
 
-    const Point origin = _start + double(idx) * delta * Vector(_start, _end);
+    const Point3D origin = _start + double(idx) * delta * Vector3D(_start, _end);
 
-    Plane plane(origin, _normal);
+    Plane3D plane(origin, _normal);
 
     return CuttingPlane
     {
@@ -492,24 +492,24 @@ namespace HexMesher
     };
   }
 
-  Point2D LineCrossSectionSampler::project(Point p) const
+  Point2D LineCrossSectionSampler::project(Point3D p) const
   {
     // Orthogonal projection onto 0-th cutting plane
 
     CuttingPlane plane = get_plane(0);
 
-    const auto x = CGAL::scalar_product(Vector(plane.origin, p), plane.x_axis);
-    const auto y = CGAL::scalar_product(Vector(plane.origin, p), plane.y_axis);
+    const auto x = CGAL::scalar_product(Vector3D(plane.origin, p), plane.x_axis);
+    const auto y = CGAL::scalar_product(Vector3D(plane.origin, p), plane.y_axis);
 
     return Point2D(x, y);
   }
 
-  CuttingPlane LineCrossSectionSampler::get_plane_through_vertex(Point p) const
+  CuttingPlane LineCrossSectionSampler::get_plane_through_vertex(Point3D p) const
   {
-    const auto distance = CGAL::scalar_product(_normal, Vector(_start, p));
-    const Point origin = _start + distance * _normal;
+    const auto distance = CGAL::scalar_product(_normal, Vector3D(_start, p));
+    const Point3D origin = _start + distance * _normal;
 
-    Plane plane(origin, _normal);
+    Plane3D plane(origin, _normal);
 
     return CuttingPlane
     {
@@ -521,9 +521,9 @@ namespace HexMesher
   }
 
   template<typename OutputIterator>
-  void find_cross_section(CGAL::Polygon_mesh_slicer<Mesh, CGALKernel>& slicer, const CuttingPlane& plane, OutputIterator out)
+  void find_cross_section(CGAL::Polygon_mesh_slicer<Mesh, Kernel>& slicer, const CuttingPlane& plane, OutputIterator out)
   {
-    Polylines polylines;
+    Polylines3D polylines;
     Polylines2D projected_polylines;
 
     // Find polylines
@@ -549,7 +549,7 @@ namespace HexMesher
     for(const auto& polyline : polylines)
     {
       Polyline2D projected;
-      for(const Point& point : polyline)
+      for(const Point3D& point : polyline)
       {
         projected.push_back(plane.project(point));
       }
@@ -558,16 +558,16 @@ namespace HexMesher
 
     //write_polylines("projected_" + std::to_string(i) + ".vtp", projected_polylines);
 
-    std::vector<PolygonWithHoles> new_cross_sections = make_polygon(projected_polylines);
+    std::vector<PolygonWithHoles2D> new_cross_sections = make_polygon(projected_polylines);
 
-    for(PolygonWithHoles& poly : new_cross_sections)
+    for(PolygonWithHoles2D& poly : new_cross_sections)
     {
       *out = poly;
     }
   }
 
   template<typename OutputIterator>
-  void find_cross_sections(CGAL::Polygon_mesh_slicer<Mesh, CGALKernel>& slicer, const CrossSectionSampler& sampler, OutputIterator out)
+  void find_cross_sections(CGAL::Polygon_mesh_slicer<Mesh, Kernel>& slicer, const CrossSectionSampler& sampler, OutputIterator out)
   {
     for(int i(0); i < sampler.num_planes(); i++)
     {
@@ -578,7 +578,7 @@ namespace HexMesher
   }
 
   template<typename CuttingPlaneIterator, typename OutputIterator>
-  void find_cross_sections(CGAL::Polygon_mesh_slicer<Mesh, CGALKernel>& slicer, const CuttingPlaneIterator start, const CuttingPlaneIterator end, OutputIterator out)
+  void find_cross_sections(CGAL::Polygon_mesh_slicer<Mesh, Kernel>& slicer, const CuttingPlaneIterator start, const CuttingPlaneIterator end, OutputIterator out)
   {
     for(CuttingPlaneIterator it = start; it != end; it++)
     {
@@ -586,13 +586,13 @@ namespace HexMesher
     }
   }
 
-  bool is_outside_union(Point2D p, std::vector<PolygonWithHoles>& union_components)
+  bool is_outside_union(Point2D p, std::vector<PolygonWithHoles2D>& union_components)
   {
     bool outside_boundary = true;
-    for(const PolygonWithHoles& poly : union_components)
+    for(const PolygonWithHoles2D& poly : union_components)
     {
       outside_boundary = outside_boundary && poly.outer_boundary().bounded_side(p) == CGAL::ON_UNBOUNDED_SIDE;
-      for(const Polygon& hole : poly.holes())
+      for(const Polygon2D& hole : poly.holes())
       {
         if(hole.bounded_side(p) == CGAL::ON_BOUNDED_SIDE)
         {
@@ -621,16 +621,16 @@ namespace HexMesher
    * \param u Vector orthogonal to up. Initial normal of cutting plane
    * \param cross_sections Number of cross sections
    */
-  std::vector<PolygonWithHoles> union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler)
+  std::vector<PolygonWithHoles2D> union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler)
   {
     // Slicer constructor from the mesh
-    CGAL::Polygon_mesh_slicer<Mesh, CGALKernel> slicer(mesh);
+    CGAL::Polygon_mesh_slicer<Mesh, Kernel> slicer(mesh);
 
-    std::vector<PolygonWithHoles> all_cross_sections;
+    std::vector<PolygonWithHoles2D> all_cross_sections;
 
     // Running initial sampling of mesh. Collect evenly spaced cross sections and merge them
     find_cross_sections(slicer, sampler, std::back_inserter(all_cross_sections));
-    std::vector<PolygonWithHoles> union_components = merge(all_cross_sections);
+    std::vector<PolygonWithHoles2D> union_components = merge(all_cross_sections);
 
     // The inital samples should have captured the major features of the input mesh,
     // but there is no guarantee that all features have been captured.
@@ -688,7 +688,7 @@ namespace HexMesher
     return union_components;
   }
 
-  std::vector<Vector2D> laplace(const Polygon& polygon)
+  std::vector<Vector2D> laplace(const Polygon2D& polygon)
   {
     std::vector<Vector2D> result(polygon.size());
 
@@ -838,7 +838,7 @@ namespace HexMesher
     return result;
   }
 
-  Polygon grid_sample(const Polygon& polygon, Real min_dist)
+  Polygon2D grid_sample(const Polygon2D& polygon, Real min_dist)
   {
     // 1. Determine characteristic points of the polygon
     // Characteristic points are those points we definitely want to keep in the
@@ -1026,7 +1026,7 @@ namespace HexMesher
     }
 
     std::cout << "Finished grid sampling. Reduced from " << polygon.size() << " vertices to " << grid_sampled_polyline.size() << " vertices.\n";
-    return Polygon(grid_sampled_polyline.begin(), grid_sampled_polyline.end());
+    return Polygon2D(grid_sampled_polyline.begin(), grid_sampled_polyline.end());
   }
 
   void compute_mesh_thickness(Mesh& mesh)
@@ -1039,12 +1039,12 @@ namespace HexMesher
 
     // Create AABB tree for intersection and distance queries
     using Primitive = CGAL::AABB_face_graph_triangle_primitive<Mesh>;
-    using AABBTraits = CGAL::AABB_traits_3<CGALKernel, Primitive>;
+    using AABBTraits = CGAL::AABB_traits_3<Kernel, Primitive>;
     using AABBTree = CGAL::AABB_tree<AABBTraits>;
 
 
-    using Ray3 = CGALKernel::Ray_3;
-    using Segment3 = CGALKernel::Segment_3;
+    using Ray3 = Kernel::Ray_3;
+    using Segment3 = Kernel::Segment_3;
 
     using RayIntersection = std::optional<AABBTree::Intersection_and_primitive_id<Ray3>::Type>;
 
@@ -1072,10 +1072,10 @@ namespace HexMesher
     for(FaceIndex face_index : mesh.faces())
     {
       // Determine centroid of face
-      Point centroid(0.0, 0.0, 0.0);
+      Point3D centroid(0.0, 0.0, 0.0);
       for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(face_index)))
       {
-        centroid += Real(1.0 / 3.0) * Vector(Point(CGAL::Origin()), mesh.point(v));
+        centroid += Real(1.0 / 3.0) * Vector3D(Point3D(CGAL::Origin()), mesh.point(v));
       }
 
       // Determine initial sphere radius
@@ -1091,17 +1091,17 @@ namespace HexMesher
       FaceIndex initial_id(0);
 
       // Determine (inward) normal
-      Vector normal = -surface_normal(mesh, face_index, centroid);
+      Vector3D normal = -surface_normal(mesh, face_index, centroid);
 
       // Cast ray
       Ray3 ray(centroid, normal);
       auto skip = [=](FaceIndex idx) { return idx == face_index; };
       RayIntersection intersection = aabb_tree.first_intersection(ray, skip);
 
-      if(intersection && std::holds_alternative<Point>(intersection.value().first))
+      if(intersection && std::holds_alternative<Point3D>(intersection.value().first))
       {
-        const Point& p = std::get<Point>(intersection.value().first);
-        Real distance = CGAL::approximate_sqrt(Vector(centroid, p).squared_length());
+        const Point3D& p = std::get<Point3D>(intersection.value().first);
+        Real distance = CGAL::approximate_sqrt(Vector3D(centroid, p).squared_length());
         initial_radius = std::min(initial_radius, distance / 2.0);
         initial_id = intersection.value().second;
       }
@@ -1109,7 +1109,7 @@ namespace HexMesher
       if(intersection && std::holds_alternative<Segment3>(intersection.value().first))
       {
         const Segment3& segment = std::get<Segment3>(intersection.value().first);
-        Real distance = CGAL::approximate_sqrt(Vector(centroid, segment.source()).squared_length());
+        Real distance = CGAL::approximate_sqrt(Vector3D(centroid, segment.source()).squared_length());
         initial_radius = std::min(initial_radius, distance / 2.0);
         initial_id = intersection.value().second;
       }
@@ -1117,16 +1117,16 @@ namespace HexMesher
       Real prev_radius = initial_radius + 1;
       Real radius = initial_radius;
       FaceIndex id = initial_id;
-      Point closest_point;
+      Point3D closest_point;
 
       // Shrink sphere until change in radius becomes too small
       while(prev_radius - radius > 1e-6)
       {
-        Point center = centroid + radius * normal;
+        Point3D center = centroid + radius * normal;
         auto closest_point_data = aabb_tree.closest_point_and_primitive(center);
 
         closest_point = closest_point_data.first;
-        Real distance_to_closest = CGAL::approximate_sqrt(Vector(center, closest_point).squared_length());
+        Real distance_to_closest = CGAL::approximate_sqrt(Vector3D(center, closest_point).squared_length());
 
         if(distance_to_closest >= radius - 1e-6)
         {
@@ -1153,7 +1153,7 @@ namespace HexMesher
         // The angle a is the angle between the normal of the face and the vector pp'.
         // We can then determine r' via the law of sines as r' = d * sin(a) * sin(180 - 2a)
 
-        double alpha = CGAL::to_double(CGAL::approximate_angle(normal, Vector(centroid, closest_point))) / 180.0 * M_PI;
+        double alpha = CGAL::to_double(CGAL::approximate_angle(normal, Vector3D(centroid, closest_point))) / 180.0 * M_PI;
 
         if(alpha > 1.3)
         {
@@ -1179,7 +1179,7 @@ namespace HexMesher
     }
   }
 
-  double topological_distance(FaceIndex a, FaceIndex b, const Mesh& mesh)
+  double topological_distance(FaceIndex a, FaceIndex b, Mesh& mesh)
   {
     // Set up priority queue for choosing next vertex to explore
     struct FrontierEntry
@@ -1233,13 +1233,28 @@ namespace HexMesher
       double result = std::numeric_limits<double>::max();
       for(VertexIndex g : goal_vertices)
       {
-        const Point& a = mesh.point(v);
-        const Point& b = mesh.point(g);
-        double distance = CGAL::to_double(CGAL::approximate_sqrt(Vector(a, b).squared_length()));
+        const Point3D& a = mesh.point(v);
+        const Point3D& b = mesh.point(g);
+        double distance = CGAL::to_double(CGAL::approximate_sqrt(Vector3D(a, b).squared_length()));
         result = std::min(result, distance);
       }
       return result;
     };
+
+    // Pre-calculate edge lengths
+    auto maybe_edge_lengths = mesh.add_property_map<EdgeIndex, double>("e:lengths", 0.0);
+    Mesh::Property_map<EdgeIndex, double> edge_lengths = maybe_edge_lengths.first;
+    bool edge_lengths_exist = maybe_edge_lengths.second;
+
+    if(!maybe_edge_lengths.second)
+    {
+      for(EdgeIndex idx : mesh.edges())
+      {
+        Point3D a = mesh.point(mesh.target(mesh.halfedge(idx)));
+        Point3D b = mesh.point(mesh.source(mesh.halfedge(idx)));
+        edge_lengths[idx] = std::sqrt((a - b).squared_length());
+      }
+    }
 
     while(!frontier.empty())
     {
@@ -1253,12 +1268,11 @@ namespace HexMesher
         return distance[current];
       }
 
-      for(VertexIndex neighbor : mesh.vertices_around_target(mesh.halfedge(current)))
+      for(HalfedgeIndex hedge : mesh.halfedges_around_target(mesh.halfedge(current)))
       {
-        Point current_point = mesh.point(current);
-        Point neighbor_point = mesh.point(neighbor);
+        VertexIndex neighbor = mesh.source(hedge);
 
-        double edge_length = CGAL::to_double(CGAL::approximate_sqrt(Vector(current_point, neighbor_point).squared_length()));
+        double edge_length = edge_lengths[mesh.edge(hedge)];
         double new_cost = distance[current] + edge_length;
 
         if(distance.find(neighbor) == distance.end() || new_cost < distance[neighbor])
@@ -1352,8 +1366,8 @@ namespace HexMesher
 
   void compute_vertex_normals(Mesh& mesh)
   {
-    Mesh::Property_map<VertexIndex, Vector> normals =
-      mesh.add_property_map<VertexIndex, Vector>("v:normals", Vector(0.0, 0.0, 0.0)).first;
+    Mesh::Property_map<VertexIndex, Vector3D> normals =
+      mesh.add_property_map<VertexIndex, Vector3D>("v:normals", Vector3D(0.0, 0.0, 0.0)).first;
 
     Mesh::Property_map<VertexIndex, double> xs =
       mesh.add_property_map<VertexIndex, double>("v:nx", 0.0).first;
@@ -1372,21 +1386,21 @@ namespace HexMesher
     }
   }
 
-  Vector surface_normal(Mesh& mesh, FaceIndex f, Point point)
+  Vector3D surface_normal(Mesh& mesh, FaceIndex f, Point3D point)
   {
-    auto maybe_normals_map = mesh.property_map<VertexIndex, Vector>("v:normals");
+    auto maybe_normals_map = mesh.property_map<VertexIndex, Vector3D>("v:normals");
     if(!maybe_normals_map.has_value())
     {
       // TODO: Should be an assert
       std::cout << "surface_normals failed: missing property v:normals\n";
-      return Vector(0.0, 0.0, 0.0);
+      return Vector3D(0.0, 0.0, 0.0);
     }
-    Mesh::Property_map<VertexIndex, Vector> vertex_normals = maybe_normals_map.value();
+    Mesh::Property_map<VertexIndex, Vector3D> vertex_normals = maybe_normals_map.value();
 
     // Get barycentric coordinates of point
     auto location = CGAL::Polygon_mesh_processing::locate_in_face(point, f, mesh);
 
-    std::array<Vector, 3> normals;
+    std::array<Vector3D, 3> normals;
 
     // Get vertex normals
     int i(0);
@@ -1400,7 +1414,7 @@ namespace HexMesher
     }
 
     // Interpolate
-    Vector result = location.second[0] * normals[0] + location.second[1] * normals[1] + location.second[2] * normals[2];
+    Vector3D result = location.second[0] * normals[0] + location.second[1] * normals[1] + location.second[2] * normals[2];
     return result;
   }
 }
