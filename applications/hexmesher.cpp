@@ -7,6 +7,7 @@
 #include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
 #include <CGAL/Surface_mesh/IO.h>
 #include <CGAL/Polygon_mesh_processing/measure.h>
+#include <CGAL/Polygon_mesh_processing/triangulate_faces.h>
 
 static bool ends_with(const std::string& string, const std::string& ending)
 {
@@ -59,8 +60,7 @@ int main(int argc, char* argv[])
 
     if(!CGAL::is_triangle_mesh(mesh))
     {
-      std::cerr << "Input mesh is not a triangle mesh\n";
-      return 1;
+      CGAL::Polygon_mesh_processing::triangulate_faces(mesh);
     }
 
     std::vector<HexMesher::PolygonWithHoles2D> union_components;
@@ -93,6 +93,33 @@ int main(int argc, char* argv[])
     }
 
     if(mode == "thickness")
+    {
+      std::cout << "Computing vertex normals...\n";
+      HexMesher::compute_vertex_normals(mesh);
+
+      //std::cout << "Computing principal vertex curvatures...\n";
+      //HexMesher::compute_curvature(mesh);
+
+      std::cout << "Computing maximum inscribed spheres...\n";
+      HexMesher::StopWatch thickness_stopwatch;
+      thickness_stopwatch.start();
+      HexMesher::compute_mesh_thickness(mesh);
+      thickness_stopwatch.stop();
+
+      std::cout << "Finished computing maximum inscribed spheres. Took "
+        << thickness_stopwatch.elapsed_string() << " ("
+        << (double)mesh.num_faces() / thickness_stopwatch.elapsed() << " Elements per second)\n";
+
+      std::ofstream output("thickness.ply");
+
+      if(output)
+      {
+        CGAL::IO::write_PLY(output, mesh);
+      }
+      return 0;
+    }
+
+    if(mode == "min-gap")
     {
       double h = std::numeric_limits<double>::max();
       for(auto edge_iter = mesh.edges_begin(); edge_iter != mesh.edges_end(); edge_iter++)
@@ -314,7 +341,9 @@ int main(int argc, char* argv[])
   }
   else
   {
-    const std::string filename("/home/user/mmuegge/nobackup/repos/feat/data/models/scalexa_gendie_simple.off");
+    //const std::string filename("/home/user/mmuegge/nobackup/repos/feat/data/models/scalexa_gendie_simple.off");
+    //const std::string filename("/home/user/mmuegge/nobackup/projects/hexmesher/meshes/surface_22630.off");
+    const std::string filename("/home/user/mmuegge/nobackup/projects/hexmesher/meshes/impeller_KSB.obj");
 
     HexMesher::Mesh mesh;
     if(!CGAL::Polygon_mesh_processing::IO::read_polygon_mesh(filename, mesh))
@@ -331,10 +360,10 @@ int main(int argc, char* argv[])
 
     if(!CGAL::is_triangle_mesh(mesh))
     {
-      std::cerr << "Input mesh is not a triangle mesh\n";
-      return 1;
+      CGAL::Polygon_mesh_processing::triangulate_faces(mesh);
     }
 
+    HexMesher::compute_vertex_normals(mesh);
     HexMesher::compute_mesh_thickness(mesh);
     std::ofstream output("thickness.ply");
 

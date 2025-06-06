@@ -4,6 +4,10 @@
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/Polygon_2.h>
 #include <CGAL/Polygon_with_holes_2.h>
+#include <CGAL/Sphere_3.h>
+#include <CGAL/Triangle_3.h>
+
+//#include <CGAL/Polygon_mesh_processing/interpolated_corrected_curvatures.h>
 
 namespace HexMesher
 {
@@ -14,9 +18,13 @@ namespace HexMesher
 
   using Kernel = CGAL::Simple_cartesian<double>;
 
+  //using PrincipalVertexCurvature = CGAL::Polygon_mesh_processing::Principal_curvatures_and_directions<Kernel>;
+
   using Point3D = Kernel::Point_3;
   using Vector3D = Kernel::Vector_3;
   using Plane3D = Kernel::Plane_3;
+  using Sphere3D = Kernel::Sphere_3;
+  using Triangle3D = Kernel::Triangle_3;
 
   using Point2D = Kernel::Point_2;
   using Vector2D = Kernel::Vector_2;

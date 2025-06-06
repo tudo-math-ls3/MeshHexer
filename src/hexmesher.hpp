@@ -153,5 +153,7 @@ namespace HexMesher
    */
   void compute_vertex_normals(Mesh& mesh);
 
+  void compute_curvature(Mesh& mesh);
+
   Vector3D surface_normal(Mesh& mesh, FaceIndex f, Point3D point);
 }

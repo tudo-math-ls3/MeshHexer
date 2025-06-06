@@ -9,12 +9,16 @@
 #include <CGAL/Boolean_set_operations_2.h>
 #include <CGAL/Polyline_simplification_2/simplify.h>
 #include <CGAL/Polygon_mesh_slicer.h>
+#include <CGAL/Bbox_3.h>
 
 #include <CGAL/AABB_tree.h>
 #include <CGAL/AABB_face_graph_triangle_primitive.h>
 
 #include <CGAL/Polygon_mesh_processing/compute_normal.h>
 #include <CGAL/Polygon_mesh_processing/locate.h>
+#include <CGAL/Polygon_mesh_processing/measure.h>
+
+//#include <CGAL/Polygon_mesh_processing/interpolated_corrected_curvatures.h>
 
 namespace HexMesher
 {
@@ -1029,6 +1033,19 @@ namespace HexMesher
     return Polygon2D(grid_sampled_polyline.begin(), grid_sampled_polyline.end());
   }
 
+  void compute_curvature(Mesh& mesh)
+  {
+    /*
+    Mesh::Property_map<VertexIndex, PrincipalVertexCurvature> principal__property =
+      mesh.add_property_map<VertexIndex, PrincipalVertexCurvature>("v:principal_curvature", PrincipalVertexCurvature()).first;
+
+    CGAL::Polygon_mesh_processing::interpolated_corrected_curvatures(
+      mesh,
+      CGAL::parameters::vertex_principal_curvatures_and_directions_map(principal__property)
+    );
+    */
+  }
+
   void compute_mesh_thickness(Mesh& mesh)
   {
     if(mesh.num_faces() == 0)
@@ -1060,6 +1077,9 @@ namespace HexMesher
     Mesh::Property_map<FaceIndex, double> similarity =
       mesh.add_property_map<FaceIndex, double>("f:similarity_of_normals", 0).first;
 
+    Mesh::Property_map<FaceIndex, int> iters =
+      mesh.add_property_map<FaceIndex, int>("f:MIS_iters", 0).first;
+
     // Determine bounding box of mesh
     Real max_radius = std::min(
       {
@@ -1069,14 +1089,44 @@ namespace HexMesher
       }
     ) / Real(2.0);
 
+    // Determine maximum edge length of mesh
+    Real max_edge_length(0);
+    Real average_edge_length(0);
+    for(auto e : mesh.edges())
+    {
+      max_edge_length = std::max(max_edge_length, PMP::edge_length(e, mesh));
+      average_edge_length += PMP::edge_length(e, mesh);
+    }
+    average_edge_length /= Real(mesh.num_edges());
+
     for(FaceIndex face_index : mesh.faces())
     {
+
+      if(face_index == FaceIndex(49664))
+      {
+        std::cout << "Reached face\n";
+      }
+
       // Determine centroid of face
       Point3D centroid(0.0, 0.0, 0.0);
       for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(face_index)))
       {
         centroid += Real(1.0 / 3.0) * Vector3D(Point3D(CGAL::Origin()), mesh.point(v));
       }
+
+      // Determine average edge length around the face.
+      // We later use this to judge if a new closest point is
+      // actually a closer point or just a slightly closer
+      // vertex of the discretization of the same inscribed sphere
+
+      Real local_edge_length(0);
+      Real local_max_edge_length(0);
+      for(HalfedgeIndex e : mesh.halfedges_around_face(mesh.halfedge(face_index)))
+      {
+        local_edge_length += PMP::edge_length(e, mesh);
+        local_max_edge_length = std::max(local_max_edge_length, PMP::edge_length(e, mesh));
+      }
+      local_edge_length /= Real(3.0);
 
       // Determine initial sphere radius
       // We need an initial radius that is large enough for our initial sphere
@@ -1092,6 +1142,8 @@ namespace HexMesher
 
       // Determine (inward) normal
       Vector3D normal = -surface_normal(mesh, face_index, centroid);
+      Vector3D face_normal = -PMP::compute_face_normal(face_index, mesh);
+      normal = face_normal;
 
       // Cast ray
       Ray3 ray(centroid, normal);
@@ -1125,15 +1177,75 @@ namespace HexMesher
         Point3D center = centroid + radius * normal;
         auto closest_point_data = aabb_tree.closest_point_and_primitive(center);
 
-        closest_point = closest_point_data.first;
-        Real distance_to_closest = CGAL::approximate_sqrt(Vector3D(center, closest_point).squared_length());
+        CGAL::Bbox_3 query(
+          center.x() - radius,
+          center.y() - radius,
+          center.z() - radius,
+          center.x() + radius,
+          center.y() + radius,
+          center.z() + radius
+        );
 
-        if(distance_to_closest >= radius - 1e-6)
+        std::vector<FaceIndex> intersections;
+        aabb_tree.all_intersected_primitives(query, std::back_inserter(intersections));
+
+        if(intersections.empty())
+        {
+          // Sphere intersects no other primitives.
+          break;
+        }
+
+        for(FaceIndex f : intersections)
+        {
+          std::array<Point3D, 3> points;
+          int idx = 0;
+          for (auto vertex : CGAL::vertices_around_face(mesh.halfedge(f), mesh))
+          {
+            points[idx++] = mesh.point(vertex);
+          }
+
+          Triangle3D triangle(points[0], points[1], points[2]);
+
+          Real distance = CGAL::squared_distance(center, triangle);
+        }
+
+        if(closest_point_data.second == face_index)
+        {
+          // Disregard closest points on self
+          break;
+        }
+
+        closest_point = closest_point_data.first;
+
+        Vector3D to_closest = Vector3D(centroid, closest_point);
+        if(CGAL::scalar_product(normal, to_closest) <= Real(0))
+        {
+          // Next closest point is behind the current face.
+          // Disregard it
+          break;
+        }
+
+        Real distance_to_closest = CGAL::approximate_sqrt(Vector3D(center, closest_point).squared_length());
+        Vector3D closest_normal = -surface_normal(mesh, closest_point_data.second, closest_point_data.first);
+
+        Real discretization_error(0);
+        if(local_max_edge_length < 2 * radius)
+        {
+          // Largest distance between sphere and an edge of maximum length, assuming the vertices of that edge lie on the sphere
+          // Any closest points within this distance belong to the same radius, they are just slightly offset due to the surface discretization.
+          discretization_error = radius - CGAL::approximate_sqrt(radius * radius - std::pow(local_max_edge_length / 2.0, 2));
+        }
+        else
+        {
+          discretization_error = 0.02 * radius;
+        }
+
+        if(distance_to_closest >= radius - discretization_error)
         {
           // Closest point is not in sphere. Current sphere is correct
           break;
         }
-
+        
         // We now need to find the radius r' of the new sphere that touches both the
         // centroid of our face and the closest point we just found.
         // Let the centroid be p, the closest point p' and let c' be the center of the new sphere.
@@ -1154,20 +1266,14 @@ namespace HexMesher
         // We can then determine r' via the law of sines as r' = d * sin(a) * sin(180 - 2a)
 
         double alpha = CGAL::to_double(CGAL::approximate_angle(normal, Vector3D(centroid, closest_point))) / 180.0 * M_PI;
-
-        if(alpha > 1.3)
-        {
-          // Closest point is at a very shallow angle.
-          // Likely a meshing artifact. Ignore it.
-          break;
-        }
-
         double d = CGAL::to_double(CGAL::approximate_sqrt((closest_point - centroid).squared_length()));
         Real new_radius = Real(d * std::sin(alpha) / std::sin(M_PI - 2.0 * alpha));
 
         prev_radius = radius;
         radius = std::min(new_radius, radius);
         id = closest_point_data.second;
+
+        iters[face_index]++;
       }
 
       // Record thickness
