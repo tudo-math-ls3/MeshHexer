@@ -111,16 +111,27 @@ namespace HexMesher
 
   Polygon2D grid_sample(const Polygon2D& polygon, Real min_dist);
 
+  struct MinGap
+  {
+    /// Face at which the gap originates
+    FaceIndex origin = FaceIndex(0);
+    /// Face which limits the gap
+    FaceIndex limiting = FaceIndex(0);
+
+    /// Size of the gap
+    Real gap = Real(0.0);
+  };
+
   /**
    * \brief Compute a measure of mesh thickness at each face of a mesh.
-   * 
+   *
    * Determines the maximum inscribed sphere at each face of the mesh,
    * i.e. the largest possible sphere that touches the centroid of the mesh and any other point of the mesh,
    * without intersecting the mesh.
-   * 
+   *
    * The diameter of each sphere is made available in a "f:MIS_diameter" mesh property of type double.
    * The id of the _other_ primitive that is touched by the sphere is made available in a "f:MIS_id" mesh property.
-   * 
+   *
    * See the following for details on the algorithm:
    * Shrinking sphere: A parallel algorithm for computing the thickness of 3D objects
    * Masatomo Inui, Nobuyuki Umezu, Ryohei Shimane
@@ -130,23 +141,29 @@ namespace HexMesher
   void compute_mesh_thickness(Mesh& mesh);
 
   /**
-   * \brief Returns the smallest distance along the edges of the mesh between any two vertices of the given faces
-   */
-  double topological_distance(FaceIndex a, FaceIndex b, const Mesh& mesh);
-
-  /**
    * \brief Calculates topological distances on the mesh
-   * 
+   *
    * \param mesh Mesh to calculate distances on
    * \param property Name of a mesh property of with type FaceIndex
-   * 
+   *
    * Calculates the smallest distance along the edges of the mesh between any face f
    * and the corresponding face property[f].
    */
-  void topological_distances(Mesh& mesh, const std::string& property);
+  void topological_distances(Mesh& mesh, const std::string& property, double max_distance = 0.0);
+  void topological_distances(Mesh& mesh, const std::string& targets_property, const std::string& max_distance_property);
 
-  double determine_min_gap_weighted(Mesh& mesh, std::function<double(FaceIndex)> weighting, const std::string& diameter_property, const std::string& property = std::string("f:gap"));
-  double determine_min_gap_direct(Mesh& mesh, std::function<double(FaceIndex)> gap_calc, const std::string& property = std::string("f:gap"));
+  MinGap determine_min_gap_weighted(
+    Mesh& mesh,
+    std::function<double(FaceIndex)> weighting,
+    const std::string& diameter_property,
+    const std::string& id_property,
+    const std::string& property = std::string("f:gap"));
+
+  MinGap determine_min_gap_direct(
+    Mesh& mesh,
+    std::function<double(FaceIndex)> gap_calc,
+    const std::string& id_property,
+    const std::string& property = std::string("f:gap"));
 
   /**
    * \brief Computes vertex normals and makes them available as v:normals
@@ -155,5 +172,20 @@ namespace HexMesher
 
   void compute_curvature(Mesh& mesh);
 
+  void compute_max_dihedral_angle(Mesh& mesh);
+
+  /**
+   * \brief Returns true if face normals calculated via a cross product point towards the "unbounded" side of the mesh
+   *
+   * We write "unbounded" because we do not assume that the mesh is watertight. There thus might not be a "bounded" side.angle
+   * This function will work either way.
+   */
+  bool do_normals_point_outside(const Mesh& mesh);
+
+  bool is_wound_consistently(const Mesh& mesh);
+
   Vector3D surface_normal(Mesh& mesh, FaceIndex f, Point3D point);
+
+  void score_gaps(Mesh& mesh);
+  MinGap select_min_gap(Mesh& mesh, double percentile);
 }

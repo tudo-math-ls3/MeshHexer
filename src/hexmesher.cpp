@@ -17,6 +17,7 @@
 #include <CGAL/Polygon_mesh_processing/compute_normal.h>
 #include <CGAL/Polygon_mesh_processing/locate.h>
 #include <CGAL/Polygon_mesh_processing/measure.h>
+#include <CGAL/Polygon_mesh_processing/self_intersections.h>
 
 //#include <CGAL/Polygon_mesh_processing/interpolated_corrected_curvatures.h>
 
@@ -1099,14 +1100,36 @@ namespace HexMesher
     }
     average_edge_length /= Real(mesh.num_edges());
 
+    // Determine normal direction
+    FaceIndex normal_test_face(0);
+
+    // Determine centroid of face
+    Point3D centroid(0.0, 0.0, 0.0);
+    for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(normal_test_face)))
+    {
+      centroid += Real(1.0 / 3.0) * Vector3D(Point3D(CGAL::Origin()), mesh.point(v));
+    }
+
+    // Compute face normal
+    Vector3D test_normal = PMP::compute_face_normal(normal_test_face, mesh);
+
+    std::vector<FaceIndex> intersections;
+    aabb_tree.all_intersected_primitives(Ray3(centroid, test_normal), std::back_inserter(intersections));
+
+    int num_intersections = 0;
+    for(FaceIndex idx : intersections)
+    {
+      if(idx != FaceIndex(0))
+      {
+        num_intersections++;
+      }
+    }
+
+    //Real normal_direction = do_normals_point_outside(mesh) ? Real(-1.0) : Real(1.0);
+    Real normal_direction = num_intersections % 2 == 0 ? Real(-1.0) : Real(1.0);
+
     for(FaceIndex face_index : mesh.faces())
     {
-
-      if(face_index == FaceIndex(49664))
-      {
-        std::cout << "Reached face\n";
-      }
-
       // Determine centroid of face
       Point3D centroid(0.0, 0.0, 0.0);
       for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(face_index)))
@@ -1141,12 +1164,22 @@ namespace HexMesher
       FaceIndex initial_id(0);
 
       // Determine (inward) normal
-      Vector3D normal = -surface_normal(mesh, face_index, centroid);
-      Vector3D face_normal = -PMP::compute_face_normal(face_index, mesh);
-      normal = face_normal;
+      Vector3D normal = surface_normal(mesh, face_index, centroid);
+      Vector3D face_normal = PMP::compute_face_normal(face_index, mesh);
+
+      Vector3D inward_normal = normal_direction * face_normal;
+
+      if(std::abs(CGAL::approximate_sqrt(inward_normal.squared_length()) - 1.0) > 1e-4)
+      {
+        std::cout << "Non-unit face normal at face " << face_index << "\n";
+        std::cout << "Vector: " << normal << "\n";
+        std::cout << "Length: " << CGAL::approximate_sqrt(normal.squared_length()) << "\n";
+        std::cout << "Aborting\n";
+        exit(1);
+      }
 
       // Cast ray
-      Ray3 ray(centroid, normal);
+      Ray3 ray(centroid, inward_normal);
       auto skip = [=](FaceIndex idx) { return idx == face_index; };
       RayIntersection intersection = aabb_tree.first_intersection(ray, skip);
 
@@ -1154,16 +1187,27 @@ namespace HexMesher
       {
         const Point3D& p = std::get<Point3D>(intersection.value().first);
         Real distance = CGAL::approximate_sqrt(Vector3D(centroid, p).squared_length());
-        initial_radius = std::min(initial_radius, distance / 2.0);
-        initial_id = intersection.value().second;
+
+        // NOTE(mmuegge): In meshes with self-intersections it can occur that a raycast hits
+        // a triangle distinct from the current face at distance 0.
+        // In that case we want to keep the initial radius based on the bounding box.
+        if(distance > 0.0)
+        {
+          initial_radius = std::min(initial_radius, distance / 2.0);
+          initial_id = intersection.value().second;
+        }
       }
 
       if(intersection && std::holds_alternative<Segment3>(intersection.value().first))
       {
         const Segment3& segment = std::get<Segment3>(intersection.value().first);
         Real distance = CGAL::approximate_sqrt(Vector3D(centroid, segment.source()).squared_length());
-        initial_radius = std::min(initial_radius, distance / 2.0);
-        initial_id = intersection.value().second;
+
+        if(distance > 0.0)
+        {
+          initial_radius = std::min(initial_radius, distance / 2.0);
+          initial_id = intersection.value().second;
+        }
       }
 
       Real prev_radius = initial_radius + 1;
@@ -1174,40 +1218,8 @@ namespace HexMesher
       // Shrink sphere until change in radius becomes too small
       while(prev_radius - radius > 1e-6)
       {
-        Point3D center = centroid + radius * normal;
+        Point3D center = centroid + radius * inward_normal;
         auto closest_point_data = aabb_tree.closest_point_and_primitive(center);
-
-        CGAL::Bbox_3 query(
-          center.x() - radius,
-          center.y() - radius,
-          center.z() - radius,
-          center.x() + radius,
-          center.y() + radius,
-          center.z() + radius
-        );
-
-        std::vector<FaceIndex> intersections;
-        aabb_tree.all_intersected_primitives(query, std::back_inserter(intersections));
-
-        if(intersections.empty())
-        {
-          // Sphere intersects no other primitives.
-          break;
-        }
-
-        for(FaceIndex f : intersections)
-        {
-          std::array<Point3D, 3> points;
-          int idx = 0;
-          for (auto vertex : CGAL::vertices_around_face(mesh.halfedge(f), mesh))
-          {
-            points[idx++] = mesh.point(vertex);
-          }
-
-          Triangle3D triangle(points[0], points[1], points[2]);
-
-          Real distance = CGAL::squared_distance(center, triangle);
-        }
 
         if(closest_point_data.second == face_index)
         {
@@ -1218,7 +1230,7 @@ namespace HexMesher
         closest_point = closest_point_data.first;
 
         Vector3D to_closest = Vector3D(centroid, closest_point);
-        if(CGAL::scalar_product(normal, to_closest) <= Real(0))
+        if(CGAL::scalar_product(inward_normal, to_closest) <= Real(0))
         {
           // Next closest point is behind the current face.
           // Disregard it
@@ -1229,7 +1241,9 @@ namespace HexMesher
         Vector3D closest_normal = -surface_normal(mesh, closest_point_data.second, closest_point_data.first);
 
         Real discretization_error(0);
-        if(local_max_edge_length < 2 * radius)
+        // NOTE(mmuegge): Must be local_max_edge_length < 2 * radius to be a valid triangle
+        // Tests show 1.5 works better though
+        if(local_max_edge_length < 1.5 * radius)
         {
           // Largest distance between sphere and an edge of maximum length, assuming the vertices of that edge lie on the sphere
           // Any closest points within this distance belong to the same radius, they are just slightly offset due to the surface discretization.
@@ -1245,7 +1259,7 @@ namespace HexMesher
           // Closest point is not in sphere. Current sphere is correct
           break;
         }
-        
+
         // We now need to find the radius r' of the new sphere that touches both the
         // centroid of our face and the closest point we just found.
         // Let the centroid be p, the closest point p' and let c' be the center of the new sphere.
@@ -1265,9 +1279,19 @@ namespace HexMesher
         // The angle a is the angle between the normal of the face and the vector pp'.
         // We can then determine r' via the law of sines as r' = d * sin(a) * sin(180 - 2a)
 
-        double alpha = CGAL::to_double(CGAL::approximate_angle(normal, Vector3D(centroid, closest_point))) / 180.0 * M_PI;
         double d = CGAL::to_double(CGAL::approximate_sqrt((closest_point - centroid).squared_length()));
-        Real new_radius = Real(d * std::sin(alpha) / std::sin(M_PI - 2.0 * alpha));
+        double alpha = CGAL::to_double(CGAL::approximate_angle(inward_normal, Vector3D(centroid, closest_point))) / 180.0 * M_PI;
+
+        Real new_radius;
+        if(alpha != 0)
+        {
+          new_radius = Real(d * std::sin(alpha) / std::sin(M_PI - 2.0 * alpha));
+        }
+        else
+        {
+          new_radius = d;
+        }
+
 
         prev_radius = radius;
         radius = std::min(new_radius, radius);
@@ -1281,36 +1305,49 @@ namespace HexMesher
       id_property[face_index] = id;
 
       // Record abs(cos(theta))
-      similarity[face_index] = std::abs(CGAL::to_double(CGAL::scalar_product(normal, surface_normal(mesh, id, closest_point))));
+      //similarity[face_index] = std::abs(CGAL::to_double(CGAL::scalar_product(inward_normal, surface_normal(mesh, id, closest_point))));
+      similarity[face_index] = CGAL::scalar_product(inward_normal, -PMP::compute_face_normal(id, mesh));
     }
   }
 
-  double topological_distance(FaceIndex a, FaceIndex b, Mesh& mesh)
+  // Set up priority queue for choosing next vertex to explore
+  struct FrontierEntry
   {
-    // Set up priority queue for choosing next vertex to explore
-    struct FrontierEntry
+    VertexIndex idx;
+    double priority;
+
+    FrontierEntry() : idx(0), priority(0) {}
+    FrontierEntry(VertexIndex v, double p) : idx(v), priority(p) {}
+  };
+
+  // The priority_queue returns the last element of the defined ordering first.
+  // We want the last element to be the one with the lowest estimated distance.
+  // Thus we sort in descending order.
+  struct Comparator
+  {
+    bool operator()(FrontierEntry a, FrontierEntry b)
     {
-      VertexIndex idx;
-      double priority;
+      return a.priority > b.priority;
+    }
+  };
 
-      FrontierEntry() : idx(0), priority(0) {}
-      FrontierEntry(VertexIndex v, double p) : idx(v), priority(p) {}
-    };
-
-    // The priority_queue returns the last element of the defined ordering first.
-    // We want the last element to be the one with the lowest estimated distance.
-    // Thus we sort in descending order.
-    struct Comparator
+  double topological_distance(
+    FaceIndex a,
+    FaceIndex b,
+    const Mesh& mesh,
+    const std::vector<double>& edge_lengths,
+    std::vector<double>& distances,
+    double max_distance = 0.0
+  )
+  {
+    // Prepare scratch memory. -1.0 is sentinel value for an unvisited node.
+    for(auto& entry : distances)
     {
-      bool operator()(FrontierEntry a, FrontierEntry b)
-      {
-        return a.priority > b.priority;
-      }
-    };
+      entry = -1.0;
+    }
 
+    // Allocate frontier
     std::priority_queue<FrontierEntry, std::vector<FrontierEntry>, Comparator> frontier;
-    std::unordered_map<VertexIndex, VertexIndex> came_from;
-    std::unordered_map<VertexIndex, double> distance;
 
     // Initialise starting points.
     for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(a)))
@@ -1318,11 +1355,8 @@ namespace HexMesher
       // Add start point to frontier
       frontier.push(FrontierEntry(v, 0));
 
-      // Indicate start of path via self loop
-      came_from.insert({v, v});
-
       // Start point has best known distance 0.0
-      distance.insert({v, 0.0});
+      distances[v] = 0.0;
     }
 
     // Determine end points
@@ -1347,21 +1381,6 @@ namespace HexMesher
       return result;
     };
 
-    // Pre-calculate edge lengths
-    auto maybe_edge_lengths = mesh.add_property_map<EdgeIndex, double>("e:lengths", 0.0);
-    Mesh::Property_map<EdgeIndex, double> edge_lengths = maybe_edge_lengths.first;
-    bool edge_lengths_exist = maybe_edge_lengths.second;
-
-    if(!maybe_edge_lengths.second)
-    {
-      for(EdgeIndex idx : mesh.edges())
-      {
-        Point3D a = mesh.point(mesh.target(mesh.halfedge(idx)));
-        Point3D b = mesh.point(mesh.source(mesh.halfedge(idx)));
-        edge_lengths[idx] = std::sqrt((a - b).squared_length());
-      }
-    }
-
     while(!frontier.empty())
     {
       // Remove next best element from the frontier
@@ -1371,7 +1390,7 @@ namespace HexMesher
       if(std::find(goal_vertices.begin(), goal_vertices.end(), current) != goal_vertices.end())
       {
         // We found one of the target vertices.
-        return distance[current];
+        return distances[current];
       }
 
       for(HalfedgeIndex hedge : mesh.halfedges_around_target(mesh.halfedge(current)))
@@ -1379,15 +1398,19 @@ namespace HexMesher
         VertexIndex neighbor = mesh.source(hedge);
 
         double edge_length = edge_lengths[mesh.edge(hedge)];
-        double new_cost = distance[current] + edge_length;
+        double new_cost = distances[current] + edge_length;
 
-        if(distance.find(neighbor) == distance.end() || new_cost < distance[neighbor])
+        if(max_distance != 0.0 && new_cost > max_distance)
         {
-          distance[neighbor] = new_cost;
+          continue;
+        }
+
+        if(distances[neighbor] == -1.0 || new_cost < distances[neighbor])
+        {
+          distances[neighbor] = new_cost;
 
           double priority = new_cost + heuristic(neighbor);
           frontier.push(FrontierEntry(neighbor, priority));
-          came_from[neighbor] = current;
         }
       }
     }
@@ -1395,10 +1418,10 @@ namespace HexMesher
     return -1.0;
   }
 
-  void topological_distances(Mesh& mesh, const std::string& property)
+  void topological_distances(Mesh& mesh, const std::string& targets_property, double max_distance)
   {
     // Get targets
-    auto maybe_target_map = mesh.property_map<FaceIndex, std::uint32_t>(property);
+    auto maybe_target_map = mesh.property_map<FaceIndex, std::uint32_t>(targets_property);
     if(!maybe_target_map.has_value())
     {
       return;
@@ -1409,65 +1432,155 @@ namespace HexMesher
     Mesh::Property_map<FaceIndex, double> topo_distance =
       mesh.add_property_map<FaceIndex, double>("f:topological_distance", 0).first;
 
+    // Pre-calculate edge lengths
+    std::vector<double> edge_lengths;
+    for(EdgeIndex idx : mesh.edges())
+    {
+      Point3D a = mesh.point(mesh.target(mesh.halfedge(idx)));
+      Point3D b = mesh.point(mesh.source(mesh.halfedge(idx)));
+      edge_lengths.push_back(std::sqrt((a - b).squared_length()));
+    }
+
+    // Allocate scratch memory for distances
+    std::vector<double> scratch_distances(mesh.num_vertices(), -1.0);
+
     for(FaceIndex f : mesh.faces())
     {
-      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh);
+      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, scratch_distances, max_distance);
     }
   }
 
-  double determine_min_gap_weighted(Mesh& mesh, std::function<double(FaceIndex)> weighting, const std::string& diameter_property, const std::string& property)
+  void topological_distances(Mesh& mesh, const std::string& targets_property, const std::string& max_distance_property)
+  {
+    // Get targets
+    auto maybe_target_map = mesh.property_map<FaceIndex, std::uint32_t>(targets_property);
+    if(!maybe_target_map.has_value())
+    {
+      return;
+    }
+    Mesh::Property_map<FaceIndex, std::uint32_t> targets = maybe_target_map.value();
+
+    // Get maximum search distances
+    auto maybe_max_distances_map = mesh.property_map<FaceIndex, double>(max_distance_property);
+    if(!maybe_max_distances_map.has_value())
+    {
+      return;
+    }
+    Mesh::Property_map<FaceIndex, double> max_distances = maybe_max_distances_map.value();
+
+    // Get output property
+    Mesh::Property_map<FaceIndex, double> topo_distance =
+      mesh.add_property_map<FaceIndex, double>("f:topological_distance", 0).first;
+
+    // Pre-calculate edge lengths
+    std::vector<double> edge_lengths;
+    for(EdgeIndex idx : mesh.edges())
+    {
+      Point3D a = mesh.point(mesh.target(mesh.halfedge(idx)));
+      Point3D b = mesh.point(mesh.source(mesh.halfedge(idx)));
+      edge_lengths.push_back(std::sqrt((a - b).squared_length()));
+    }
+
+    // Allocate scratch memory for distances
+    std::vector<double> scratch_distances(mesh.num_vertices(), -1.0);
+
+    for(FaceIndex f : mesh.faces())
+    {
+      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, scratch_distances, M_PI * max_distances[f]);
+    }
+  }
+
+  MinGap determine_min_gap_weighted(
+    Mesh& mesh,
+    std::function<double(FaceIndex)> weighting,
+    const std::string& diameter_property,
+    const std::string& id_property,
+    const std::string& property)
   {
     HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameter =
       mesh.property_map<HexMesher::FaceIndex, double>(diameter_property).value();
 
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
+      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>(id_property).value();
+
     // Get output property
     Mesh::Property_map<FaceIndex, double> gap =
       mesh.add_property_map<FaceIndex, double>(property, 0).first;
 
-    FaceIndex min_gap_face = FaceIndex(0);
-    double min_weight = weighting(min_gap_face);
-    double min_gap = diameter[min_gap_face];
+    MinGap result;
+    result.origin = FaceIndex(0);
+    result.gap = diameter[result.origin];
+
+    double min_weight = weighting(result.origin);
 
     for(FaceIndex f : mesh.faces())
     {
-      gap[f] = weighting(f);
-
-      if(gap[f] < min_weight)
+      FaceIndex limiting = FaceIndex(ids[f]);
+      if(PMP::face_aspect_ratio(f, mesh) < 5.0 && PMP::face_aspect_ratio(limiting, mesh) < 5.0)
       {
-        min_weight = gap[f];
-        min_gap = diameter[f];
-        min_gap_face = f;
+        gap[f] = weighting(f);
+
+        if(gap[f] < min_weight)
+        {
+          min_weight = gap[f];
+          result.gap = diameter[f];
+          result.origin = f;
+        }
+      }
+      else
+      {
+        gap[f] = -1.0;
       }
     }
 
-    std::cout << "Found min-gap at face: " << min_gap_face << "\n";
-
-    return min_gap;
+    result.limiting = FaceIndex(ids[result.origin]);
+    return result;
   }
 
-  double determine_min_gap_direct(Mesh& mesh, std::function<double(FaceIndex)> gap_calc, const std::string& property)
+  MinGap determine_min_gap_direct(
+    Mesh& mesh,
+    std::function<double(FaceIndex)> gap_calc,
+    const std::string& id_property,
+    const std::string& property)
   {
     // Get output property
     Mesh::Property_map<FaceIndex, double> gap =
       mesh.add_property_map<FaceIndex, double>(property, 0).first;
 
-    FaceIndex min_gap_face = FaceIndex(0);
-    double min_gap = gap_calc(min_gap_face);
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
+      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>(id_property).value();
+
+    MinGap result;
+    result.origin = FaceIndex(0);
+    result.gap = gap_calc(result.origin);
+
+    std::vector<std::pair<HexMesher::FaceIndex, HexMesher::FaceIndex>> self_intersections;
+    CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(self_intersections));
 
     for(FaceIndex f : mesh.faces())
     {
-      double new_gap = gap_calc(f);
-      gap[f] = new_gap;
-      if(new_gap < min_gap)
+      FaceIndex limiting = FaceIndex(ids[f]);
+      if(PMP::face_aspect_ratio(f, mesh) < 5.0 &&
+         PMP::face_aspect_ratio(limiting, mesh) < 5.0 &&
+         std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(f, limiting)) == self_intersections.end() &&
+         std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(limiting, f)) == self_intersections.end())
       {
-        min_gap = new_gap;
-        min_gap_face = f;
+        double new_gap = gap_calc(f);
+        gap[f] = new_gap;
+        if(new_gap < result.gap)
+        {
+          result.gap = new_gap;
+          result.origin = f;
+        }
+      }
+      else
+      {
+        gap[f] = -1.0;
       }
     }
 
-    std::cout << "Found min-gap at face " << min_gap_face << "\n";
-
-    return min_gap;
+    result.limiting = FaceIndex(ids[result.origin]);
+    return result;
   }
 
   void compute_vertex_normals(Mesh& mesh)
@@ -1521,6 +1634,232 @@ namespace HexMesher
 
     // Interpolate
     Vector3D result = location.second[0] * normals[0] + location.second[1] * normals[1] + location.second[2] * normals[2];
+    return result;
+  }
+
+  bool is_wound_consistently(const Mesh& mesh)
+  {
+    for(HalfedgeIndex idx : mesh.halfedges())
+    {
+      VertexIndex source = mesh.source(idx);
+      VertexIndex target = mesh.target(idx);
+
+      HalfedgeIndex opposite = mesh.opposite(idx);
+
+      if(opposite != mesh.null_halfedge())
+      {
+        // If the mesh is wound consistently, then opposite halfedges need
+        // to visit the same vertices in the opposite order.
+        // Otherwise the two faces are wound differently.
+        if(source != mesh.target(opposite) || target != mesh.source(opposite))
+        {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  // Compute the maximum dihedral angle for each face in radians
+  void compute_max_dihedral_angle(Mesh& mesh)
+  {
+    Mesh::Property_map<FaceIndex, double> dihedral_angles =
+      mesh.add_property_map<FaceIndex, double>("f:dihedral_angle", 0).first;
+
+    for(FaceIndex current : mesh.faces())
+    {
+      double max_angle = 0;
+      Vector3D normal = PMP::compute_face_normal(current, mesh);
+
+      for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(current)))
+      {
+        for(FaceIndex neighbor : mesh.faces_around_target(mesh.halfedge(v)))
+        {
+          if(neighbor > mesh.num_faces())
+          {
+            // NOTE(mmuegge): The inner loop produces invalid indices for the 10062 mesh
+            continue;
+          }
+          Vector3D n = PMP::compute_face_normal(neighbor, mesh);
+
+          double cosine = CGAL::scalar_product(normal, n);
+          cosine = std::max(std::min(cosine, 1.0), 0.0);
+
+          max_angle = std::max(max_angle, std::acos(cosine));
+        }
+      }
+
+      dihedral_angles[current] = max_angle;
+    }
+  }
+
+  void score_gaps(Mesh& mesh)
+  {
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameters =
+      mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter").value();
+
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> topo_dists =
+      mesh.property_map<HexMesher::FaceIndex, double>("f:topological_distance").value();
+
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> similarity_of_normals =
+      mesh.property_map<HexMesher::FaceIndex, double>("f:similarity_of_normals").value();
+
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> dihedral_angles =
+      mesh.property_map<HexMesher::FaceIndex, double>("f:dihedral_angle").value();
+
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
+      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id").value();
+
+    // NOTE(mmuegge): Tried to store these as HexMesher::Points,
+    // but CGAL produced a stack overflow on cleanup,
+    // because it reuses values of the points in the exact kernel
+    // and cleans them up recursively.
+    // Try again once we support the inexact kernel.
+    double min_x;
+    double min_y;
+    double min_z;
+
+    double max_x;
+    double max_y;
+    double max_z;
+
+    for(const HexMesher::Point3D& p : mesh.points())
+    {
+      min_x = std::min(CGAL::to_double(p.x()), min_x);
+      min_y = std::min(CGAL::to_double(p.y()), min_y);
+      min_z = std::min(CGAL::to_double(p.z()), min_z);
+
+      max_x = std::max(CGAL::to_double(p.x()), max_x);
+      max_y = std::max(CGAL::to_double(p.y()), max_y);
+      max_z = std::max(CGAL::to_double(p.z()), max_z);
+    }
+
+    double max_diameter = std::min({max_x - min_x, max_y - min_y, max_z - min_z});
+
+    auto topo_dist_score = [&](FaceIndex f)
+    {
+      double dist = topo_dists[f];
+
+      // If the topological_distance is zero, this is not a valid gap
+      if(dist == 0.0)
+        return 0.0;
+
+      // If the faces are either unconnected or farther apart than the search radius,
+      // then this is an ideal gap
+      if(dist == -1.0)
+        return 1.0;
+
+      // Divide by maximum search range for this face
+      double rel = topo_dists[f] / (M_PI * diameters[f]);
+
+      // At a relative distance of 0.5 the limiting face is (at best) at the opposite end of the MIS.
+      // Penalize all distances below that.
+      if(rel < 0.5)
+        return 4 * rel * rel;
+
+      // Above a relative distance of 0.5 there must be some amount of space between the MIS and the mesh.
+      // All these gaps are ok.
+      return 1.0;
+    };
+
+    auto normalized_diameter_score = [&](FaceIndex f)
+    {
+      double normalized = diameters[f] / max_diameter;
+
+      // Penalize any gaps smaller than a hundredth percent of the mesh size
+      if(normalized < 1e-4)
+      {
+        return 1e4 * normalized;
+      }
+
+      // Full score for anything else
+      return 1.0;
+    };
+
+    auto similarity_of_normals_score = [&](FaceIndex f)
+    {
+      if(-similarity_of_normals[f] < 0.0)
+      {
+        return 0.0;
+      }
+
+      return std::pow(-similarity_of_normals[f], 2.0);
+    };
+
+    auto dihedral_angle_score = [&](FaceIndex f)
+    {
+      return 1.0 - (dihedral_angles[f] / M_PI);
+    };
+
+    std::vector<std::pair<HexMesher::FaceIndex, HexMesher::FaceIndex>> self_intersections;
+    CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(self_intersections));
+
+    Mesh::Property_map<FaceIndex, double> gap_score =
+      mesh.add_property_map<FaceIndex, double>("f:gap_score", 0).first;
+
+    for(FaceIndex f : mesh.faces())
+    {
+      FaceIndex limiting = FaceIndex(ids[f]);
+
+      if(PMP::face_aspect_ratio(f, mesh) < 5.0 &&
+         PMP::face_aspect_ratio(limiting, mesh) < 5.0 &&
+         std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(f, limiting)) == self_intersections.end() &&
+         std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(limiting, f)) == self_intersections.end())
+      {
+        gap_score[f] = (1.0 / 4.0) * (topo_dist_score(f) + normalized_diameter_score(f) + similarity_of_normals_score(f) + dihedral_angle_score(f));
+      }
+      else
+      {
+        gap_score[f] = 0;
+      }
+    }
+  }
+
+  MinGap select_min_gap(Mesh& mesh, double percentile)
+  {
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameters =
+      mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter").value();
+
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> scores =
+      mesh.property_map<HexMesher::FaceIndex, double>("f:gap_score").value();
+
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
+      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id").value();
+
+    std::vector<double> percentiles(scores.begin(), scores.end());
+
+    // Sort scores in descending order
+    std::sort(percentiles.begin(), percentiles.end(), [&](double a, double b)
+    {
+      return a > b;
+    });
+
+    //auto last = std::unique(percentiles.begin(), percentiles.end());
+    //percentiles.erase(last, percentiles.end());
+
+    std::size_t percentile_size = std::ceil(Real(percentiles.size()) * Real(percentile));
+
+    double cutoff_score = *(percentiles.begin() + percentile_size);
+
+    std::cout << "Score cutoff is " << cutoff_score << "\n";
+
+    MinGap result;
+    result.gap = std::numeric_limits<double>::max();
+
+    for(FaceIndex f : mesh.faces())
+    {
+      if(scores[f] < cutoff_score)
+      {
+        continue;
+      }
+      if(diameters[f] < result.gap)
+      {
+        result.gap = diameters[f];
+        result.origin = f;
+        result.limiting = FaceIndex(ids[f]);
+      }
+    }
+
     return result;
   }
 }

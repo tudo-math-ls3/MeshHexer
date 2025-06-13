@@ -8,6 +8,8 @@
 #include <CGAL/Surface_mesh/IO.h>
 #include <CGAL/Polygon_mesh_processing/measure.h>
 #include <CGAL/Polygon_mesh_processing/triangulate_faces.h>
+#include <CGAL/Polygon_mesh_processing/self_intersections.h>
+#include <CGAL/Polygon_mesh_processing/orientation.h>
 
 static bool ends_with(const std::string& string, const std::string& ending)
 {
@@ -16,6 +18,12 @@ static bool ends_with(const std::string& string, const std::string& ending)
     return false;
   }
   return std::equal(ending.rbegin(), ending.rend(), string.rbegin());
+}
+
+void print_min_gap(const HexMesher::MinGap& min_gap)
+{
+  std::cout << "Min-gap of " << min_gap.gap << " between faces " << min_gap.origin << " and " << min_gap.limiting << "\n";
+  std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.origin.idx() << ", 0, " << min_gap.limiting.idx() << "], FieldType='CELL')` to select the chosen triangles in ParaView\n\n";
 }
 
 int main(int argc, char* argv[])
@@ -92,6 +100,73 @@ int main(int argc, char* argv[])
       union_components = HexMesher::union_of_cross_sections(mesh, sampler);
     }
 
+    if(mode == "report")
+    {
+      std::cout << "Mesh quality report for " << filename << "\n";
+
+      bool is_closed = CGAL::is_closed(mesh);
+      std::cout << "Is closed: " << is_closed << "\n";
+      if(is_closed)
+      {
+        std::cout << "Is outward-oriented: " << CGAL::Polygon_mesh_processing::is_outward_oriented(mesh) << "\n";
+      }
+
+      std::cout << "Is wound consistently: " << HexMesher::is_wound_consistently(mesh) << "\n";
+
+      std::vector<std::pair<HexMesher::FaceIndex, HexMesher::FaceIndex>> self_intersections;
+      CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(self_intersections));
+      std::cout << "Self-intersections: " << self_intersections.size() << "\n";
+      if(self_intersections.size() > 0)
+      {
+        std::cout << "List of self-intersections: ";
+        for(int i(0); i < self_intersections.size(); i++)
+        {
+          //std::cout << "(" << self_intersections[i].first << ", " << self_intersections[i].second << ")";
+
+          if(i < self_intersections.size() - 1)
+          {
+            //std::cout << ", ";
+          }
+        }
+        std::cout << "\n";
+      }
+
+      std::vector<HexMesher::FaceIndex> degenerate_faces;
+      CGAL::Polygon_mesh_processing::degenerate_faces(mesh, std::back_inserter(degenerate_faces));
+      std::cout << "Number of degenerate triangles: " << degenerate_faces.size() << "\n";
+
+      if(degenerate_faces.size() > 0)
+      {
+        std::cout << "List of degenerate triangles: ";
+        for(int i(0); i < degenerate_faces.size(); i++)
+        {
+          std::cout << degenerate_faces[i];
+
+          if(i < degenerate_faces.size() - 1)
+          {
+            std::cout << ", ";
+          }
+        }
+        std::cout << "\n";
+      }
+
+      // Minimal and maximal aspect ratio
+      double min_aspect_ratio = std::numeric_limits<double>::max();
+      double max_aspect_ratio = 0;
+
+      for(HexMesher::FaceIndex f : mesh.faces())
+      {
+        double ratio = CGAL::Polygon_mesh_processing::face_aspect_ratio(f, mesh);
+        min_aspect_ratio = std::min(min_aspect_ratio, ratio);
+        max_aspect_ratio = std::max(max_aspect_ratio, ratio);
+      }
+
+      std::cout << "Minimum aspect ratio: " << min_aspect_ratio << "\n";
+      std::cout << "Maximum aspect ratio: " << max_aspect_ratio << "\n";
+
+      return 0;
+    }
+
     if(mode == "thickness")
     {
       std::cout << "Computing vertex normals...\n";
@@ -158,29 +233,31 @@ int main(int argc, char* argv[])
       if(!mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter") ||
          !mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id") ||
          !mesh.property_map<HexMesher::FaceIndex, double>("f:similarity_of_normals"))
-      {
-        std::cout << "Missing mesh properties f:MIS_diameter and/or f:MIS_id and/or f:similarity_of_normals. Computing maximum inscribed spheres...\n";
+        {
+        std::cout << "Missing mesh properties f:MIS_diameter and/or f:MIS_id and/or f:similarity_of_normals. Computing maximum inscribed spheres...";
+        std::cout.flush();
 
         HexMesher::StopWatch thickness_stopwatch;
         thickness_stopwatch.start();
         HexMesher::compute_mesh_thickness(mesh);
         thickness_stopwatch.stop();
 
-        std::cout << "Finished computing maximum inscribed spheres. Took "
+        std::cout << " done. Took "
           << thickness_stopwatch.elapsed_string() << " ("
           << (double)mesh.num_faces() / thickness_stopwatch.elapsed() << " Elements per second)\n";
       }
 
       if(!mesh.property_map<HexMesher::FaceIndex, double>("f:topological_distance"))
       {
-        std::cout << "Missing mesh property f:topological_distance. Computing topological distances...\n";
+        std::cout << "Missing mesh property f:topological_distance. Computing topological distances...";
+        std::cout.flush();
 
         HexMesher::StopWatch sw;
         sw.start();
-        HexMesher::topological_distances(mesh, "f:MIS_id");
+        HexMesher::topological_distances(mesh, "f:MIS_id", "f:MIS_diameter");
         sw.stop();
 
-        std::cout << "Finished computing topological distances. Took "
+        std::cout << " done. Took "
           << sw.elapsed_string() << " ("
           << (double)mesh.num_faces() / sw.elapsed() << " Elements per second)\n";
       }
@@ -198,96 +275,106 @@ int main(int argc, char* argv[])
       double max_topo_dist = *std::max_element(topo_dist.begin(), topo_dist.end());
       double max_diameter = *std::max_element(diameter.begin(), diameter.end());
 
-      std::cout << "Computing possible min-gaps (width * 1/topo_dist)\n";
-      double min_gap = HexMesher::determine_min_gap_weighted(mesh, [&](HexMesher::FaceIndex idx) {
-        if(topo_dist[idx] != 0)
-        {
-          return diameter[idx] / topo_dist[idx];
-        }
-        else
-        {
-          return max_diameter;
-        }},
-        std::string("f:MIS_diameter"), std::string("f:gap_ratio"));
-      std::cout << "Min-gap (width * 1 / topo_dist) is " << min_gap << "\n";
-
-      std::cout << "Computing possible min-gaps (cutoff topo_dist > 5h)\n";
-      min_gap = HexMesher::determine_min_gap_weighted(mesh, [&](HexMesher::FaceIndex idx) {
-        if(topo_dist[idx] > 5.0 * h)
+      /*HexMesher::MinGap min_gap = HexMesher::determine_min_gap_direct(mesh, [&](HexMesher::FaceIndex idx) {
+        if(topo_dist[idx] == -1.0)
         {
           return diameter[idx];
         }
-        else
-        {
-          return max_diameter;
-        }
-      }, std::string("f:MIS_diameter"), std::string("f:gap_cutoff"));
-      std::cout << "Min-gap (cutoff) is " << min_gap << "\n";
 
-      std::cout << "Computing possible min-gaps (gap = diameter * (1 + 1/topo_dist^3))\n";
-      min_gap = HexMesher::determine_min_gap_direct(mesh, [&](HexMesher::FaceIndex idx) {
         if(topo_dist[idx] != 0)
         {
-          return diameter[idx] * (1.0 + 1.0 / std::pow(topo_dist[idx], 3.0));
+          return diameter[idx] * (1.0 + max_mesh_delta / std::exp(topo_dist[idx]));
         }
         else
         {
           return max_diameter;
         }
-      }, std::string("f:gap_cubed"));
-      std::cout << "Min-gap (gap = diameter * (1 + 1/topo_dist^3)) is " << min_gap << "\n";
+      }, std::string("f:MIS_id"), std::string("f:gap_exp"));
+      std::cout << "Min-gap (gap = diameter * (1 + max_topo_dist/e^topo_dist)) is " << min_gap.gap << " between faces " << min_gap.origin << " and " << min_gap.limiting << "\n";
+      std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.origin.idx() << ", 0, " << min_gap.limiting.idx() << "], FieldType='CELL')` to select the chosen triangles in ParaView\n\n";
 
-      std::cout << "Computing possible min-gaps (gap = diameter * (1 + max_topo_dist/topo_dist^5))\n";
       min_gap = HexMesher::determine_min_gap_direct(mesh, [&](HexMesher::FaceIndex idx) {
-        if(topo_dist[idx] != 0)
+        // NOTE (mmuegge): This whole thing is really some kind of fuzzy logic,
+        // where some decisions are hard and some are soft via penalties.
+        // Im am sure there is formal literature about that.
+        if(topo_dist[idx] == -1.0)
         {
-          return diameter[idx] * (1.0 + max_topo_dist / std::pow(topo_dist[idx], 5.0));
+          return diameter[idx];
+        }
+
+        if(diameter[idx] != 0)
+        {
+          // Relative size of gap and topological distance. Higher is better.
+          double relative_distance = topo_dist[idx] / diameter[idx];
+          return diameter[idx] * (1.0 + 10.0 / relative_distance);
         }
         else
         {
           return max_diameter;
         }
-      }, std::string("f:gap_^5"));
-      std::cout << "Min-gap (gap = diameter * (1 + max_topo_dist/topo_dist^5)) is " << min_gap << "\n";
+      }, std::string("f:MIS_id"), std::string("f:gap_exp"));
+      std::cout << "Min-gap (gap = diameter * (1 + 10 / (topo_dist / diameter))) is " << min_gap.gap << " between faces " << min_gap.origin << " and " << min_gap.limiting << "\n";
+      std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.origin.idx() << ", 0, " << min_gap.limiting.idx() << "], FieldType='CELL')` to select the chosen triangles in ParaView\n\n";
 
-      std::cout << "Computing possible min-gaps (gap = diameter * (1 + max_topo_dist/e^topo_dist))\n";
-      min_gap = HexMesher::determine_min_gap_direct(mesh, [&](HexMesher::FaceIndex idx) {
-        if(topo_dist[idx] != 0)
-        {
-          return diameter[idx] * (1.0 + max_topo_dist / std::exp(topo_dist[idx]));
-        }
-        else
-        {
-          return max_diameter;
-        }
-      }, std::string("f:gap_exp"));
-      std::cout << "Min-gap (gap = diameter * (1 + max_topo_dist/e^topo_dist)) is " << min_gap << "\n";
-
-      std::cout << "Computing possible min-gaps (gap = diameter * (1 + max_topo_dist/e^topo_dist) + similarity * mesh_size)\n";
       min_gap = HexMesher::determine_min_gap_direct(mesh, [&](HexMesher::FaceIndex idx) {
         if(topo_dist[idx] == 0)
         {
           return max_diameter;
         }
 
-        double topo_penalty = max_topo_dist / std::exp(topo_dist[idx]);
         double similarity_penalty = std::pow(1.0 - similarity[idx], 0.2) * max_mesh_delta;
-        return diameter[idx] * (1.0 + topo_penalty) + similarity_penalty;
-      }, std::string("f:gap_exp_similarity"));
-      std::cout << "Min-gap (gap = diameter * (1 + max_topo_dist/e^topo_dist) + similarity * mesh_size) is " << min_gap << "\n";
+        if(topo_dist[idx] == -1.0)
+        {
+          return diameter[idx] + similarity_penalty;
+        }
 
-      std::cout << "Computing possible min-gaps (weighted score)\n";
+        double topo_penalty = max_mesh_delta / std::exp(topo_dist[idx]);
+        return diameter[idx] * (1.0 + topo_penalty) + similarity_penalty;
+      }, std::string("f:MIS_id"), std::string("f:gap_exp_similarity"));
+      std::cout << "Min-gap (gap = diameter * (1 + max_topo_dist/e^topo_dist) + similarity * mesh_size) is " << min_gap.gap << " between faces " << min_gap.origin << " and " << min_gap.limiting << "\n";
+      std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.origin.idx() << ", 0, " << min_gap.limiting.idx() << "], FieldType='CELL')` to select the chosen triangles in ParaView\n\n";
+
       min_gap = HexMesher::determine_min_gap_weighted(mesh, [&](HexMesher::FaceIndex idx) {
         double topo_factor(0.0);
 
-        if(topo_dist[idx] != 0)
+        if(topo_dist[idx] > 0)
         {
           topo_factor = topo_dist[idx] / max_topo_dist;
         }
 
         return (1.0 / 2.0) * topo_factor + (1.0 / 2.0) * similarity[idx];
-      }, std::string("f:MIS_diameter"), std::string("f:gap_score"));
-      std::cout << "Min-gap (weighted score) is " << min_gap << "\n";
+      }, std::string("f:MIS_diameter"), std::string("f:MIS_id"), std::string("f:gap_score"));
+      std::cout << "Min-gap (weighted score) is " << min_gap.gap << " between faces " << min_gap.origin << " and " << min_gap.limiting << "\n";
+      std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.origin.idx() << ", 0, " << min_gap.limiting.idx() << "], FieldType='CELL')` to select the chosen triangles in ParaView\n\n";
+      */
+
+      HexMesher::compute_max_dihedral_angle(mesh);
+      HexMesher::score_gaps(mesh);
+
+      std::cout << "\n";
+
+      HexMesher::MinGap first_percentile = HexMesher::select_min_gap(mesh, 0.01);
+      std::cout << "1st percentile min gap by score:\n";
+      print_min_gap(first_percentile);
+
+      HexMesher::MinGap fifth_percentile = HexMesher::select_min_gap(mesh, 0.05);
+      std::cout << "5th percentile min gap by score:\n";
+      print_min_gap(fifth_percentile);
+
+      HexMesher::MinGap twentieth_percentile = HexMesher::select_min_gap(mesh, 0.20);
+      std::cout << "20th percentile min gap by score:\n";
+      print_min_gap(twentieth_percentile);
+
+      HexMesher::MinGap fiftieth_percentile = HexMesher::select_min_gap(mesh, 0.50);
+      std::cout << "50th percentile min gap by score:\n";
+      print_min_gap(fiftieth_percentile);
+
+      auto edge_lengths = mesh.property_map<HexMesher::EdgeIndex, double>("e:lengths");
+      if(edge_lengths)
+      {
+        auto map = edge_lengths.value();
+        mesh.remove_property_map(map);
+      }
 
       std::ofstream output("thickness.ply");
 
@@ -343,7 +430,8 @@ int main(int argc, char* argv[])
   {
     //const std::string filename("/home/user/mmuegge/nobackup/repos/feat/data/models/scalexa_gendie_simple.off");
     //const std::string filename("/home/user/mmuegge/nobackup/projects/hexmesher/meshes/surface_22630.off");
-    const std::string filename("/home/user/mmuegge/nobackup/projects/hexmesher/meshes/impeller_KSB.obj");
+    //const std::string filename("/home/user/mmuegge/nobackup/projects/hexmesher/meshes/otto_surface_10088.off");
+    const std::string filename("/home/user/mmuegge/nobackup/projects/hexmesher/meshes/otto_surface_10062.off");
 
     HexMesher::Mesh mesh;
     if(!CGAL::Polygon_mesh_processing::IO::read_polygon_mesh(filename, mesh))
@@ -363,8 +451,24 @@ int main(int argc, char* argv[])
       CGAL::Polygon_mesh_processing::triangulate_faces(mesh);
     }
 
+    HexMesher::compute_max_dihedral_angle(mesh);
     HexMesher::compute_vertex_normals(mesh);
     HexMesher::compute_mesh_thickness(mesh);
+    HexMesher::topological_distances(mesh, "f:MIS_id", "f:MIS_diameter");
+
+    HexMesher::score_gaps(mesh);
+
+    HexMesher::MinGap fifth_percentile = HexMesher::select_min_gap(mesh, 0.05);
+    std::cout << "5th percentile min gap by score:\n";
+    print_min_gap(fifth_percentile);
+
+    HexMesher::MinGap twentieth_percentile = HexMesher::select_min_gap(mesh, 0.20);
+    std::cout << "20th percentile min gap by score:\n";
+    print_min_gap(twentieth_percentile);
+
+    HexMesher::MinGap fiftieth_percentile = HexMesher::select_min_gap(mesh, 0.50);
+    std::cout << "50th percentile min gap by score:\n";
+    print_min_gap(fiftieth_percentile);
     std::ofstream output("thickness.ply");
 
     if(output)
