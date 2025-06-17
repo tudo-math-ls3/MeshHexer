@@ -1165,11 +1165,12 @@ namespace HexMesher
 
       // Determine (inward) normal
       Vector3D normal = surface_normal(mesh, face_index, centroid);
+      normal /= std::sqrt(normal.squared_length());
       Vector3D face_normal = PMP::compute_face_normal(face_index, mesh);
 
-      Vector3D inward_normal = normal_direction * face_normal;
+      Vector3D inward_normal = normal_direction * normal;
 
-      if(std::abs(CGAL::approximate_sqrt(inward_normal.squared_length()) - 1.0) > 1e-4)
+      if(std::abs(CGAL::approximate_sqrt(inward_normal.squared_length()) - 1.0) > 1e-2)
       {
         std::cout << "Non-unit face normal at face " << face_index << "\n";
         std::cout << "Vector: " << normal << "\n";
@@ -1254,7 +1255,7 @@ namespace HexMesher
           discretization_error = 0.02 * radius;
         }
 
-        if(distance_to_closest >= radius - discretization_error)
+        if(distance_to_closest >= radius - 2 * discretization_error)
         {
           // Closest point is not in sphere. Current sphere is correct
           break;
