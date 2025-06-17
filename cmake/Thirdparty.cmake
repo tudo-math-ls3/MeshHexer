@@ -49,7 +49,7 @@ if(NOT CGAL_FOUND)
     CGAL
     URL https://github.com/CGAL/cgal/releases/download/v6.0.1/CGAL-6.0.1.tar.xz
     URL_HASH MD5=944c789615bff14a56d78b398ec2cc49
-    #SOURCE_SUBDIR Non-Existing # Use non-existing source dir to disable add_subdirectory call of MakeAvailable
+    SOURCE_SUBDIR Non-Existing # Use non-existing source dir to disable add_subdirectory call of MakeAvailable
     UPDATE_DISCONNECTED ON
     # FIND_PACKAGE_ARGS NAMES CGAL GLOBAL
     OVERRIDE_FIND_PACKAGE
