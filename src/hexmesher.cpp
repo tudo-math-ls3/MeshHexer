@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <optional>
 #include <variant>
+#include <algorithm>
 
 #include <CGAL/Boolean_set_operations_2.h>
 #include <CGAL/Polyline_simplification_2/simplify.h>
@@ -1130,6 +1131,7 @@ namespace HexMesher
 
     for(FaceIndex face_index : mesh.faces())
     {
+      face_index = FaceIndex(42549);
       // Determine centroid of face
       Point3D centroid(0.0, 0.0, 0.0);
       for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(face_index)))
@@ -1589,21 +1591,7 @@ namespace HexMesher
     Mesh::Property_map<VertexIndex, Vector3D> normals =
       mesh.add_property_map<VertexIndex, Vector3D>("v:normals", Vector3D(0.0, 0.0, 0.0)).first;
 
-    Mesh::Property_map<VertexIndex, double> xs =
-      mesh.add_property_map<VertexIndex, double>("v:nx", 0.0).first;
-    Mesh::Property_map<VertexIndex, double> ys =
-      mesh.add_property_map<VertexIndex, double>("v:ny", 0.0).first;
-    Mesh::Property_map<VertexIndex, double> zs =
-      mesh.add_property_map<VertexIndex, double>("v:nz", 0.0).first;
-
     CGAL::Polygon_mesh_processing::compute_vertex_normals(mesh, normals);
-
-    for(VertexIndex v : mesh.vertices())
-    {
-      xs[v] = CGAL::to_double(normals[v].x());
-      ys[v] = CGAL::to_double(normals[v].y());
-      zs[v] = CGAL::to_double(normals[v].z());
-    }
   }
 
   Vector3D surface_normal(Mesh& mesh, FaceIndex f, Point3D point)
@@ -1767,10 +1755,10 @@ namespace HexMesher
     {
       double normalized = diameters[f] / max_diameter;
 
-      // Penalize any gaps smaller than a hundredth percent of the mesh size
-      if(normalized < 1e-4)
+      // Penalize any gaps smaller than a tenth of a percent of the mesh size
+      if(normalized < 1e-3)
       {
-        return 1e4 * normalized;
+        return 1e3 * normalized;
       }
 
       // Full score for anything else
@@ -1784,12 +1772,16 @@ namespace HexMesher
         return 0.0;
       }
 
-      return std::pow(-similarity_of_normals[f], 2.0);
+      return std::pow(-similarity_of_normals[f], 1.0 / 3.0);
     };
 
     auto dihedral_angle_score = [&](FaceIndex f)
     {
-      return 1.0 - (dihedral_angles[f] / M_PI);
+      if(dihedral_angles[f] < 0.3)
+      {
+        return 1.0;
+      }
+      return std::sqrt(1.0 - ((dihedral_angles[f] + 0.3) / M_PI));
     };
 
     std::vector<std::pair<HexMesher::FaceIndex, HexMesher::FaceIndex>> self_intersections;
@@ -1805,9 +1797,29 @@ namespace HexMesher
       if(PMP::face_aspect_ratio(f, mesh) < 5.0 &&
          PMP::face_aspect_ratio(limiting, mesh) < 5.0 &&
          std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(f, limiting)) == self_intersections.end() &&
-         std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(limiting, f)) == self_intersections.end())
+         std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(limiting, f)) == self_intersections.end() &&
+         diameters[f] / max_diameter > 1e-4)
       {
-        gap_score[f] = (1.0 / 4.0) * (topo_dist_score(f) + normalized_diameter_score(f) + similarity_of_normals_score(f) + dihedral_angle_score(f));
+        if(topo_dists[f] == -1.0 && topo_dists[FaceIndex(ids[f])] == -1.0)
+        {
+          // Perfect gap if both triangles are unconnected.
+          // NOTE(mmuegge): There are situations where a large triangle
+          // hits a very small triangle across a corner of the mesh.
+          // In that case the small triangle might not find its limiting triangle 
+          // within the search radius for topological distances, but the large
+          // triangle might, because its vertices are further from its centroid,
+          // giving an initial distance boost.
+          // We thus check that neither triangle found its limiting triangle,
+          // to determine if we should score the gap more exactly.
+          // Note that the above condition does not imply f = ids[f].
+          // TODO(mmuegge): Can we fix this by considering the distances
+          // from the centroid to a starting vertex in the topological distance search?
+          gap_score[f] = 1.0;
+        }
+        else
+        {
+          gap_score[f] = (1.0 / 3.0) * (topo_dist_score(f) + similarity_of_normals_score(f) + dihedral_angle_score(f));
+        }
       }
       else
       {
@@ -1830,16 +1842,20 @@ namespace HexMesher
     std::vector<double> percentiles(scores.begin(), scores.end());
 
     // Sort scores in descending order
-    std::sort(percentiles.begin(), percentiles.end(), [&](double a, double b)
+    std::sort(percentiles.begin(), percentiles.end(), [](double a, double b)
     {
       return a > b;
     });
 
-    //auto last = std::unique(percentiles.begin(), percentiles.end());
-    //percentiles.erase(last, percentiles.end());
+    /*
+    auto last = std::unique(percentiles.begin(), percentiles.end(), [](double a, double b)
+    {
+      return std::abs(a -b) < 1e-6;
+    });
+    percentiles.erase(last, percentiles.end());
+    */
 
     std::size_t percentile_size = std::ceil(Real(percentiles.size()) * Real(percentile));
-
     double cutoff_score = *(percentiles.begin() + percentile_size);
 
     std::cout << "Score cutoff is " << cutoff_score << "\n";

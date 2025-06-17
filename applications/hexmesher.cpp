@@ -354,19 +354,23 @@ int main(int argc, char* argv[])
       std::cout << "\n";
 
       HexMesher::MinGap first_percentile = HexMesher::select_min_gap(mesh, 0.01);
-      std::cout << "1st percentile min gap by score:\n";
+      std::cout << "1st percentile min gap by score: ";
       print_min_gap(first_percentile);
 
       HexMesher::MinGap fifth_percentile = HexMesher::select_min_gap(mesh, 0.05);
-      std::cout << "5th percentile min gap by score:\n";
+      std::cout << "5th percentile min gap by score: ";
       print_min_gap(fifth_percentile);
 
+      HexMesher::MinGap tenth_percentile = HexMesher::select_min_gap(mesh, 0.1);
+      std::cout << "10th percentile min gap by score: ";
+      print_min_gap(tenth_percentile);
+
       HexMesher::MinGap twentieth_percentile = HexMesher::select_min_gap(mesh, 0.20);
-      std::cout << "20th percentile min gap by score:\n";
+      std::cout << "20th percentile min gap by score: ";
       print_min_gap(twentieth_percentile);
 
       HexMesher::MinGap fiftieth_percentile = HexMesher::select_min_gap(mesh, 0.50);
-      std::cout << "50th percentile min gap by score:\n";
+      std::cout << "50th percentile min gap by score: ";
       print_min_gap(fiftieth_percentile);
 
       auto edge_lengths = mesh.property_map<HexMesher::EdgeIndex, double>("e:lengths");
@@ -428,10 +432,10 @@ int main(int argc, char* argv[])
   }
   else
   {
-    //const std::string filename("/home/user/mmuegge/nobackup/repos/feat/data/models/scalexa_gendie_simple.off");
+    const std::string filename("/home/user/mmuegge/nobackup/repos/feat/data/models/scalexa_gendie_simple.off");
     //const std::string filename("/home/user/mmuegge/nobackup/projects/hexmesher/meshes/surface_22630.off");
     //const std::string filename("/home/user/mmuegge/nobackup/projects/hexmesher/meshes/otto_surface_10088.off");
-    const std::string filename("/home/user/mmuegge/nobackup/projects/hexmesher/meshes/otto_surface_10062.off");
+    //const std::string filename("/home/user/mmuegge/nobackup/projects/hexmesher/meshes/otto_surface_11598.off");
 
     HexMesher::Mesh mesh;
     if(!CGAL::Polygon_mesh_processing::IO::read_polygon_mesh(filename, mesh))
