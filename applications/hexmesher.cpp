@@ -373,6 +373,10 @@ int main(int argc, char* argv[])
       std::cout << "50th percentile min gap by score: ";
       print_min_gap(fiftieth_percentile);
 
+      HexMesher::MinGap fixed = HexMesher::select_min_gap2(mesh);
+      std::cout << "0th percentile min gap by score: ";
+      print_min_gap(fixed);
+
       auto edge_lengths = mesh.property_map<HexMesher::EdgeIndex, double>("e:lengths");
       if(edge_lengths)
       {

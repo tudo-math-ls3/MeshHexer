@@ -1131,7 +1131,6 @@ namespace HexMesher
 
     for(FaceIndex face_index : mesh.faces())
     {
-      face_index = FaceIndex(42549);
       // Determine centroid of face
       Point3D centroid(0.0, 0.0, 0.0);
       for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(face_index)))
@@ -1484,12 +1483,35 @@ namespace HexMesher
       edge_lengths.push_back(std::sqrt((a - b).squared_length()));
     }
 
+    double min_x;
+    double min_y;
+    double min_z;
+
+    double max_x;
+    double max_y;
+    double max_z;
+
+    for(const HexMesher::Point3D& p : mesh.points())
+    {
+      min_x = std::min(CGAL::to_double(p.x()), min_x);
+      min_y = std::min(CGAL::to_double(p.y()), min_y);
+      min_z = std::min(CGAL::to_double(p.z()), min_z);
+
+      max_x = std::max(CGAL::to_double(p.x()), max_x);
+      max_y = std::max(CGAL::to_double(p.y()), max_y);
+      max_z = std::max(CGAL::to_double(p.z()), max_z);
+    }
+
+    double max_mesh_delta = std::max({max_x - min_x, max_y - min_y, max_z - min_z});
+
     // Allocate scratch memory for distances
     std::vector<double> scratch_distances(mesh.num_vertices(), -1.0);
 
     for(FaceIndex f : mesh.faces())
     {
-      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, scratch_distances, M_PI * max_distances[f]);
+      double max_distance = M_PI* max_distances[f];
+      max_distance = std::max(max_distance, 0.001 * max_mesh_delta);
+      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, scratch_distances, max_distance);
     }
   }
 
@@ -1739,7 +1761,7 @@ namespace HexMesher
         return 1.0;
 
       // Divide by maximum search range for this face
-      double rel = topo_dists[f] / (M_PI * diameters[f]);
+      double rel = topo_dists[f] / std::max(0.001 * max_diameter, M_PI * diameters[f]);
 
       // At a relative distance of 0.5 the limiting face is (at best) at the opposite end of the MIS.
       // Penalize all distances below that.
@@ -1784,6 +1806,16 @@ namespace HexMesher
       return std::sqrt(1.0 - ((dihedral_angles[f] + 0.3) / M_PI));
     };
 
+    auto max_edge_length = [&](FaceIndex f)
+    {
+      double result = 0.0;
+      for(HalfedgeIndex idx : mesh.halfedges_around_face(mesh.halfedge(f)))
+      {
+        result = std::max(result, PMP::edge_length(idx, mesh));
+      }
+      return result;
+    };
+
     std::vector<std::pair<HexMesher::FaceIndex, HexMesher::FaceIndex>> self_intersections;
     CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(self_intersections));
 
@@ -1794,11 +1826,18 @@ namespace HexMesher
     {
       FaceIndex limiting = FaceIndex(ids[f]);
 
+      double edge_ratio = max_edge_length(f) / max_edge_length(limiting);
+      if(edge_ratio < 1.0)
+      {
+        edge_ratio = 1.0 / edge_ratio;
+      }
+
       if(PMP::face_aspect_ratio(f, mesh) < 5.0 &&
          PMP::face_aspect_ratio(limiting, mesh) < 5.0 &&
          std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(f, limiting)) == self_intersections.end() &&
          std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(limiting, f)) == self_intersections.end() &&
-         diameters[f] / max_diameter > 1e-4)
+         diameters[f] / max_diameter > 1e-4 &&
+         edge_ratio < 5.0)
       {
         if(topo_dists[f] == -1.0 && topo_dists[FaceIndex(ids[f])] == -1.0)
         {
@@ -1869,6 +1908,55 @@ namespace HexMesher
       {
         continue;
       }
+      if(diameters[f] < result.gap)
+      {
+        result.gap = diameters[f];
+        result.origin = f;
+        result.limiting = FaceIndex(ids[f]);
+      }
+    }
+
+    return result;
+  }
+
+  MinGap select_min_gap2(Mesh& mesh)
+  {
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameters =
+      mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter").value();
+
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> scores =
+      mesh.property_map<HexMesher::FaceIndex, double>("f:gap_score").value();
+
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
+      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id").value();
+
+    double threshold = 0.95;
+
+    std::vector<FaceIndex> candidates;
+    std::copy_if(mesh.faces_begin(), mesh.faces_end(), std::back_inserter(candidates), [&](FaceIndex f) { return scores[f] > threshold; });
+
+    if(candidates.empty())
+    {
+      // No gaps with score above 0.95. Take 10th percentile instead.
+
+      std::vector<double> percentiles(scores.begin(), scores.end());
+      // Sort scores in descending order
+      std::sort(percentiles.begin(), percentiles.end(), [](double a, double b)
+      {
+        return a > b;
+      });
+
+      std::size_t percentile_size = std::ceil(Real(percentiles.size()) * Real(0.1));
+      double cutoff_score = *(percentiles.begin() + percentile_size);
+
+      std::copy_if(mesh.faces_begin(), mesh.faces_end(), std::back_inserter(candidates), [&](FaceIndex f) { return scores[f] > cutoff_score; });
+    }
+
+    MinGap result;
+    result.gap = std::numeric_limits<double>::max();
+
+    for(FaceIndex f : candidates)
+    {
       if(diameters[f] < result.gap)
       {
         result.gap = diameters[f];

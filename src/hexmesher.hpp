@@ -188,4 +188,5 @@ namespace HexMesher
 
   void score_gaps(Mesh& mesh);
   MinGap select_min_gap(Mesh& mesh, double percentile);
+  MinGap select_min_gap2(Mesh& mesh);
 }
