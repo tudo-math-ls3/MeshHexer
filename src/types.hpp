@@ -1,48 +1,54 @@
 #pragma once
 
-#include <CGAL/Exact_predicates_exact_constructions_kernel.h>
-#include <CGAL/Surface_mesh.h>
-#include <CGAL/Polygon_2.h>
-#include <CGAL/Polygon_with_holes_2.h>
-#include <CGAL/Sphere_3.h>
-#include <CGAL/Triangle_3.h>
-
-//#include <CGAL/Polygon_mesh_processing/interpolated_corrected_curvatures.h>
+#include <cstdint>
+#include <string>
+#include <vector>
 
 namespace HexMesher
 {
-  // Exact types
-  using ExactKernel = CGAL::Exact_predicates_exact_constructions_kernel;
+  struct MinGap
+  {
+    /// Face at which the gap originates
+    std::uint32_t origin = 0;
+    /// Face which limits the gap
+    std::uint32_t limiting = 0;
 
-  // Inexact types
+    /// Size of the gap
+    double gap = 0.0;
+  };
 
-  using Kernel = CGAL::Simple_cartesian<double>;
+  struct SelfIntersectionWarning
+  {
+    static constexpr std::string_view name = "self-intersection";
 
-  //using PrincipalVertexCurvature = CGAL::Polygon_mesh_processing::Principal_curvatures_and_directions<Kernel>;
+    std::uint32_t tri_a;
+    std::uint32_t tri_b;
 
-  using Point3D = Kernel::Point_3;
-  using Vector3D = Kernel::Vector_3;
-  using Plane3D = Kernel::Plane_3;
-  using Sphere3D = Kernel::Sphere_3;
-  using Triangle3D = Kernel::Triangle_3;
+    SelfIntersectionWarning(std::uint32_t a, std::uint32_t b) : tri_a(a), tri_b(b) {}
+  };
 
-  using Point2D = Kernel::Point_2;
-  using Vector2D = Kernel::Vector_2;
+  struct DegenerateTriangleWarning
+  {
+    static constexpr std::string_view name = "degenerate-triangle";
 
-  using Mesh = CGAL::Surface_mesh<Point3D>;
-  using VertexIndex = Mesh::Vertex_index;
-  using EdgeIndex = Mesh::Edge_index;
-  using FaceIndex = Mesh::Face_index;
-  using HalfedgeIndex = Mesh::Halfedge_index;
+    std::uint32_t idx;
 
-  using Real = Kernel::RT;
+    DegenerateTriangleWarning(std::uint32_t i) : idx(i) {}
+  };
 
-  using Polyline3D = std::vector<Point3D>;
-  using Polylines3D = std::list<Polyline3D>;
+  struct AnisotropicTriangleWarning
+  {
+    static constexpr std::string_view name = "anisotropic-triangle";
 
-  using Polyline2D = std::vector<Point2D>;
-  using Polylines2D = std::list<Polyline2D>;
+    std::uint32_t idx;
 
-  using Polygon2D = CGAL::Polygon_2<Kernel>;
-  using PolygonWithHoles2D = CGAL::Polygon_with_holes_2<Kernel>;
+    AnisotropicTriangleWarning(std::uint32_t i) : idx(i) {}
+  };
+
+  struct MeshWarnings
+  {
+    std::vector<SelfIntersectionWarning> self_intersections;
+    std::vector<DegenerateTriangleWarning> degenerate_triangles;
+    std::vector<AnisotropicTriangleWarning> anisotropic_triangles;
+  };
 }

@@ -1,5 +1,10 @@
 #include <hexmesher.hpp>
 
+#include <cgal_types.hpp>
+#include <types.hpp>
+#include <properties.hpp>
+#include <warnings.hpp>
+
 #include <iostream>
 #include <math.h>
 #include <unistd.h>
@@ -7,1964 +12,289 @@
 #include <variant>
 #include <algorithm>
 
-#include <CGAL/Boolean_set_operations_2.h>
-#include <CGAL/Polyline_simplification_2/simplify.h>
-#include <CGAL/Polygon_mesh_slicer.h>
 #include <CGAL/Bbox_3.h>
-
-#include <CGAL/AABB_tree.h>
-#include <CGAL/AABB_face_graph_triangle_primitive.h>
 
 #include <CGAL/Polygon_mesh_processing/compute_normal.h>
 #include <CGAL/Polygon_mesh_processing/locate.h>
 #include <CGAL/Polygon_mesh_processing/measure.h>
 #include <CGAL/Polygon_mesh_processing/self_intersections.h>
-
-//#include <CGAL/Polygon_mesh_processing/interpolated_corrected_curvatures.h>
+#include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
+#include <CGAL/Polygon_mesh_processing/triangulate_faces.h>
+#include <CGAL/Polygon_mesh_processing/orientation.h>
 
 namespace HexMesher
 {
   namespace PMP = CGAL::Polygon_mesh_processing;
-  namespace PS = CGAL::Polyline_simplification_2;
 
-  void status(const std::string& message)
+  static bool ends_with(const std::string& string, const std::string& ending)
   {
-    if(isatty(fileno(stdout)))
-    {
-      std::cout << "\33[2K\r"; // Clear line and reset cursor to beginning
-      std::cout << message;
-      std::cout.flush();
-    }
-    else
-    {
-      std::cout << message;
-    }
-  }
-
-  enum class WindingOrder
-  {
-    Clockwise,
-    CounterClockwise,
-  };
-
-  WindingOrder winding_order(const Polyline2D& polyline)
-  {
-    Real sum(0);
-    for(int i(0); i < polyline.size(); i++)
-    {
-      const Point2D& a = polyline[i];
-      const Point2D& b = polyline[(i + 1) % polyline.size()];
-
-      sum += (b.x() - a.x()) * (b.y() + b.y());
-    }
-
-    return sum < 0 ? WindingOrder::CounterClockwise : WindingOrder::Clockwise;
-  }
-
-  /**
-   * \brief Compute left normal of line segment from a to b. Result has unit length.
-   */
-  Vector2D left_normal(const Point2D& a, const Point2D& b)
-  {
-    Vector2D delta = b - a;
-    Vector2D normal = Vector2D(-delta.y(), delta.x());
-    return normal / CGAL::approximate_sqrt(normal.squared_length());
-  }
-
-  /**
-   * \brief Compute right normal of line segment from a to b. Result has unit length.
-   */
-  Vector2D right_normal(const Point2D& a, const Point2D& b)
-  {
-    return -left_normal(a, b);
-  }
-
-  Vector2D outside_normal(const Point2D& a, const Point2D& b, WindingOrder order)
-  {
-    return order == WindingOrder::CounterClockwise ? right_normal(a, b) : left_normal(a, b);
-  }
-
-  Vector2D inside_normal(const Point2D& a, const Point2D& b, WindingOrder order)
-  {
-    return -outside_normal(a, b, order);
-  }
-
-  double angle(const Vector2D& a, const Vector2D& b)
-  {
-    return CGAL::to_double(CGAL::approximate_angle(Vector3D(a.x(), a.y(), 0), Vector3D(b.x(), b.y(), 0)));
-  }
-
-  /**
-   * \brief Simplifies a polyline by merging runs of segments with similar normals
-   *
-   * Normals whose angles differ by at most \c threshold are considered similar.
-   *
-   * \param polyline The polyline to simplify
-   * \param threshold Similarity threshold for normals, in degrees.
-   */
-  std::pair<Polygon2D, std::vector<int>> simplify_by_normal(
-    const Polygon2D& polygon,
-    const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred)
-  {
-    Polyline2D result;
-    std::vector<int> chosen_points;
-
-    // Find vertex of polyline with smallest inside angle as a safe starting point
-    const std::size_t size = polygon.size();
-    int starting_vertex = 0;
-    Real minimal_angle = 360.0;
-    for(int i(0); i < polygon.size(); i++)
-    {
-      const Point2D& a = polygon[i];
-      const Point2D& b = polygon[(i + 1) % size];
-      const Point2D& c = polygon[(i + 2) % size];
-
-      Vector2D ba = a - b;
-      ba = ba / CGAL::approximate_sqrt(ba.squared_length());
-      Vector2D bc = c - b;
-      bc = bc / CGAL::approximate_sqrt(bc.squared_length());
-
-      const Real theta = angle(ba, bc);
-
-      if(theta < minimal_angle)
-      {
-        starting_vertex = i + 1;
-        minimal_angle = theta;
-      }
-    }
-
-    // Build simplified result by finding sections with similar normals
-    WindingOrder order = polygon.is_clockwise_oriented() ? WindingOrder::Clockwise : WindingOrder::CounterClockwise;
-
-    int section_start = starting_vertex;
-    int section_end = (starting_vertex + 1) % size;
-    int candidate = (starting_vertex + 2) % size;
-
-    Vector2D reference_normal = outside_normal(polygon[section_start], polygon[section_end], order);
-    Vector2D link_normal = outside_normal(polygon[section_end], polygon[candidate], order);
-
-    result.push_back(polygon[section_start]);
-    chosen_points.push_back(section_start);
-
-    std::vector<Vector2D> section_normals;
-    section_normals.push_back(reference_normal);
-
-    while(true)
-    {
-      while(continue_pred(section_normals, link_normal) && section_end != starting_vertex)
-      {
-        section_end = candidate;
-        candidate = (candidate + 1) % size;
-
-        const Point2D& a = polygon[section_end];
-        const Point2D& b = polygon[candidate];
-
-        section_normals.push_back(link_normal);
-        link_normal = outside_normal(a, b, order);
-      }
-
-      // Latest link_normal is outside threshold
-      // Merge the links from [section_start, section_end]
-      // and continue next section at section_end if not all links are covered yet.
-
-      if(section_end == starting_vertex)
-      {
-        // With this section we have covered all links of the original polyline.
-        // The last vertex we pushed thus just gets connected to the inital vertex.
-
-        std::cout << "Polygon simplification done. Reduced from " << polygon.size() << " vertices to " << result.size() << " vertices.\n";
-        return {Polygon2D(result.begin(), result.end()), chosen_points};
-      }
-
-      // We have not yet covered all links of the original polyline.
-      // Merge the current section into a single segment and then continue.
-      result.push_back(polygon[section_end]);
-      chosen_points.push_back(section_end);
-
-      section_start = section_end;
-      section_end = candidate;
-      candidate = (candidate + 1) % size;
-
-      reference_normal = outside_normal(polygon[section_start], polygon[section_end], order);
-      link_normal = outside_normal(polygon[section_end], polygon[candidate], order);
-
-      section_normals.clear();
-      section_normals.push_back(reference_normal);
-
-      status("[SimplifyByNormal]: " + std::to_string(section_end) + " / " + std::to_string(starting_vertex));
-    }
-
-    return {Polygon2D(), std::vector<int>()};
-  }
-
-  /**
-   * \brief Returns true if all vertices of \c b are contained in \c a.
-   */
-  bool contains(const Polygon2D& a, const Polygon2D& b)
-  {
-    for(const Point2D& p : b)
-    {
-      if(a.bounded_side(p) == CGAL::ON_UNBOUNDED_SIDE)
-      {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  std::vector<PolygonWithHoles2D> make_polygon(Polylines2D& polylines)
-  {
-
-    // Create polygons from the polylines.
-    // This gives us inside-out tests without
-    // without having to think about the orientation
-    // of the polyline
-    std::vector<Polygon2D> polygons;
-
-    for(auto it = polylines.begin(); it != polylines.end(); it++)
-    {
-      Polygon2D poly(it->begin(), it->end() - 1);
-      if(poly.is_clockwise_oriented())
-      {
-        polygons.emplace_back(std::reverse_iterator(it->end() - 1), std::reverse_iterator(it->begin()));
-      }
-      else
-      {
-        polygons.emplace_back(std::move(poly));
-      }
-    }
-
-    // Simplyify polygons
-    int total_vertices_pre = 0;
-    int total_vertices_post = 0;
-    for(Polygon2D& poly : polygons)
-    {
-      total_vertices_pre += poly.size();
-      poly = PS::simplify(poly, PS::Squared_distance_cost(), PS::Stop_above_cost_threshold(1e-4));
-      total_vertices_post += poly.size();
-    }
-
-    // Sort polygons in descending order by area, i.e. largest polygon comes first.
-    std::sort(
-      polygons.begin(),
-      polygons.end(),
-      [](const Polygon2D& a, const Polygon2D& b) { return a.area() > b.area(); }
-    );
-
-    // Create inclusion tree for polygons.
-    const std::size_t num_polygons = polygons.size();
-    std::vector<int> depths(num_polygons, 0);
-    std::vector<int> parents(num_polygons, -1);
-
-    std::size_t current_idx = 0;
-    for(const Polygon2D& polygon : polygons)
-    {
-      int parent_candidate = -1;
-      int parent_depth = -1;
-      // Find the deepest, i.e. smallest, already handled polygon
-      // that still contains the current polygon
-      for(int j(0); j < current_idx; j++)
-      {
-        if(contains(polygons[j], polygon) && depths[j] > parent_depth)
-        {
-          parent_depth = depths[j];
-          parent_candidate = j;
-        }
-      }
-
-      if(parent_candidate != -1)
-      {
-        // Polygon is contained in another polygon. Set parent
-        parents[current_idx] = parent_candidate;
-        depths[current_idx] = parent_depth + 1;
-      }
-      else
-      {
-        // Polygon is not contained in another larger polygon. Add it as new root
-        parents[current_idx] = current_idx;
-        depths[current_idx] = 0;
-      }
-      current_idx++;
-    }
-
-    std::vector<std::size_t> root_mapping(num_polygons, -1);
-    std::vector<PolygonWithHoles2D> result;
-
-    std::size_t handled_polygons = 0;
-
-    // Collect all roots
-    for(int i(0); i < num_polygons; i++)
-    {
-      if(depths[i] == 0)
-      {
-        root_mapping[i] = result.size();
-        result.emplace_back(polygons[i]);
-        handled_polygons++;
-      }
-    }
-
-    // Collect holes at depth 1
-    for(int i(0); i < num_polygons; i++)
-    {
-      if(depths[i] == 1)
-      {
-        std::size_t parent = parents[i];
-        result[root_mapping[parent]].add_hole(polygons[i]);
-        handled_polygons++;
-      }
-    }
-
-    std::size_t unhandled_polygons = num_polygons - handled_polygons;
-    if(unhandled_polygons > 0)
-    {
-      std::cerr << "Warning: " << unhandled_polygons << " unhandled polygons in HexMesher::make_polygon!";
-    }
-
-    return result;
-  }
-
-  bool merge_polygons_with_holes(const PolygonWithHoles2D& a, const PolygonWithHoles2D& b, PolygonWithHoles2D& res)
-  {
-    if(CGAL::join(a.outer_boundary(), b.outer_boundary(), res))
-    {
-      std::vector<PolygonWithHoles2D> intersections;
-
-      for(auto& hole_a : a.holes())
-      {
-        for(auto& hole_b : b.holes())
-        {
-          CGAL::intersection(hole_a, hole_b, std::back_inserter(intersections));
-        }
-      }
-
-      std::vector<Polygon2D> new_holes;
-
-      for(auto& intersection : intersections)
-      {
-        new_holes.push_back(intersection.outer_boundary());
-      }
-
-      res.holes().clear();
-      res.holes().insert(res.holes().end(), new_holes.begin(), new_holes.end());
-      return true;
-    }
-    else
+    if(ending.size() > string.size())
     {
       return false;
     }
+    return std::equal(ending.rbegin(), ending.rend(), string.rbegin());
   }
 
-  std::vector<PolygonWithHoles2D> merge(std::vector<PolygonWithHoles2D>& cross_sections)
+  class SurfaceMesh::SurfaceMeshImpl
   {
-    std::vector<PolygonWithHoles2D> result;
-    while(!cross_sections.empty())
-    {
-      PolygonWithHoles2D merged = cross_sections.back();
-      cross_sections.pop_back();
+    /// Surface mesh
+    Mesh _mesh;
 
-      bool progress = false;
-      do
+    /// Cached AABBTree
+    std::optional<AABBTree> _aabb_tree;
+
+  public:
+    SurfaceMeshImpl(Mesh&& m) : _mesh(std::move(m)) {}
+
+    AABBTree& aabb_tree()
+    {
+      if(!_aabb_tree.has_value())
       {
-        progress = false;
-        for(auto it = cross_sections.rbegin(); it != cross_sections.rend();)
-        {
-          if(it->outer_boundary().is_clockwise_oriented())
-          {
-            it = decltype(it){cross_sections.erase(std::next(it).base())};
-            continue;
-          }
-
-          PolygonWithHoles2D new_shadow;
-          if(merge_polygons_with_holes(merged, *it, new_shadow))
-          {
-            it = decltype(it){cross_sections.erase(std::next(it).base())};
-
-            merged = new_shadow;
-            progress = true;
-            continue;
-          }
-          it++;
-        }
-      } while(progress);
-
-      merged = PS::simplify(merged, PS::Squared_distance_cost(), PS::Stop_above_cost_threshold(1e-8));
-      result.push_back(merged);
-    }
-
-    return result;
-  }
-
-
-  Point2D CuttingPlane::project(const Point3D& point) const
-  {
-    auto x = CGAL::scalar_product(Vector3D(origin, point), x_axis);
-    auto y = CGAL::scalar_product(Vector3D(origin, point), y_axis);
-
-    return Point2D(x, y);
-  }
-
-  Point3D RadialCrossSectionSampler::origin() const
-  {
-    return _origin;
-  }
-
-  int RadialCrossSectionSampler::num_planes() const
-  {
-    return _num_planes;
-  }
-
-  CuttingPlane RadialCrossSectionSampler::get_plane(int idx) const
-  {
-    idx = std::max(0, std::min(idx, _num_planes - 1));
-
-    const double delta_angle =
-      _num_planes > 1 ? (2.0 * M_PI) / double(_num_planes - 1) : 2.0 * M_PI;
-    const double angle = idx * delta_angle;
-
-    Vector3D plane_normal = std::cos(angle) * _u + std::sin(angle) * _v;
-    Plane3D plane(_origin, plane_normal);
-
-    Vector3D y_axis = _up;
-    Vector3D x_axis = CGAL::cross_product(plane_normal, y_axis);
-
-    return CuttingPlane {
-      plane,
-      _origin,
-      x_axis,
-      y_axis
-    };
-  }
-
-  Point2D RadialCrossSectionSampler::project(Point3D p) const
-  {
-    // We need a radial projection onto the 0-th cutting plane
-    CuttingPlane plane = get_plane(0);
-
-    // Figure out height
-    const auto height = CGAL::scalar_product(Vector3D(plane.origin, p), plane.y_axis);
-
-    Point3D ref = plane.origin + height * plane.y_axis;
-
-    // p, ref, and the projected point now all lie on a plane orthogonal to the axis
-    // Target point is then the point on the 0-th cutting plane with the same distance
-    // as the vector p - ref.
-
-    const auto dist = CGAL::approximate_sqrt(Vector3D(ref, p).squared_length());
-
-    return Point2D(dist, height);
-  }
-
-  CuttingPlane RadialCrossSectionSampler::get_plane_through_vertex(Point3D p) const
-  {
-    Vector3D y_axis = _up;
-    Vector3D x_axis = Vector3D(_origin, p) - y_axis * CGAL::scalar_product(Vector3D(_origin, p), y_axis);
-    x_axis = x_axis / CGAL::approximate_sqrt(x_axis.squared_length());
-    Vector3D normal = CGAL::cross_product(x_axis, y_axis);
-
-    return CuttingPlane {
-      Plane3D(_origin, normal),
-      _origin,
-      x_axis,
-      y_axis
-    };
-  }
-
-  Point3D LineCrossSectionSampler::origin() const
-  {
-    return _start;
-  }
-
-  int LineCrossSectionSampler::num_planes() const
-  {
-    return _num_planes;
-  }
-
-  CuttingPlane LineCrossSectionSampler::get_plane(int idx) const
-  {
-    idx = std::max(0, std::min(idx, _num_planes - 1));
-
-    const double delta = 1.0 / double(_num_planes - 1);
-
-    const Point3D origin = _start + double(idx) * delta * Vector3D(_start, _end);
-
-    Plane3D plane(origin, _normal);
-
-    return CuttingPlane
-    {
-      plane,
-      origin,
-      _x_axis,
-      _y_axis
-    };
-  }
-
-  Point2D LineCrossSectionSampler::project(Point3D p) const
-  {
-    // Orthogonal projection onto 0-th cutting plane
-
-    CuttingPlane plane = get_plane(0);
-
-    const auto x = CGAL::scalar_product(Vector3D(plane.origin, p), plane.x_axis);
-    const auto y = CGAL::scalar_product(Vector3D(plane.origin, p), plane.y_axis);
-
-    return Point2D(x, y);
-  }
-
-  CuttingPlane LineCrossSectionSampler::get_plane_through_vertex(Point3D p) const
-  {
-    const auto distance = CGAL::scalar_product(_normal, Vector3D(_start, p));
-    const Point3D origin = _start + distance * _normal;
-
-    Plane3D plane(origin, _normal);
-
-    return CuttingPlane
-    {
-      plane,
-      origin,
-      _x_axis,
-      _y_axis
-    };
-  }
-
-  template<typename OutputIterator>
-  void find_cross_section(CGAL::Polygon_mesh_slicer<Mesh, Kernel>& slicer, const CuttingPlane& plane, OutputIterator out)
-  {
-    Polylines3D polylines;
-    Polylines2D projected_polylines;
-
-    // Find polylines
-    polylines.clear();
-    projected_polylines.clear();
-    slicer(plane.plane, std::back_inserter(polylines));
-
-    if(polylines.empty())
-    {
-      std::cerr << "Empty intersection.\n";
-      return;
-    }
-
-    /*auto it = polylines.begin();
-    for(int j(0); j < polylines.size(); j++)
-    {
-      write_polyline("intersection_" + std::to_string(i) + "_polyline_" + std::to_string(j) + ".vtp", *it);
-      it++;
-    }*/
-    //write_polylines("intersection_" + std::to_string(i) + ".vtp", polylines);
-
-    // The found polylines are 3d objects. We are actually only interested in the projection onto the current cutting plane.
-    for(const auto& polyline : polylines)
-    {
-      Polyline2D projected;
-      for(const Point3D& point : polyline)
-      {
-        projected.push_back(plane.project(point));
+        _aabb_tree = AABBTree(_mesh.faces_begin(), _mesh.faces_end(), _mesh);
       }
-      projected_polylines.push_back(projected);
+      return _aabb_tree.value();
     }
 
-    //write_polylines("projected_" + std::to_string(i) + ".vtp", projected_polylines);
+    MinGap min_gap();
+    MinGap min_gap_percentile(double percentile);
 
-    std::vector<PolygonWithHoles2D> new_cross_sections = make_polygon(projected_polylines);
+    Result<void, std::string> write_to_file(const std::string& filename);
 
-    for(PolygonWithHoles2D& poly : new_cross_sections)
+    std::uint32_t num_vertices() const;
+    std::uint32_t num_edges() const;
+    std::uint32_t num_faces() const;
+
+    bool is_closed() const;
+    bool is_wound_consistently() const;
+    bool is_outward_oriented() const;
+    double minimal_aspect_ratio() const;
+    double maximal_aspect_ratio() const;
+
+    void warnings(MeshWarnings&) const;
+
+  private:
+
+    /**
+     * \brief Ensures the given property exists on the mesh
+     * 
+     * Does nothing if the property already exists.
+     * Otherwise it calls the given function.
+     */
+    template<typename Index, typename T, typename Fn>
+    void ensure_property(const std::string& property_name, Fn&& fn)
     {
-      *out = poly;
-    }
-  }
+      auto prop = _mesh.add_property_map<Index, T>(property_name, T{});
 
-  template<typename OutputIterator>
-  void find_cross_sections(CGAL::Polygon_mesh_slicer<Mesh, Kernel>& slicer, const CrossSectionSampler& sampler, OutputIterator out)
-  {
-    for(int i(0); i < sampler.num_planes(); i++)
-    {
-      status("Finding cross section " + std::to_string(i) + " of " + std::to_string(sampler.num_planes()));
-      CuttingPlane cutting_plane = sampler.get_plane(i);
-      find_cross_section(slicer, cutting_plane, out);
-    }
-  }
-
-  template<typename CuttingPlaneIterator, typename OutputIterator>
-  void find_cross_sections(CGAL::Polygon_mesh_slicer<Mesh, Kernel>& slicer, const CuttingPlaneIterator start, const CuttingPlaneIterator end, OutputIterator out)
-  {
-    for(CuttingPlaneIterator it = start; it != end; it++)
-    {
-      find_cross_section(slicer, *it, out);
-    }
-  }
-
-  bool is_outside_union(Point2D p, std::vector<PolygonWithHoles2D>& union_components)
-  {
-    bool outside_boundary = true;
-    for(const PolygonWithHoles2D& poly : union_components)
-    {
-      outside_boundary = outside_boundary && poly.outer_boundary().bounded_side(p) == CGAL::ON_UNBOUNDED_SIDE;
-      for(const Polygon2D& hole : poly.holes())
+      if(prop.second)
       {
-        if(hole.bounded_side(p) == CGAL::ON_BOUNDED_SIDE)
-        {
-          return true;
-        }
+        fn();
       }
     }
 
-    return outside_boundary;
-  }
+    void prepare_for_min_gap();
+  };
 
-  /**
-   * \brief Computes the union of cross sections of a surface mesh
-   *
-   * Cross sections are generated by rotating a plane.
-   *
-   * The axis of rotation is given by the point \c p and the vector \c up.
-   * The initial cross section is given by the plane going through \c p with normal \c u.
-   * The plane is then rotated 360 degrees around the axis of rotation to produce \c cross_sections cross sections.
-   *
-   * \returns The union of all generated cross sections.
-   *
-   * \param filename Path of the surface mesh file
-   * \param p Point on cutting plane
-   * \param up Up-direction. Cutting plane will run through axis described by p and up
-   * \param u Vector orthogonal to up. Initial normal of cutting plane
-   * \param cross_sections Number of cross sections
-   */
-  std::vector<PolygonWithHoles2D> union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler)
+  void SurfaceMesh::SurfaceMeshImpl::prepare_for_min_gap()
   {
-    // Slicer constructor from the mesh
-    CGAL::Polygon_mesh_slicer<Mesh, Kernel> slicer(mesh);
-
-    std::vector<PolygonWithHoles2D> all_cross_sections;
-
-    // Running initial sampling of mesh. Collect evenly spaced cross sections and merge them
-    find_cross_sections(slicer, sampler, std::back_inserter(all_cross_sections));
-    std::vector<PolygonWithHoles2D> union_components = merge(all_cross_sections);
-
-    // The inital samples should have captured the major features of the input mesh,
-    // but there is no guarantee that all features have been captured.
-    // As a next step the vertices of the input mesh onto the components of the union.
-    // If a vertex gets projected outside of the outer boundary or inside a hole,
-    // we have missed a feature of the mesh.
-    // In that case we place additional cutting planes through these vertices.
-
-    /*
-    std::vector<Point> outside_vertices;
-
-    for(const Point& vertex : mesh.points())
+    // Ensure vertex normals are available
+    ensure_property<VertexIndex, Vector3D>("v:normals", [&]()
     {
-      Point2D projected = sampler.project(vertex);
-      if(is_outside_union(projected, union_components))
-      {
-        outside_vertices.push_back(vertex);
-      }
-    }
-
-    // Merge additional feature planes into union
-    std::cout << "Potentially checking an additional " << outside_vertices.size() << " feature planes.\n";
-
-    // Sort vertices by distance to sampler origin.
-    // For radial sampler this should save some time,
-    // because more distant vertices will cover more other vertices
-    // when added to the union.
-    std::sort(outside_vertices.begin(), outside_vertices.end(), [&](Point& a, Point& b) {
-      return Vector(sampler.origin(), a).squared_length() > Vector(sampler.origin(), b).squared_length();
+      compute_vertex_normals(_mesh);
     });
 
-    std::cout << "Done sorting\n";
-
-    int feature_planes_checked = 0;
-    for(Point& vertex : outside_vertices)
+    // Ensure maximal dihedral angles are available
+    ensure_property<FaceIndex, double>("f:dihedral_angle", [&]()
     {
-      Point2D projected = sampler.project(vertex);
-      if(is_outside_union(projected, union_components))
-      {
-        CuttingPlane plane = sampler.get_plane_through_vertex(vertex);
-        find_cross_section(slicer, plane, std::back_inserter(union_components));
-        union_components = merge(union_components);
-      }
-      feature_planes_checked++;
-      status("Checked " + std::to_string(feature_planes_checked + 1) + " of " + std::to_string(outside_vertices.size()) + " feature planes");
-    }
-
-    std::cout << "Checked " << feature_planes_checked << " of " << outside_vertices.size() << " potential feature planes.\n";
-    */
-
-
-    std::cout << "Done!\n";
-    std::cout << "Found union of cross sections with " << union_components.size() << " components.\n";
-
-    return union_components;
-  }
-
-  std::vector<Vector2D> laplace(const Polygon2D& polygon)
-  {
-    std::vector<Vector2D> result(polygon.size());
-
-    const std::size_t size = polygon.size();
-    for(int i(0); i < polygon.size(); i++)
-    {
-      const Point2D& a = polygon[i];
-      const Point2D& b = polygon[(i + 1) % size];
-      const Point2D& c = polygon[(i + 2) % size];
-
-      const Real length_ab = CGAL::approximate_sqrt((b - a).squared_length());
-      const Real length_bc = CGAL::approximate_sqrt((c - b).squared_length());
-      const Real total_length = length_ab + length_bc;
-
-      const Vector2D delta = (length_bc * Vector2D(b, a) + length_ab * Vector2D(b, c)) / total_length;
-
-      result[(i + 1) % size] = delta;
-    }
-
-    return result;
-  }
-
-  struct Ray
-  {
-    Point2D origin;
-    Vector2D direction;
-  };
-
-  struct Segment
-  {
-
-    Segment() = default;
-
-    Segment(const Point2D& a_, const Point2D& b_, const Vector2D& normal_) :
-      a(a_),
-      b(b_),
-      normal(normal_)
-    {
-    }
-
-    Point2D a;
-    Point2D b;
-
-    Vector2D normal;
-  };
-
-  struct Intersection
-  {
-    Real distance;
-    Point2D point;
-    Vector2D normal;
-    bool outside;
-
-    int index;
-  };
-
-  /**
-   * Returns the intersection between the given ray and the given segment, if they intersect.
-   */
-  std::optional<Intersection> ray_segment_intersection(const Ray& ray, const Segment& segment)
-  {
-    // We need to solve
-    // ray.origin + t * ray.direction = segment.a + u * (segment.b - segment.a)
-    // or in short
-    // o + td = a + u(b - a)
-    // for t, u.
-    // If t >= 0 and 0 <= u <= 1, the lines intersect.
-
-    // Rearrange to
-    // td - u(b - a) = a - o
-    // and use s = a - b, c = a - o
-    // td + us = c
-
-    // Segment direction
-    const Vector2D s = segment.a - segment.b;
-    // Rhs of system of equations
-    const Vector2D c = segment.a - ray.origin;
-    const Vector2D d = ray.direction;
-
-    // Solution via Cramers rule
-    const Real denom = d.x() * s.y() - s.x() * d.y();
-
-    if(denom == 0)
-    {
-      // Line and segment are either colinear or parallel
-      // There is technically a intersection in the colinear case
-      // but we don't handle that right know
-      return std::nullopt;
-    }
-
-    const Real t = (c.x() * s.y() - s.x() * c.y()) / denom;
-    const Real u = (d.x() * c.y() - c.x() * d.y()) / denom;
-
-    if(t > 0 && 0 < u && u < 1)
-    {
-      // Intersection between line and segment
-
-      const Point2D point = ray.origin + t * ray.direction;
-      const Real distance = CGAL::approximate_sqrt((t * ray.direction).squared_length());
-
-      Vector2D normal = segment.normal;
-      bool outside = true;
-      if(CGAL::scalar_product(normal, ray.direction) > 0)
-      {
-        normal = -normal;
-        outside = false;
-      }
-
-      std::cout << "Intersection:\n";
-      std::cout << "Ray { origin: " << ray.origin << ", direction: " << ray.direction << "}\n";
-      std::cout << "Segment {a: " << segment.a << ", " << segment.b << " }\n";
-      std::cout << "Intersection point: " << point << "\n";
-      std::cout << "t: " << t << "\n";
-      std::cout << "u: " << u << "\n";
-
-      return Intersection{distance, point, normal, outside};
-    }
-
-    return std::nullopt;
-  };
-
-  template<typename SegmentIter>
-  std::optional<Intersection> closest_ray_segment_intersection(const Ray& ray, SegmentIter begin, SegmentIter end)
-  {
-    std::optional<Intersection> result(std::nullopt);
-
-    int idx = 0;
-    for(SegmentIter it = begin; it != end; it++)
-    {
-      std::optional<Intersection> intersection = ray_segment_intersection(ray, *it);
-
-      if(!result && intersection)
-      {
-        result = intersection;
-        result.value().index = idx;
-      }
-
-      if(result && intersection && result.value().distance > intersection.value().distance)
-      {
-        result = intersection;
-        result.value().index = idx;
-      }
-
-      idx++;
-    }
-
-    return result;
-  }
-
-  Polygon2D grid_sample(const Polygon2D& polygon, Real min_dist)
-  {
-    // 1. Determine characteristic points of the polygon
-    // Characteristic points are those points we definitely want to keep in the
-    // final mesh, because they belong to geometric features we want to keep
-
-    // Choosing characteristic points is difficult.
-    // As a proof of concept we choose
-    // - points with interior angles <= 90deg
-    // - points with interior angles >= 270deg, i.e. inner and outer 90deg corners
-    // - points chosen by a simplify_by_normals with an allowed normal difference of 20deg.
-    // - points with large curvature, top 5%
-
-    // We have to be careful to balance capturing all geometric features
-    // with the number of chosen points.
-    // Gmsh does (per default) not discard boundary points,
-    // which means choosing too many points causes too small elements.
-
-    std::set<int> characteristic_points;
-
-    // Choose points by interior angle
-    const std::size_t size = polygon.size();
-    for(int i(0); i < polygon.size(); i++)
-    {
-      const Point2D& a = polygon[i];
-      const Point2D& b = polygon[(i + 1) % size];
-      const Point2D& c = polygon[(i + 2) % size];
-
-      Vector2D ba = a - b;
-      ba = ba / CGAL::approximate_sqrt(ba.squared_length());
-      Vector2D bc = c - b;
-      bc = bc / CGAL::approximate_sqrt(bc.squared_length());
-
-      const Real theta = angle(ba, bc);
-
-      if(theta <= 90)
-      {
-        characteristic_points.insert(i + 1);
-      }
-
-      if(theta >= 270)
-      {
-        characteristic_points.insert(i + 1);
-      }
-    }
-
-    // Choose points of simplified polygon
-    std::vector<int> simplified_points = simplify_by_normal(polygon, [](auto& normals, auto& next)
-    {
-      return angle(normals.front(), next) < 20.0;
-    }).second;;
-
-    characteristic_points.insert(simplified_points.begin(), simplified_points.end());
-
-    // Choose top points based on curvature
-
-    // Determine laplace for every vertex
-    std::vector<Vector2D> offsets = laplace(polygon);
-
-    // Sort indices based on laplace, in descending order
-    std::vector<int> indices(polygon.size());
-    for(int i(0); i < polygon.size(); i++)
-    {
-      indices[i] = i;
-    }
-    std::sort(indices.begin(), indices.end(), [&](int a, int b) {
-      return CGAL::approximate_sqrt(offsets[a].squared_length()) > CGAL::approximate_sqrt(offsets[b].squared_length());
+      compute_max_dihedral_angle(_mesh);
     });
 
-    // Pick top 5% of vertices by curvature
-
-    for(int i(0); i < (double)polygon.size() * 0.05; i++)
+    // Ensure maximal inscribed spheres are available
+    ensure_property<FaceIndex, double>("f:MIS_diameter", [&]()
     {
-      characteristic_points.insert(indices[i]);
-    }
-
-    // 2. Create a grid from the chosen characteristic points
-    // Each characteristic point describes an intersection of grid lines.
-    // The grid only extends into the interior of the polygon,
-    // i.e. a inner corner will stop the grid.
-    // This shields parts of the polygon from vertices, which shouldn't
-    // influence the meshing somewhere else.
-    // Imagine a lopsided y-pipe. Characteristic pipes in one of the
-    // pipes should not influence the meshing of the other pipe.
-    // Resample the polyline by choosing all characteristic points
-    // and collecting all segment-grid intersections.
-    // The resulting sampling lies on a tensor-grid,
-    // which should hopefully allow the mesher to create nicer meshes
-    // than when sampling the polyline at random.
-
-    // Build polyline from points chosen so far
-    std::vector<Point2D> polyline;
-    for(int idx : characteristic_points)
-    {
-      std::cout << "Adding vertex " << idx << " to new polyline\n";
-      polyline.push_back(polygon[idx]);
-    }
-
-    // Build list of segments
-    const WindingOrder order = polygon.is_clockwise_oriented() ? WindingOrder::Clockwise : WindingOrder::CounterClockwise;
-    std::vector<Segment> segments;
-    for(int i(0); i < polyline.size(); i++)
-    {
-      const Point2D a = polyline[i];
-      const Point2D b = polyline[(i + 1) % polyline.size()];
-      segments.push_back(Segment(a, b, outside_normal(a, b, order)));
-    }
-
-    std::array<Vector2D, 4> directions = {Vector2D(-1.0, 0.0), Vector2D(1.0, 0.0), Vector2D(0.0, -1.0), Vector2D(0.0, 1.0)};
-    for(const Point2D& point : polyline)
-    {
-      for(const Vector2D& dir : directions)
-      {
-        Ray ray{point, dir};
-        std::optional<Intersection> intersection = closest_ray_segment_intersection(ray, segments.begin(), segments.end());
-
-        if(intersection && !intersection.value().outside)
-        {
-          const int idx = intersection.value().index;
-          const Point2D intersection_point = intersection.value().point;
-
-          // Update segment list
-          // Erase the hit segment and insert the two new segments at its place
-          auto segment_iter = segments.begin() + idx;
-          Segment hit = *segment_iter;
-
-          segment_iter = segments.erase(segment_iter);
-          segment_iter = segments.insert(segment_iter, Segment(intersection_point, hit.b, outside_normal(intersection_point, hit.b, order)));
-          segments.insert(segment_iter, Segment(hit.a, intersection_point, outside_normal(hit.a, intersection_point, order)));
-        }
-      }
-    }
-
-    {
-      for(int i(0); i < segments.size() - 1; i++)
-      {
-        const Segment& a = segments[i];
-        const Segment& b = segments[i + 1];
-
-        if(a.b != b.a)
-        {
-          std::cerr << "Segments not contiguous!\n";
-          exit(1);
-        }
-      }
-      const Segment& start = segments[0];
-      const Segment& end = segments[segments.size() - 1];
-
-      if(start.a != end.b)
-      {
-        std::cerr << "Segments not contiguous!\n";
-        exit(1);
-      }
-
-    }
-
-    // Filter out too small segments
-    for(auto it = segments.begin() + 1; it <= segments.end() - 1;)
-    {
-      const Segment& segment = *it;
-      const auto length = CGAL::approximate_sqrt((segment.b - segment.a).squared_length());
-
-      const Point2D midpoint = segment.a + (length / 2.0) * (segment.b - segment.a);
-
-      if(length < min_dist)
-      {
-        Segment& prev = *std::prev(it);
-        Segment& next = *std::next(it);
-
-        prev.b = midpoint;
-        next.a = midpoint;
-
-        it = segments.erase(it);
-      }
-      else
-      {
-        it++;
-      }
-    }
-
-    std::vector<Point2D> grid_sampled_polyline;
-
-    for(const Segment& segment : segments)
-    {
-      grid_sampled_polyline.push_back(segment.a);
-    }
-
-    std::cout << "Finished grid sampling. Reduced from " << polygon.size() << " vertices to " << grid_sampled_polyline.size() << " vertices.\n";
-    return Polygon2D(grid_sampled_polyline.begin(), grid_sampled_polyline.end());
-  }
-
-  void compute_curvature(Mesh& mesh)
-  {
-    /*
-    Mesh::Property_map<VertexIndex, PrincipalVertexCurvature> principal__property =
-      mesh.add_property_map<VertexIndex, PrincipalVertexCurvature>("v:principal_curvature", PrincipalVertexCurvature()).first;
-
-    CGAL::Polygon_mesh_processing::interpolated_corrected_curvatures(
-      mesh,
-      CGAL::parameters::vertex_principal_curvatures_and_directions_map(principal__property)
-    );
-    */
-  }
-
-  void compute_mesh_thickness(Mesh& mesh)
-  {
-    if(mesh.num_faces() == 0)
-    {
-      // No work to be done
-      return;
-    }
-
-    // Create AABB tree for intersection and distance queries
-    using Primitive = CGAL::AABB_face_graph_triangle_primitive<Mesh>;
-    using AABBTraits = CGAL::AABB_traits_3<Kernel, Primitive>;
-    using AABBTree = CGAL::AABB_tree<AABBTraits>;
-
-
-    using Ray3 = Kernel::Ray_3;
-    using Segment3 = Kernel::Segment_3;
-
-    using RayIntersection = std::optional<AABBTree::Intersection_and_primitive_id<Ray3>::Type>;
-
-    AABBTree aabb_tree(mesh.faces_begin(), mesh.faces_end(), mesh);
-
-    // Create mesh property for storing thicknesses
-    Mesh::Property_map<FaceIndex, double> diameter_property =
-      mesh.add_property_map<FaceIndex, double>("f:MIS_diameter", 0).first;
-
-    Mesh::Property_map<FaceIndex, std::uint32_t> id_property =
-      mesh.add_property_map<FaceIndex, std::uint32_t>("f:MIS_id", 0).first;
-
-    Mesh::Property_map<FaceIndex, double> similarity =
-      mesh.add_property_map<FaceIndex, double>("f:similarity_of_normals", 0).first;
-
-    Mesh::Property_map<FaceIndex, int> iters =
-      mesh.add_property_map<FaceIndex, int>("f:MIS_iters", 0).first;
-
-    // Determine bounding box of mesh
-    Real max_radius = std::min(
-      {
-        aabb_tree.bbox().xmax() - aabb_tree.bbox().xmin(),
-        aabb_tree.bbox().ymax() - aabb_tree.bbox().ymin(),
-        aabb_tree.bbox().zmax() - aabb_tree.bbox().zmin(),
-      }
-    ) / Real(2.0);
-
-    // Determine maximum edge length of mesh
-    Real max_edge_length(0);
-    Real average_edge_length(0);
-    for(auto e : mesh.edges())
-    {
-      max_edge_length = std::max(max_edge_length, PMP::edge_length(e, mesh));
-      average_edge_length += PMP::edge_length(e, mesh);
-    }
-    average_edge_length /= Real(mesh.num_edges());
-
-    // Determine normal direction
-    FaceIndex normal_test_face(0);
-
-    // Determine centroid of face
-    Point3D centroid(0.0, 0.0, 0.0);
-    for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(normal_test_face)))
-    {
-      centroid += Real(1.0 / 3.0) * Vector3D(Point3D(CGAL::Origin()), mesh.point(v));
-    }
-
-    // Compute face normal
-    Vector3D test_normal = PMP::compute_face_normal(normal_test_face, mesh);
-
-    std::vector<FaceIndex> intersections;
-    aabb_tree.all_intersected_primitives(Ray3(centroid, test_normal), std::back_inserter(intersections));
-
-    int num_intersections = 0;
-    for(FaceIndex idx : intersections)
-    {
-      if(idx != FaceIndex(0))
-      {
-        num_intersections++;
-      }
-    }
-
-    //Real normal_direction = do_normals_point_outside(mesh) ? Real(-1.0) : Real(1.0);
-    Real normal_direction = num_intersections % 2 == 0 ? Real(-1.0) : Real(1.0);
-
-    for(FaceIndex face_index : mesh.faces())
-    {
-      // Determine centroid of face
-      Point3D centroid(0.0, 0.0, 0.0);
-      for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(face_index)))
-      {
-        centroid += Real(1.0 / 3.0) * Vector3D(Point3D(CGAL::Origin()), mesh.point(v));
-      }
-
-      // Determine average edge length around the face.
-      // We later use this to judge if a new closest point is
-      // actually a closer point or just a slightly closer
-      // vertex of the discretization of the same inscribed sphere
-
-      Real local_edge_length(0);
-      Real local_max_edge_length(0);
-      for(HalfedgeIndex e : mesh.halfedges_around_face(mesh.halfedge(face_index)))
-      {
-        local_edge_length += PMP::edge_length(e, mesh);
-        local_max_edge_length = std::max(local_max_edge_length, PMP::edge_length(e, mesh));
-      }
-      local_edge_length /= Real(3.0);
-
-      // Determine initial sphere radius
-      // We need an initial radius that is large enough for our initial sphere
-      // to intersect at least one object other than the current face.
-      // We cast a ray from the centroid towards the face normal.
-      // If we hit something, we have an initial guess for the radius.
-      // Otherwise the current face is pointing towards a hole in the surface mesh.
-      // In that case we use the smallest length of the axis aligned bounding box as the initial diameter.
-      // This is the largest value any MIS can be.
-
-      Real initial_radius(max_radius);
-      FaceIndex initial_id(0);
-
-      // Determine (inward) normal
-      Vector3D normal = surface_normal(mesh, face_index, centroid);
-      normal /= std::sqrt(normal.squared_length());
-      Vector3D face_normal = PMP::compute_face_normal(face_index, mesh);
-
-      Vector3D inward_normal = normal_direction * normal;
-
-      if(std::abs(CGAL::approximate_sqrt(inward_normal.squared_length()) - 1.0) > 1e-2)
-      {
-        std::cout << "Non-unit face normal at face " << face_index << "\n";
-        std::cout << "Vector: " << normal << "\n";
-        std::cout << "Length: " << CGAL::approximate_sqrt(normal.squared_length()) << "\n";
-        std::cout << "Aborting\n";
-        exit(1);
-      }
-
-      // Cast ray
-      Ray3 ray(centroid, inward_normal);
-      auto skip = [=](FaceIndex idx) { return idx == face_index; };
-      RayIntersection intersection = aabb_tree.first_intersection(ray, skip);
-
-      if(intersection && std::holds_alternative<Point3D>(intersection.value().first))
-      {
-        const Point3D& p = std::get<Point3D>(intersection.value().first);
-        Real distance = CGAL::approximate_sqrt(Vector3D(centroid, p).squared_length());
-
-        // NOTE(mmuegge): In meshes with self-intersections it can occur that a raycast hits
-        // a triangle distinct from the current face at distance 0.
-        // In that case we want to keep the initial radius based on the bounding box.
-        if(distance > 0.0)
-        {
-          initial_radius = std::min(initial_radius, distance / 2.0);
-          initial_id = intersection.value().second;
-        }
-      }
-
-      if(intersection && std::holds_alternative<Segment3>(intersection.value().first))
-      {
-        const Segment3& segment = std::get<Segment3>(intersection.value().first);
-        Real distance = CGAL::approximate_sqrt(Vector3D(centroid, segment.source()).squared_length());
-
-        if(distance > 0.0)
-        {
-          initial_radius = std::min(initial_radius, distance / 2.0);
-          initial_id = intersection.value().second;
-        }
-      }
-
-      Real prev_radius = initial_radius + 1;
-      Real radius = initial_radius;
-      FaceIndex id = initial_id;
-      Point3D closest_point;
-
-      // Shrink sphere until change in radius becomes too small
-      while(prev_radius - radius > 1e-6)
-      {
-        Point3D center = centroid + radius * inward_normal;
-        auto closest_point_data = aabb_tree.closest_point_and_primitive(center);
-
-        if(closest_point_data.second == face_index)
-        {
-          // Disregard closest points on self
-          break;
-        }
-
-        closest_point = closest_point_data.first;
-
-        Vector3D to_closest = Vector3D(centroid, closest_point);
-        if(CGAL::scalar_product(inward_normal, to_closest) <= Real(0))
-        {
-          // Next closest point is behind the current face.
-          // Disregard it
-          break;
-        }
-
-        Real distance_to_closest = CGAL::approximate_sqrt(Vector3D(center, closest_point).squared_length());
-        Vector3D closest_normal = -surface_normal(mesh, closest_point_data.second, closest_point_data.first);
-
-        Real discretization_error(0);
-        // NOTE(mmuegge): Must be local_max_edge_length < 2 * radius to be a valid triangle
-        // Tests show 1.5 works better though
-        if(local_max_edge_length < 1.5 * radius)
-        {
-          // Largest distance between sphere and an edge of maximum length, assuming the vertices of that edge lie on the sphere
-          // Any closest points within this distance belong to the same radius, they are just slightly offset due to the surface discretization.
-          discretization_error = radius - CGAL::approximate_sqrt(radius * radius - std::pow(local_max_edge_length / 2.0, 2));
-        }
-        else
-        {
-          discretization_error = 0.02 * radius;
-        }
-
-        if(distance_to_closest >= radius - 2 * discretization_error)
-        {
-          // Closest point is not in sphere. Current sphere is correct
-          break;
-        }
-
-        // We now need to find the radius r' of the new sphere that touches both the
-        // centroid of our face and the closest point we just found.
-        // Let the centroid be p, the closest point p' and let c' be the center of the new sphere.
-        // p, p', and c' prime form a isosceles triangle with two sides of length r', a side of length d.
-        //
-        //     r'
-        // p'------c'
-        // \       |
-        //  \      |
-        //   \     |
-        //  d \    | r'
-        //     \   |
-        //      \  |
-        //       \a|
-        //        p
-        //
-        // The angle a is the angle between the normal of the face and the vector pp'.
-        // We can then determine r' via the law of sines as r' = d * sin(a) * sin(180 - 2a)
-
-        double d = CGAL::to_double(CGAL::approximate_sqrt((closest_point - centroid).squared_length()));
-        double alpha = CGAL::to_double(CGAL::approximate_angle(inward_normal, Vector3D(centroid, closest_point))) / 180.0 * M_PI;
-
-        Real new_radius;
-        if(alpha != 0)
-        {
-          new_radius = Real(d * std::sin(alpha) / std::sin(M_PI - 2.0 * alpha));
-        }
-        else
-        {
-          new_radius = d;
-        }
-
-
-        prev_radius = radius;
-        radius = std::min(new_radius, radius);
-        id = closest_point_data.second;
-
-        iters[face_index]++;
-      }
-
-      // Record thickness
-      diameter_property[face_index] = CGAL::to_double(2.0 * radius);
-      id_property[face_index] = id;
-
-      // Record abs(cos(theta))
-      //similarity[face_index] = std::abs(CGAL::to_double(CGAL::scalar_product(inward_normal, surface_normal(mesh, id, closest_point))));
-      similarity[face_index] = CGAL::scalar_product(inward_normal, -PMP::compute_face_normal(id, mesh));
-    }
-  }
-
-  // Set up priority queue for choosing next vertex to explore
-  struct FrontierEntry
-  {
-    VertexIndex idx;
-    double priority;
-
-    FrontierEntry() : idx(0), priority(0) {}
-    FrontierEntry(VertexIndex v, double p) : idx(v), priority(p) {}
-  };
-
-  // The priority_queue returns the last element of the defined ordering first.
-  // We want the last element to be the one with the lowest estimated distance.
-  // Thus we sort in descending order.
-  struct Comparator
-  {
-    bool operator()(FrontierEntry a, FrontierEntry b)
-    {
-      return a.priority > b.priority;
-    }
-  };
-
-  double topological_distance(
-    FaceIndex a,
-    FaceIndex b,
-    const Mesh& mesh,
-    const std::vector<double>& edge_lengths,
-    std::vector<double>& distances,
-    double max_distance = 0.0
-  )
-  {
-    // Prepare scratch memory. -1.0 is sentinel value for an unvisited node.
-    for(auto& entry : distances)
-    {
-      entry = -1.0;
-    }
-
-    // Allocate frontier
-    std::priority_queue<FrontierEntry, std::vector<FrontierEntry>, Comparator> frontier;
-
-    // Initialise starting points.
-    for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(a)))
-    {
-      // Add start point to frontier
-      frontier.push(FrontierEntry(v, 0));
-
-      // Start point has best known distance 0.0
-      distances[v] = 0.0;
-    }
-
-    // Determine end points
-    std::vector<VertexIndex> goal_vertices;
-    for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(b)))
-    {
-      goal_vertices.push_back(v);
-    }
-
-    // Set up heuristic
-    // Heuristic is shortest direct distance to any of the goal vertices
-    auto heuristic = [&](VertexIndex v)
-    {
-      double result = std::numeric_limits<double>::max();
-      for(VertexIndex g : goal_vertices)
-      {
-        const Point3D& a = mesh.point(v);
-        const Point3D& b = mesh.point(g);
-        double distance = CGAL::to_double(CGAL::approximate_sqrt(Vector3D(a, b).squared_length()));
-        result = std::min(result, distance);
-      }
-      return result;
-    };
-
-    while(!frontier.empty())
-    {
-      // Remove next best element from the frontier
-      VertexIndex current = frontier.top().idx;
-      frontier.pop();
-
-      if(std::find(goal_vertices.begin(), goal_vertices.end(), current) != goal_vertices.end())
-      {
-        // We found one of the target vertices.
-        return distances[current];
-      }
-
-      for(HalfedgeIndex hedge : mesh.halfedges_around_target(mesh.halfedge(current)))
-      {
-        VertexIndex neighbor = mesh.source(hedge);
-
-        double edge_length = edge_lengths[mesh.edge(hedge)];
-        double new_cost = distances[current] + edge_length;
-
-        if(max_distance != 0.0 && new_cost > max_distance)
-        {
-          continue;
-        }
-
-        if(distances[neighbor] == -1.0 || new_cost < distances[neighbor])
-        {
-          distances[neighbor] = new_cost;
-
-          double priority = new_cost + heuristic(neighbor);
-          frontier.push(FrontierEntry(neighbor, priority));
-        }
-      }
-    }
-
-    return -1.0;
-  }
-
-  void topological_distances(Mesh& mesh, const std::string& targets_property, double max_distance)
-  {
-    // Get targets
-    auto maybe_target_map = mesh.property_map<FaceIndex, std::uint32_t>(targets_property);
-    if(!maybe_target_map.has_value())
-    {
-      return;
-    }
-    Mesh::Property_map<FaceIndex, std::uint32_t> targets = maybe_target_map.value();
-
-    // Get output property
-    Mesh::Property_map<FaceIndex, double> topo_distance =
-      mesh.add_property_map<FaceIndex, double>("f:topological_distance", 0).first;
-
-    // Pre-calculate edge lengths
-    std::vector<double> edge_lengths;
-    for(EdgeIndex idx : mesh.edges())
-    {
-      Point3D a = mesh.point(mesh.target(mesh.halfedge(idx)));
-      Point3D b = mesh.point(mesh.source(mesh.halfedge(idx)));
-      edge_lengths.push_back(std::sqrt((a - b).squared_length()));
-    }
-
-    // Allocate scratch memory for distances
-    std::vector<double> scratch_distances(mesh.num_vertices(), -1.0);
-
-    for(FaceIndex f : mesh.faces())
-    {
-      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, scratch_distances, max_distance);
-    }
-  }
-
-  void topological_distances(Mesh& mesh, const std::string& targets_property, const std::string& max_distance_property)
-  {
-    // Get targets
-    auto maybe_target_map = mesh.property_map<FaceIndex, std::uint32_t>(targets_property);
-    if(!maybe_target_map.has_value())
-    {
-      return;
-    }
-    Mesh::Property_map<FaceIndex, std::uint32_t> targets = maybe_target_map.value();
-
-    // Get maximum search distances
-    auto maybe_max_distances_map = mesh.property_map<FaceIndex, double>(max_distance_property);
-    if(!maybe_max_distances_map.has_value())
-    {
-      return;
-    }
-    Mesh::Property_map<FaceIndex, double> max_distances = maybe_max_distances_map.value();
-
-    // Get output property
-    Mesh::Property_map<FaceIndex, double> topo_distance =
-      mesh.add_property_map<FaceIndex, double>("f:topological_distance", 0).first;
-
-    // Pre-calculate edge lengths
-    std::vector<double> edge_lengths;
-    for(EdgeIndex idx : mesh.edges())
-    {
-      Point3D a = mesh.point(mesh.target(mesh.halfedge(idx)));
-      Point3D b = mesh.point(mesh.source(mesh.halfedge(idx)));
-      edge_lengths.push_back(std::sqrt((a - b).squared_length()));
-    }
-
-    double min_x;
-    double min_y;
-    double min_z;
-
-    double max_x;
-    double max_y;
-    double max_z;
-
-    for(const HexMesher::Point3D& p : mesh.points())
-    {
-      min_x = std::min(CGAL::to_double(p.x()), min_x);
-      min_y = std::min(CGAL::to_double(p.y()), min_y);
-      min_z = std::min(CGAL::to_double(p.z()), min_z);
-
-      max_x = std::max(CGAL::to_double(p.x()), max_x);
-      max_y = std::max(CGAL::to_double(p.y()), max_y);
-      max_z = std::max(CGAL::to_double(p.z()), max_z);
-    }
-
-    double max_mesh_delta = std::max({max_x - min_x, max_y - min_y, max_z - min_z});
-
-    // Allocate scratch memory for distances
-    std::vector<double> scratch_distances(mesh.num_vertices(), -1.0);
-
-    for(FaceIndex f : mesh.faces())
-    {
-      double max_distance = M_PI* max_distances[f];
-      max_distance = std::max(max_distance, 0.001 * max_mesh_delta);
-      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, scratch_distances, max_distance);
-    }
-  }
-
-  MinGap determine_min_gap_weighted(
-    Mesh& mesh,
-    std::function<double(FaceIndex)> weighting,
-    const std::string& diameter_property,
-    const std::string& id_property,
-    const std::string& property)
-  {
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameter =
-      mesh.property_map<HexMesher::FaceIndex, double>(diameter_property).value();
-
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
-      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>(id_property).value();
-
-    // Get output property
-    Mesh::Property_map<FaceIndex, double> gap =
-      mesh.add_property_map<FaceIndex, double>(property, 0).first;
-
-    MinGap result;
-    result.origin = FaceIndex(0);
-    result.gap = diameter[result.origin];
-
-    double min_weight = weighting(result.origin);
-
-    for(FaceIndex f : mesh.faces())
-    {
-      FaceIndex limiting = FaceIndex(ids[f]);
-      if(PMP::face_aspect_ratio(f, mesh) < 5.0 && PMP::face_aspect_ratio(limiting, mesh) < 5.0)
-      {
-        gap[f] = weighting(f);
-
-        if(gap[f] < min_weight)
-        {
-          min_weight = gap[f];
-          result.gap = diameter[f];
-          result.origin = f;
-        }
-      }
-      else
-      {
-        gap[f] = -1.0;
-      }
-    }
-
-    result.limiting = FaceIndex(ids[result.origin]);
-    return result;
-  }
-
-  MinGap determine_min_gap_direct(
-    Mesh& mesh,
-    std::function<double(FaceIndex)> gap_calc,
-    const std::string& id_property,
-    const std::string& property)
-  {
-    // Get output property
-    Mesh::Property_map<FaceIndex, double> gap =
-      mesh.add_property_map<FaceIndex, double>(property, 0).first;
-
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
-      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>(id_property).value();
-
-    MinGap result;
-    result.origin = FaceIndex(0);
-    result.gap = gap_calc(result.origin);
-
-    std::vector<std::pair<HexMesher::FaceIndex, HexMesher::FaceIndex>> self_intersections;
-    CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(self_intersections));
-
-    for(FaceIndex f : mesh.faces())
-    {
-      FaceIndex limiting = FaceIndex(ids[f]);
-      if(PMP::face_aspect_ratio(f, mesh) < 5.0 &&
-         PMP::face_aspect_ratio(limiting, mesh) < 5.0 &&
-         std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(f, limiting)) == self_intersections.end() &&
-         std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(limiting, f)) == self_intersections.end())
-      {
-        double new_gap = gap_calc(f);
-        gap[f] = new_gap;
-        if(new_gap < result.gap)
-        {
-          result.gap = new_gap;
-          result.origin = f;
-        }
-      }
-      else
-      {
-        gap[f] = -1.0;
-      }
-    }
-
-    result.limiting = FaceIndex(ids[result.origin]);
-    return result;
-  }
-
-  void compute_vertex_normals(Mesh& mesh)
-  {
-    Mesh::Property_map<VertexIndex, Vector3D> normals =
-      mesh.add_property_map<VertexIndex, Vector3D>("v:normals", Vector3D(0.0, 0.0, 0.0)).first;
-
-    CGAL::Polygon_mesh_processing::compute_vertex_normals(mesh, normals);
-  }
-
-  Vector3D surface_normal(Mesh& mesh, FaceIndex f, Point3D point)
-  {
-    auto maybe_normals_map = mesh.property_map<VertexIndex, Vector3D>("v:normals");
-    if(!maybe_normals_map.has_value())
-    {
-      // TODO: Should be an assert
-      std::cout << "surface_normals failed: missing property v:normals\n";
-      return Vector3D(0.0, 0.0, 0.0);
-    }
-    Mesh::Property_map<VertexIndex, Vector3D> vertex_normals = maybe_normals_map.value();
-
-    // Get barycentric coordinates of point
-    auto location = CGAL::Polygon_mesh_processing::locate_in_face(point, f, mesh);
-
-    std::array<Vector3D, 3> normals;
-
-    // Get vertex normals
-    int i(0);
-    //std::cout << "Point: " << point << "\n";
-    for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(f)))
-    {
-      //std::cout << "vertex_point[" << i << "] = " << mesh.point(v) << "\n";
-      //std::cout << "vertex_normals[" << i << "] = " << vertex_normals[v] << "\n";
-      //std::cout << "barycentric_coordinate[" << i << "] = " << location.second[i] << "\n";
-      normals[i++] = vertex_normals[v];
-    }
-
-    // Interpolate
-    Vector3D result = location.second[0] * normals[0] + location.second[1] * normals[1] + location.second[2] * normals[2];
-    return result;
-  }
-
-  bool is_wound_consistently(const Mesh& mesh)
-  {
-    for(HalfedgeIndex idx : mesh.halfedges())
-    {
-      VertexIndex source = mesh.source(idx);
-      VertexIndex target = mesh.target(idx);
-
-      HalfedgeIndex opposite = mesh.opposite(idx);
-
-      if(opposite != mesh.null_halfedge())
-      {
-        // If the mesh is wound consistently, then opposite halfedges need
-        // to visit the same vertices in the opposite order.
-        // Otherwise the two faces are wound differently.
-        if(source != mesh.target(opposite) || target != mesh.source(opposite))
-        {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
-  // Compute the maximum dihedral angle for each face in radians
-  void compute_max_dihedral_angle(Mesh& mesh)
-  {
-    Mesh::Property_map<FaceIndex, double> dihedral_angles =
-      mesh.add_property_map<FaceIndex, double>("f:dihedral_angle", 0).first;
-
-    for(FaceIndex current : mesh.faces())
-    {
-      double max_angle = 0;
-      Vector3D normal = PMP::compute_face_normal(current, mesh);
-
-      for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(current)))
-      {
-        for(FaceIndex neighbor : mesh.faces_around_target(mesh.halfedge(v)))
-        {
-          if(neighbor > mesh.num_faces())
-          {
-            // NOTE(mmuegge): The inner loop produces invalid indices for the 10062 mesh
-            continue;
-          }
-          Vector3D n = PMP::compute_face_normal(neighbor, mesh);
-
-          double cosine = CGAL::scalar_product(normal, n);
-          cosine = std::max(std::min(cosine, 1.0), 0.0);
-
-          max_angle = std::max(max_angle, std::acos(cosine));
-        }
-      }
-
-      dihedral_angles[current] = max_angle;
-    }
-  }
-
-  void score_gaps(Mesh& mesh)
-  {
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameters =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter").value();
-
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> topo_dists =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:topological_distance").value();
-
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> similarity_of_normals =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:similarity_of_normals").value();
-
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> dihedral_angles =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:dihedral_angle").value();
-
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
-      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id").value();
-
-    // NOTE(mmuegge): Tried to store these as HexMesher::Points,
-    // but CGAL produced a stack overflow on cleanup,
-    // because it reuses values of the points in the exact kernel
-    // and cleans them up recursively.
-    // Try again once we support the inexact kernel.
-    double min_x;
-    double min_y;
-    double min_z;
-
-    double max_x;
-    double max_y;
-    double max_z;
-
-    for(const HexMesher::Point3D& p : mesh.points())
-    {
-      min_x = std::min(CGAL::to_double(p.x()), min_x);
-      min_y = std::min(CGAL::to_double(p.y()), min_y);
-      min_z = std::min(CGAL::to_double(p.z()), min_z);
-
-      max_x = std::max(CGAL::to_double(p.x()), max_x);
-      max_y = std::max(CGAL::to_double(p.y()), max_y);
-      max_z = std::max(CGAL::to_double(p.z()), max_z);
-    }
-
-    double max_diameter = std::min({max_x - min_x, max_y - min_y, max_z - min_z});
-
-    auto topo_dist_score = [&](FaceIndex f)
-    {
-      double dist = topo_dists[f];
-
-      // If the topological_distance is zero, this is not a valid gap
-      if(dist == 0.0)
-        return 0.0;
-
-      // If the faces are either unconnected or farther apart than the search radius,
-      // then this is an ideal gap
-      if(dist == -1.0)
-        return 1.0;
-
-      // Divide by maximum search range for this face
-      double rel = topo_dists[f] / std::max(0.001 * max_diameter, M_PI * diameters[f]);
-
-      // At a relative distance of 0.5 the limiting face is (at best) at the opposite end of the MIS.
-      // Penalize all distances below that.
-      if(rel < 0.5)
-        return 4 * rel * rel;
-
-      // Above a relative distance of 0.5 there must be some amount of space between the MIS and the mesh.
-      // All these gaps are ok.
-      return 1.0;
-    };
-
-    auto normalized_diameter_score = [&](FaceIndex f)
-    {
-      double normalized = diameters[f] / max_diameter;
-
-      // Penalize any gaps smaller than a tenth of a percent of the mesh size
-      if(normalized < 1e-3)
-      {
-        return 1e3 * normalized;
-      }
-
-      // Full score for anything else
-      return 1.0;
-    };
-
-    auto similarity_of_normals_score = [&](FaceIndex f)
-    {
-      if(-similarity_of_normals[f] < 0.0)
-      {
-        return 0.0;
-      }
-
-      return std::pow(-similarity_of_normals[f], 1.0 / 3.0);
-    };
-
-    auto dihedral_angle_score = [&](FaceIndex f)
-    {
-      if(dihedral_angles[f] < 0.3)
-      {
-        return 1.0;
-      }
-      return std::sqrt(1.0 - ((dihedral_angles[f] + 0.3) / M_PI));
-    };
-
-    auto max_edge_length = [&](FaceIndex f)
-    {
-      double result = 0.0;
-      for(HalfedgeIndex idx : mesh.halfedges_around_face(mesh.halfedge(f)))
-      {
-        result = std::max(result, PMP::edge_length(idx, mesh));
-      }
-      return result;
-    };
-
-    std::vector<std::pair<HexMesher::FaceIndex, HexMesher::FaceIndex>> self_intersections;
-    CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(self_intersections));
-
-    Mesh::Property_map<FaceIndex, double> gap_score =
-      mesh.add_property_map<FaceIndex, double>("f:gap_score", 0).first;
-
-    for(FaceIndex f : mesh.faces())
-    {
-      FaceIndex limiting = FaceIndex(ids[f]);
-
-      double edge_ratio = max_edge_length(f) / max_edge_length(limiting);
-      if(edge_ratio < 1.0)
-      {
-        edge_ratio = 1.0 / edge_ratio;
-      }
-
-      if(PMP::face_aspect_ratio(f, mesh) < 5.0 &&
-         PMP::face_aspect_ratio(limiting, mesh) < 5.0 &&
-         std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(f, limiting)) == self_intersections.end() &&
-         std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(limiting, f)) == self_intersections.end() &&
-         diameters[f] / max_diameter > 1e-4 &&
-         edge_ratio < 5.0)
-      {
-        if(topo_dists[f] == -1.0 && topo_dists[FaceIndex(ids[f])] == -1.0)
-        {
-          // Perfect gap if both triangles are unconnected.
-          // NOTE(mmuegge): There are situations where a large triangle
-          // hits a very small triangle across a corner of the mesh.
-          // In that case the small triangle might not find its limiting triangle 
-          // within the search radius for topological distances, but the large
-          // triangle might, because its vertices are further from its centroid,
-          // giving an initial distance boost.
-          // We thus check that neither triangle found its limiting triangle,
-          // to determine if we should score the gap more exactly.
-          // Note that the above condition does not imply f = ids[f].
-          // TODO(mmuegge): Can we fix this by considering the distances
-          // from the centroid to a starting vertex in the topological distance search?
-          gap_score[f] = 1.0;
-        }
-        else
-        {
-          gap_score[f] = (1.0 / 3.0) * (topo_dist_score(f) + similarity_of_normals_score(f) + dihedral_angle_score(f));
-        }
-      }
-      else
-      {
-        gap_score[f] = 0;
-      }
-    }
-  }
-
-  MinGap select_min_gap(Mesh& mesh, double percentile)
-  {
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameters =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter").value();
-
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> scores =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:gap_score").value();
-
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
-      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id").value();
-
-    std::vector<double> percentiles(scores.begin(), scores.end());
-
-    // Sort scores in descending order
-    std::sort(percentiles.begin(), percentiles.end(), [](double a, double b)
-    {
-      return a > b;
+      maximal_inscribed_spheres(_mesh, aabb_tree());
     });
 
-    /*
-    auto last = std::unique(percentiles.begin(), percentiles.end(), [](double a, double b)
+    // Ensure topological distances are available
+    ensure_property<FaceIndex, double>("f:topological_distance", [&]()
     {
-      return std::abs(a -b) < 1e-6;
+      topological_distances(_mesh, "f:MIS_id", "f:MIS_diameter");
     });
-    percentiles.erase(last, percentiles.end());
-    */
 
-    std::size_t percentile_size = std::ceil(Real(percentiles.size()) * Real(percentile));
-    double cutoff_score = *(percentiles.begin() + percentile_size);
-
-    std::cout << "Score cutoff is " << cutoff_score << "\n";
-
-    MinGap result;
-    result.gap = std::numeric_limits<double>::max();
-
-    for(FaceIndex f : mesh.faces())
+    // Ensure gap scores are available
+    ensure_property<FaceIndex, double>("f:gap_score", [&]()
     {
-      if(scores[f] < cutoff_score)
-      {
-        continue;
-      }
-      if(diameters[f] < result.gap)
-      {
-        result.gap = diameters[f];
-        result.origin = f;
-        result.limiting = FaceIndex(ids[f]);
-      }
-    }
-
-    return result;
+      score_gaps(_mesh);
+    });
   }
 
-  MinGap select_min_gap2(Mesh& mesh)
+  MinGap SurfaceMesh::SurfaceMeshImpl::min_gap()
   {
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameters =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter").value();
+    prepare_for_min_gap();
+    return HexMesher::min_gap(_mesh);
+  }
 
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> scores =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:gap_score").value();
+  MinGap SurfaceMesh::SurfaceMeshImpl::min_gap_percentile(double percentile)
+  {
+    prepare_for_min_gap();
+    return HexMesher::min_gap_percentile(_mesh, percentile);
+  }
 
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
-      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id").value();
+  Result<void, std::string> SurfaceMesh::SurfaceMeshImpl::write_to_file(const std::string& filename)
+  {
+    using ResultType = Result<void, std::string>;
 
-    double threshold = 0.95;
-
-    std::vector<FaceIndex> candidates;
-    std::copy_if(mesh.faces_begin(), mesh.faces_end(), std::back_inserter(candidates), [&](FaceIndex f) { return scores[f] > threshold; });
-
-    if(candidates.empty())
+    if(!ends_with(filename, ".ply"))
     {
-      // No gaps with score above 0.95. Take 10th percentile instead.
-
-      std::vector<double> percentiles(scores.begin(), scores.end());
-      // Sort scores in descending order
-      std::sort(percentiles.begin(), percentiles.end(), [](double a, double b)
-      {
-        return a > b;
-      });
-
-      std::size_t percentile_size = std::ceil(Real(percentiles.size()) * Real(0.1));
-      double cutoff_score = *(percentiles.begin() + percentile_size);
-
-      std::copy_if(mesh.faces_begin(), mesh.faces_end(), std::back_inserter(candidates), [&](FaceIndex f) { return scores[f] > cutoff_score; });
+      return ResultType::err("Can only write .ply files");
     }
 
-    MinGap result;
-    result.gap = std::numeric_limits<double>::max();
+    std::ofstream output(filename);
 
-    for(FaceIndex f : candidates)
+    if(!output)
     {
-      if(diameters[f] < result.gap)
+      return ResultType::err("Failed to open file for writing");
+    }
+
+    if(!CGAL::IO::write_PLY(output, _mesh))
+    {
+      return ResultType::err("Failed to write mesh to opened file");
+    }
+
+    return ResultType();
+  }
+
+  std::uint32_t SurfaceMesh::SurfaceMeshImpl::num_vertices() const
+  {
+    return _mesh.num_vertices();
+  }
+
+  std::uint32_t SurfaceMesh::SurfaceMeshImpl::num_edges() const
+  {
+    return _mesh.num_edges();
+  }
+
+  std::uint32_t SurfaceMesh::SurfaceMeshImpl::num_faces() const
+  {
+    return _mesh.num_faces();
+  }
+
+  bool SurfaceMesh::SurfaceMeshImpl::is_closed() const
+  {
+    return CGAL::is_closed(_mesh);
+  }
+
+  bool SurfaceMesh::SurfaceMeshImpl::is_wound_consistently() const
+  {
+    return HexMesher::is_wound_consistently(_mesh);
+  }
+
+  bool SurfaceMesh::SurfaceMeshImpl::is_outward_oriented() const
+  {
+    return CGAL::Polygon_mesh_processing::is_outward_oriented(_mesh);
+  }
+
+  double SurfaceMesh::SurfaceMeshImpl::minimal_aspect_ratio() const
+  {
+    double min_aspect_ratio = std::numeric_limits<double>::max();
+    for(HexMesher::FaceIndex f : _mesh.faces())
+    {
+      double ratio = CGAL::Polygon_mesh_processing::face_aspect_ratio(f, _mesh);
+      min_aspect_ratio = std::min(min_aspect_ratio, ratio);
+    }
+
+    return min_aspect_ratio;
+  }
+
+  double SurfaceMesh::SurfaceMeshImpl::maximal_aspect_ratio() const
+  {
+    double max_aspect_ratio = 0;
+    for(HexMesher::FaceIndex f : _mesh.faces())
+    {
+      double ratio = CGAL::Polygon_mesh_processing::face_aspect_ratio(f, _mesh);
+      max_aspect_ratio = std::max(max_aspect_ratio, ratio);
+    }
+
+    return max_aspect_ratio;
+  }
+
+  void SurfaceMesh::SurfaceMeshImpl::warnings(MeshWarnings& ws) const
+  {
+    ws.self_intersections.clear();
+    ws.degenerate_triangles.clear();
+    ws.anisotropic_triangles.clear();
+
+    create_warnings(_mesh, ws);
+  }
+
+  SurfaceMesh::SurfaceMesh(std::unique_ptr<SurfaceMesh::SurfaceMeshImpl> ptr) : impl(std::move(ptr)) {}
+  SurfaceMesh::~SurfaceMesh() = default;
+  SurfaceMesh::SurfaceMesh(SurfaceMesh&&) = default;
+  SurfaceMesh& SurfaceMesh::operator=(SurfaceMesh&&) = default;
+
+  MinGap SurfaceMesh::min_gap()
+  {
+    return impl->min_gap();
+  }
+
+  MinGap SurfaceMesh::min_gap_percentile(double percentile)
+  {
+    return impl->min_gap_percentile(percentile);
+  }
+
+  Result<void, std::string> SurfaceMesh::write_to_file(const std::string& filename)
+  {
+    return impl->write_to_file(filename);
+  }
+
+  std::uint32_t SurfaceMesh::num_vertices() const { return impl->num_vertices(); }
+  std::uint32_t SurfaceMesh::num_edges() const { return impl->num_edges(); }
+  std::uint32_t SurfaceMesh::num_faces() const { return impl->num_faces(); }
+
+  bool SurfaceMesh::is_closed() const { return impl->is_closed(); }
+  bool SurfaceMesh::is_wound_consistently() const { return impl->is_wound_consistently(); }
+  bool SurfaceMesh::is_outward_oriented() const { return impl->is_outward_oriented(); }
+  double SurfaceMesh::minimal_aspect_ratio() const { return impl->minimal_aspect_ratio(); }
+  double SurfaceMesh::maximal_aspect_ratio() const { return impl->maximal_aspect_ratio(); }
+
+  void SurfaceMesh::warnings(MeshWarnings& ws) const { impl->warnings(ws); }
+
+  Result<SurfaceMesh, std::string> load_from_file(const std::string& filename, bool triangulate)
+  {
+    using ResultType = Result<SurfaceMesh, std::string>;
+
+    HexMesher::Mesh mesh;
+    if(ends_with(filename, ".ply"))
+    {
+      std::ifstream mesh_file(filename);
+      std::string comment("");
+      if(!CGAL::IO::read_PLY(mesh_file, mesh, comment, true))
       {
-        result.gap = diameters[f];
-        result.origin = f;
-        result.limiting = FaceIndex(ids[f]);
+        return ResultType::err("Failed to read mesh " + filename);
       }
     }
+    else if(!CGAL::Polygon_mesh_processing::IO::read_polygon_mesh(filename, mesh))
+    {
+      return ResultType::err("Failed to read mesh " + filename);
+    }
 
-    return result;
+    if(CGAL::is_empty(mesh))
+    {
+      return ResultType::err("Mesh " + filename + " is empty.");
+    }
+
+    bool is_triangle_mesh = CGAL::is_triangle_mesh(mesh);
+    if(!is_triangle_mesh && triangulate)
+    {
+      PMP::triangulate_faces(mesh);
+    }
+    else if(!is_triangle_mesh && !triangulate)
+    {
+      return ResultType::err("Mesh " + filename + " is not a triangle mesh.");
+    }
+
+    auto impl = std::make_unique<SurfaceMesh::SurfaceMeshImpl>(std::move(mesh));
+    SurfaceMesh smesh(std::move(impl));
+
+    return ResultType::ok(std::move(smesh));
   }
 }

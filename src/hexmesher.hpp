@@ -2,191 +2,169 @@
 
 #include <types.hpp>
 
+#include <variant>
+#include <optional>
+#include <memory>
+
 namespace HexMesher
 {
-  struct CuttingPlane
+  template<typename T, typename E>
+  class Result
   {
-    Plane3D plane;
+    struct TagOK {};
+    struct TagErr {};
 
-    Point3D origin;
-    Vector3D x_axis;
-    Vector3D y_axis;
-
-    Point2D project(const Point3D&) const;
-  };
-
-  class CrossSectionSampler
-  {
-  public:
-    virtual Point3D origin() const = 0;
-    virtual int num_planes() const = 0;
-    virtual CuttingPlane get_plane(int) const = 0;
-    virtual Point2D project(Point3D p) const = 0;
-    virtual CuttingPlane get_plane_through_vertex(Point3D p) const = 0;
-  };
-
-  class RadialCrossSectionSampler : public CrossSectionSampler
-  {
-    int _num_planes;
-
-    Point3D _origin;
-
-    Vector3D _up;
-    Vector3D _u;
-    Vector3D _v;
+    std::variant<T, E> content;
 
   public:
+    // Rule of five
+    Result() = delete;
 
-    RadialCrossSectionSampler(int num_planes, const Point3D& o, const Vector3D& normal, const Vector3D& up) :
-      _num_planes(num_planes),
-      _origin(o),
-      _up(up),
-      _u(normal),
-      _v(CGAL::cross_product(normal, up))
+    Result(TagOK, const T& value) : content(std::in_place_index<0>, value) {}
+    Result(TagOK, T&& value) : content(std::in_place_index<0>, std::move(value)) {}
+
+    Result(TagErr, const E& value) : content(std::in_place_index<1>, value) {}
+    Result(TagErr, E&& value) : content(std::in_place_index<1>, std::move(value)) {}
+
+    Result(const Result&) = delete;
+    Result& operator=(const Result&) = delete;
+
+    Result(Result&&) = default;
+    Result& operator=(Result&&) = default;
+
+    ~Result() = default;
+
+    // Static factory methods
+    static Result ok(const T& value)
     {
-      if(CGAL::scalar_product(normal, up) > 1e-8)
-      {
-        throw std::invalid_argument("RadialCrossSectionSampler: normal and up must be orthogonal!");
-      }
-
-      _up = _up / CGAL::approximate_sqrt(_up.squared_length());
-      _u = _u / CGAL::approximate_sqrt(_u.squared_length());
-      _v = _v / CGAL::approximate_sqrt(_v.squared_length());
+      return Result(TagOK{}, value);
     }
 
-    Point3D origin() const override;
-    int num_planes() const override;
-    CuttingPlane get_plane(int idx) const override;
-
-    Point2D project(Point3D p) const override;
-    CuttingPlane get_plane_through_vertex(Point3D p) const override;
-  };
-
-  class LineCrossSectionSampler : public CrossSectionSampler
-  {
-    int _num_planes;
-
-    Point3D _start;
-    Point3D _end;
-
-    Vector3D _normal;
-    Vector3D _x_axis;
-    Vector3D _y_axis;
-
-  public:
-
-    LineCrossSectionSampler(int num_planes, const Point3D& start, const Point3D& end, const Vector3D& normal, const Vector3D& up) :
-      _num_planes(num_planes),
-      _start(start),
-      _end(end),
-      _normal(normal),
-      _x_axis(CGAL::cross_product(normal, up)),
-      _y_axis(up)
+    static Result ok(T&& value)
     {
-      if(CGAL::scalar_product(normal, up) > 1e-8)
-      {
-        throw std::invalid_argument("LineCrossSectionSampler: normal and up must be orthogonal!");
-      }
-
-      _normal = _normal / CGAL::approximate_sqrt(_normal.squared_length());
-      _x_axis = _x_axis / CGAL::approximate_sqrt(_x_axis.squared_length());
-      _y_axis = _y_axis / CGAL::approximate_sqrt(_y_axis.squared_length());
+      return Result(TagOK{}, std::forward<T>(value));
     }
 
-    Point3D origin() const override;
-    int num_planes() const override;
-    CuttingPlane get_plane(int idx) const override;
+    static Result err(const E& value)
+    {
+      return Result(TagErr{}, value);
+    }
 
-    Point2D project(Point3D p) const override;
-    CuttingPlane get_plane_through_vertex(Point3D p) const override;
+    static Result err(E&& value)
+    {
+      return Result(TagErr{}, std::forward<E>(value));
+    }
+
+    bool is_ok() const
+    {
+      return content.index() == 0;
+    }
+
+    bool is_err() const
+    {
+      return content.index() == 1;
+    }
+
+    T ok_value() const { return std::get<0>(content); }
+    E err_value() const { return std::get<1>(content); }
+
+    T& ok_ref() { return std::get<0>(content); }
+    E& err_ref() { return std::get<1>(content); }
+
+    const T& ok_ref() const { return std::get<0>(content); }
+    const E& err_ref() const { return std::get<1>(content); }
+
+    T&& take_ok() && { return std::get<0>(std::move(content)); };
+    E&& take_err() && { return std::get<1>(std::move(content)); };
   };
 
-  double angle(const Vector2D& a, const Vector2D& b);
-
-  std::vector<PolygonWithHoles2D> union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler);
-
-  std::pair<Polygon2D, std::vector<int>> simplify_by_normal(
-    const Polygon2D& polygon,
-    const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred);
-
-  Polygon2D grid_sample(const Polygon2D& polygon, Real min_dist);
-
-  struct MinGap
+  template<typename E>
+  class Result<void, E>
   {
-    /// Face at which the gap originates
-    FaceIndex origin = FaceIndex(0);
-    /// Face which limits the gap
-    FaceIndex limiting = FaceIndex(0);
+    std::optional<E> error;
 
-    /// Size of the gap
-    Real gap = Real(0.0);
+  public:
+    // Rule of five
+    Result() : error(std::nullopt) {}
+
+    Result(const E& value) : error(value) {}
+    Result(E&& value) : error(std::move(value)) {}
+
+    Result(const Result&) = delete;
+    Result& operator=(const Result&) = delete;
+
+    Result(Result&&) = default;
+    Result& operator=(Result&&) = default;
+
+    ~Result() = default;
+
+    // Static factory methods
+    static Result ok()
+    {
+      return Result();
+    }
+
+    static Result err(const E& value)
+    {
+      return Result(value);
+    }
+
+    static Result err(E&& value)
+    {
+      return Result(std::forward<E>(value));
+    }
+
+    bool is_ok() const
+    {
+      return !error.has_value();
+    }
+
+    bool is_err() const
+    {
+      return error.has_value();
+    }
+
+    E err_value() const { return error.value(); }
+    E& err_ref() { return error.value(); }
+    const E& err_ref() const { return error.value(); }
+    E&& take_err() && { return std::move(error).value(); };
   };
 
-  /**
-   * \brief Compute a measure of mesh thickness at each face of a mesh.
-   *
-   * Determines the maximum inscribed sphere at each face of the mesh,
-   * i.e. the largest possible sphere that touches the centroid of the mesh and any other point of the mesh,
-   * without intersecting the mesh.
-   *
-   * The diameter of each sphere is made available in a "f:MIS_diameter" mesh property of type double.
-   * The id of the _other_ primitive that is touched by the sphere is made available in a "f:MIS_id" mesh property.
-   *
-   * See the following for details on the algorithm:
-   * Shrinking sphere: A parallel algorithm for computing the thickness of 3D objects
-   * Masatomo Inui, Nobuyuki Umezu, Ryohei Shimane
-   * COMPUTER-AIDED DESIGN & APPLICATIONS, 2016, VOL. 13, NO. 2, 199–207
-   * http://dx.doi.org/10.1080/16864360.2015.1084186
-   */
-  void compute_mesh_thickness(Mesh& mesh);
+  class SurfaceMesh
+  {
+  public:
+    // Forward declaration for PIMPL
+    class SurfaceMeshImpl;
 
-  /**
-   * \brief Calculates topological distances on the mesh
-   *
-   * \param mesh Mesh to calculate distances on
-   * \param property Name of a mesh property of with type FaceIndex
-   *
-   * Calculates the smallest distance along the edges of the mesh between any face f
-   * and the corresponding face property[f].
-   */
-  void topological_distances(Mesh& mesh, const std::string& property, double max_distance = 0.0);
-  void topological_distances(Mesh& mesh, const std::string& targets_property, const std::string& max_distance_property);
+  private:
+    std::unique_ptr<SurfaceMeshImpl> impl;
 
-  MinGap determine_min_gap_weighted(
-    Mesh& mesh,
-    std::function<double(FaceIndex)> weighting,
-    const std::string& diameter_property,
-    const std::string& id_property,
-    const std::string& property = std::string("f:gap"));
+  public:
+    explicit SurfaceMesh(std::unique_ptr<SurfaceMeshImpl> ptr);
+    ~SurfaceMesh();
 
-  MinGap determine_min_gap_direct(
-    Mesh& mesh,
-    std::function<double(FaceIndex)> gap_calc,
-    const std::string& id_property,
-    const std::string& property = std::string("f:gap"));
+    SurfaceMesh(SurfaceMesh&&);
+    SurfaceMesh(const SurfaceMesh&) = delete;
 
-  /**
-   * \brief Computes vertex normals and makes them available as v:normals
-   */
-  void compute_vertex_normals(Mesh& mesh);
+    SurfaceMesh& operator=(SurfaceMesh&&);
+    SurfaceMesh& operator=(const SurfaceMesh&) = delete;
 
-  void compute_curvature(Mesh& mesh);
+    std::uint32_t num_vertices() const;
+    std::uint32_t num_edges() const;
+    std::uint32_t num_faces() const;
+    bool is_closed() const;
+    bool is_wound_consistently() const;
+    bool is_outward_oriented() const;
+    double minimal_aspect_ratio() const;
+    double maximal_aspect_ratio() const;
 
-  void compute_max_dihedral_angle(Mesh& mesh);
+    MinGap min_gap();
+    MinGap min_gap_percentile(double);
 
-  /**
-   * \brief Returns true if face normals calculated via a cross product point towards the "unbounded" side of the mesh
-   *
-   * We write "unbounded" because we do not assume that the mesh is watertight. There thus might not be a "bounded" side.angle
-   * This function will work either way.
-   */
-  bool do_normals_point_outside(const Mesh& mesh);
+    void warnings(MeshWarnings&) const;
 
-  bool is_wound_consistently(const Mesh& mesh);
+    Result<void, std::string> write_to_file(const std::string& filename);
+  };
 
-  Vector3D surface_normal(Mesh& mesh, FaceIndex f, Point3D point);
-
-  void score_gaps(Mesh& mesh);
-  MinGap select_min_gap(Mesh& mesh, double percentile);
-  MinGap select_min_gap2(Mesh& mesh);
+  Result<SurfaceMesh, std::string> load_from_file(const std::string& filename, bool triangulate = false);
 }

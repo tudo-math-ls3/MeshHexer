@@ -1,31 +1,191 @@
 #include <iostream>
+#include <array>
+#include <string>
+#include <filesystem>
+#include <cstring>
 
 #include <hexmesher.hpp>
-#include <io.hpp>
-#include <util.hpp>
 
-#include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
-#include <CGAL/Surface_mesh/IO.h>
-#include <CGAL/Polygon_mesh_processing/measure.h>
-#include <CGAL/Polygon_mesh_processing/triangulate_faces.h>
-#include <CGAL/Polygon_mesh_processing/self_intersections.h>
-#include <CGAL/Polygon_mesh_processing/orientation.h>
-
-static bool ends_with(const std::string& string, const std::string& ending)
+namespace HexMesherCLI::Markdown
 {
-  if(ending.size() > string.size())
+  static std::string h1(const std::string& heading)
   {
-    return false;
+    return heading + "\n" + std::string(heading.size(), '=');
   }
-  return std::equal(ending.rbegin(), ending.rend(), string.rbegin());
+
+  static std::string h2(const std::string& heading)
+  {
+    return heading + "\n" + std::string(heading.size(), '-');
+  }
+
+  static std::string li(const std::string& content)
+  {
+    return "- " + content;
+  }
 }
 
-void print_min_gap(const HexMesher::MinGap& min_gap)
+namespace HexMesherCLI
 {
-  std::cout << "Min-gap of " << min_gap.gap << " between faces " << min_gap.origin << " and " << min_gap.limiting << "\n";
-  std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.origin.idx() << ", 0, " << min_gap.limiting.idx() << "], FieldType='CELL')` to select the chosen triangles in ParaView\n\n";
+  void print_min_gap(const HexMesher::MinGap& min_gap)
+  {
+    std::cout << "Min-gap of " << min_gap.gap << " between faces " << min_gap.origin << " and " << min_gap.limiting << "\n";
+    std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.origin << ", 0, " << min_gap.limiting << "], FieldType='CELL')` to select the chosen triangles in ParaView\n";
+  }
+
+  const char* usage = "Usage:\n"
+    "hexmesher-cli [-h|--help] <mesh> <command> [<args>]\n\n"
+    "Available commands:\n"
+    "min-gap: Calculate smallest inside gap between opposite faces of the mesh\n"
+    "report: Print information about the mesh\n"
+    "warnings: Print warnings about the mesh. Warns about self-intersections, degenerate triangle, and anisotropic triangles. Pass --summarize to summarize warnings\n";
+
+  int main(int argc, char* argv[])
+  {
+    if(argc < 2)
+    {
+      std::cout << "Invalid number of arguments\n";
+      std::cout << usage;
+      return 1;
+    }
+
+    if(strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)
+    {
+      std::cout << usage;
+      return 0;
+    }
+
+    if(argc < 3)
+    {
+      std::cout << "Invalid number of arguments\n";
+      std::cout << usage;
+      return 1;
+    }
+
+    const std::string filename(argv[1]);
+    const std::string mode(argv[2]);
+
+    HexMesher::Result<HexMesher::SurfaceMesh, std::string> result =
+      HexMesher::load_from_file(filename, true);
+
+    if(result.is_err())
+    {
+      std::cout << "Reading mesh failed with error: " << result.err_ref() << "\n";
+      exit(1);
+    }
+
+    HexMesher::SurfaceMesh mesh = std::move(result).take_ok();
+
+    if(mode == "min-gap")
+    {
+      HexMesher::MinGap min_gap = mesh.min_gap();
+      print_min_gap(min_gap);
+
+      HexMesher::Result<void, std::string> result =
+        mesh.write_to_file("thickness.ply");
+
+      if(result.is_err())
+      {
+        std::cout << "Writing mesh failed with error: " << result.err_ref() << "\n";
+      }
+    }
+
+    if(mode == "report")
+    {
+      std::filesystem::path absolute_path = std::filesystem::canonical(filename);
+
+      HexMesher::MeshWarnings warnings;
+      mesh.warnings(warnings);
+
+      std::cout << Markdown::h1("Mesh-Report for " + absolute_path.filename().string()) << "\n";
+
+      std::cout << "\n";
+
+      std::cout << Markdown::h2("Metadata") << "\n";
+      std::cout << Markdown::li("Path: " + absolute_path.string()) << "\n";
+
+      std::cout << "\n";
+
+      std::cout << Markdown::h2("Topology") << "\n";
+      std::cout << Markdown::li("Number of vertices: " + std::to_string(mesh.num_vertices())) << "\n";
+      std::cout << Markdown::li("Number of edges: " + std::to_string(mesh.num_edges())) << "\n";
+      std::cout << Markdown::li("Number of faces: " + std::to_string(mesh.num_faces())) << "\n";
+      std::cout << Markdown::li("Is closed: " + std::string(mesh.is_closed() ? "True" : "False")) << "\n";
+      std::cout << Markdown::li("Is wound consistently: " + std::string(mesh.is_wound_consistently() ? "True" : "False")) << "\n";
+      std::cout << Markdown::li("Is oriented outward: " + std::string(mesh.is_outward_oriented() ? "True" : "False")) << "\n";
+      std::cout << Markdown::li("Minimal triangle aspect ratio: " + std::to_string(mesh.minimal_aspect_ratio())) << "\n";
+      std::cout << Markdown::li("Maximal triangle aspect ratio: " + std::to_string(mesh.maximal_aspect_ratio())) << "\n";
+
+      std::cout << "\n";
+
+      std::cout << Markdown::h2("Defects") << "\n";
+      std::cout << Markdown::li("Self-intersections: " + std::to_string(warnings.self_intersections.size())) << "\n";
+      std::cout << Markdown::li("Degenerate triangles: " + std::to_string(warnings.degenerate_triangles.size())) << "\n";
+      std::cout << Markdown::li("Anisotropic triangles: " + std::to_string(warnings.anisotropic_triangles.size())) << "\n";
+
+      std::cout << "\n";
+    }
+
+    if(mode == "warnings")
+    {
+      HexMesher::MeshWarnings warnings;
+      mesh.warnings(warnings);
+
+      bool summarize = false;
+      if(argc > 3)
+      {
+        if(strcmp(argv[3], "--summarize") == 0)
+        {
+          summarize = true;
+        }
+      }
+
+      if(summarize)
+      {
+        std::cout << std::to_string(warnings.self_intersections.size()) << " x Self-intersection of mesh [" << HexMesher::SelfIntersectionWarning::name << "]\n";
+      }
+      else
+      {
+        for(HexMesher::SelfIntersectionWarning& warning : warnings.self_intersections)
+        {
+          std::cout << "Self-intersection of mesh between triangle " << std::to_string(warning.tri_a) << " and triangle " << std::to_string(warning.tri_b) << " [" << HexMesher::SelfIntersectionWarning::name << "]\n";
+        }
+      }
+
+      if(summarize)
+      {
+        std::cout << std::to_string(warnings.degenerate_triangles.size()) << " x Triangle with colinear coordinates [" << HexMesher::DegenerateTriangleWarning::name << "]\n";
+      }
+      else
+      {
+        for(HexMesher::DegenerateTriangleWarning& warning : warnings.degenerate_triangles)
+        {
+          std::cout << "Coordinates of triangle " << std::to_string(warning.idx) << " are colinear [" << HexMesher::DegenerateTriangleWarning::name << "]\n";
+        }
+      }
+
+      if(summarize)
+      {
+        std::cout << std::to_string(warnings.anisotropic_triangles.size()) << " x Triangle with aspect ratio greater than 15 [" << HexMesher::DegenerateTriangleWarning::name << "]\n";
+      }
+      else
+      {
+        for(HexMesher::AnisotropicTriangleWarning& warning : warnings.anisotropic_triangles)
+        {
+          std::cout << "Triangle " << std::to_string(warning.idx) << " has aspect ratio greater than 15 [" << HexMesher::DegenerateTriangleWarning::name << "]\n";
+        }
+      }
+    }
+
+    return 0;
+  }
 }
 
+int main(int argc, char* argv[])
+{
+  HexMesherCLI::main(argc, argv);
+}
+
+/*
 int main(int argc, char* argv[])
 {
   std::cout << "Running hexmesher\n";
@@ -275,7 +435,7 @@ int main(int argc, char* argv[])
       double max_topo_dist = *std::max_element(topo_dist.begin(), topo_dist.end());
       double max_diameter = *std::max_element(diameter.begin(), diameter.end());
 
-      /*HexMesher::MinGap min_gap = HexMesher::determine_min_gap_direct(mesh, [&](HexMesher::FaceIndex idx) {
+      HexMesher::MinGap min_gap = HexMesher::determine_min_gap_direct(mesh, [&](HexMesher::FaceIndex idx) {
         if(topo_dist[idx] == -1.0)
         {
           return diameter[idx];
@@ -346,7 +506,6 @@ int main(int argc, char* argv[])
       }, std::string("f:MIS_diameter"), std::string("f:MIS_id"), std::string("f:gap_score"));
       std::cout << "Min-gap (weighted score) is " << min_gap.gap << " between faces " << min_gap.origin << " and " << min_gap.limiting << "\n";
       std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.origin.idx() << ", 0, " << min_gap.limiting.idx() << "], FieldType='CELL')` to select the chosen triangles in ParaView\n\n";
-      */
 
       HexMesher::compute_max_dihedral_angle(mesh);
       HexMesher::score_gaps(mesh);
@@ -484,7 +643,6 @@ int main(int argc, char* argv[])
       CGAL::IO::write_PLY(output, mesh);
     }
 
-    /*
     HexMesher::Point start(0.0, 0.0, 80.0);
     HexMesher::Point end(0.0, 0.0, 60.0);
     HexMesher::Vector normal(0.0, 0.0, 1.0);
@@ -540,8 +698,8 @@ int main(int argc, char* argv[])
       HexMesher::write_polygon("grid_sampled_" + std::to_string(i) + ".vtp", grid_sampled_boundary);
       HexMesher::write_geo("grid_sampled_" + std::to_string(i) + ".geo", grid_sampled_boundary);
     }
-    */
   }
 
   return 0;
 }
+*/
