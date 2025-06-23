@@ -2,13 +2,13 @@
 
 #include <queue>
 
-#include <CGAL/AABB_tree.h>
-#include <CGAL/AABB_traits_3.h>
 #include <CGAL/AABB_face_graph_triangle_primitive.h>
+#include <CGAL/AABB_traits_3.h>
+#include <CGAL/AABB_tree.h>
 
-#include <CGAL/Polygon_mesh_processing/measure.h>
 #include <CGAL/Polygon_mesh_processing/compute_normal.h>
 #include <CGAL/Polygon_mesh_processing/locate.h>
+#include <CGAL/Polygon_mesh_processing/measure.h>
 #include <CGAL/Polygon_mesh_processing/orientation.h>
 
 namespace HexMesher::Intern
@@ -37,10 +37,11 @@ namespace HexMesher::Intern
     }
 
     // Interpolate
-    Vector3D result = location.second[0] * normals[0] + location.second[1] * normals[1] + location.second[2] * normals[2];
+    Vector3D result =
+      location.second[0] * normals[0] + location.second[1] * normals[1] + location.second[2] * normals[2];
     return result;
   }
-}
+} // namespace HexMesher::Intern
 
 namespace HexMesher
 {
@@ -103,6 +104,7 @@ namespace HexMesher
       dihedral_angles[current] = max_angle;
     }
   }
+
   void compute_vertex_normals(Mesh& mesh)
   {
     Mesh::Property_map<VertexIndex, Vector3D> normals =
@@ -131,17 +133,15 @@ namespace HexMesher
     Mesh::Property_map<FaceIndex, double> similarity =
       mesh.add_property_map<FaceIndex, double>("f:similarity_of_normals", 0).first;
 
-    Mesh::Property_map<FaceIndex, int> iters =
-      mesh.add_property_map<FaceIndex, int>("f:MIS_iters", 0).first;
+    Mesh::Property_map<FaceIndex, int> iters = mesh.add_property_map<FaceIndex, int>("f:MIS_iters", 0).first;
 
     // Determine bounding box of mesh
-    Real max_radius = std::min(
-      {
-        aabb_tree.bbox().xmax() - aabb_tree.bbox().xmin(),
-        aabb_tree.bbox().ymax() - aabb_tree.bbox().ymin(),
-        aabb_tree.bbox().zmax() - aabb_tree.bbox().zmin(),
-      }
-    ) / Real(2.0);
+    Real max_radius = std::min({
+                        aabb_tree.bbox().xmax() - aabb_tree.bbox().xmin(),
+                        aabb_tree.bbox().ymax() - aabb_tree.bbox().ymin(),
+                        aabb_tree.bbox().zmax() - aabb_tree.bbox().zmin(),
+                      }) /
+                      Real(2.0);
 
     // Determine maximum edge length of mesh
     Real max_edge_length(0);
@@ -275,9 +275,11 @@ namespace HexMesher
         // Tests show 1.5 works better though
         if(local_max_edge_length < 1.5 * radius)
         {
-          // Largest distance between sphere and an edge of maximum length, assuming the vertices of that edge lie on the sphere
-          // Any closest points within this distance belong to the same radius, they are just slightly offset due to the surface discretization.
-          discretization_error = radius - CGAL::approximate_sqrt(radius * radius - std::pow(local_max_edge_length / 2.0, 2));
+          // Largest distance between sphere and an edge of maximum length, assuming the vertices of that edge lie on
+          // the sphere Any closest points within this distance belong to the same radius, they are just slightly offset
+          // due to the surface discretization.
+          discretization_error =
+            radius - CGAL::approximate_sqrt(radius * radius - std::pow(local_max_edge_length / 2.0, 2));
         }
         else
         {
@@ -310,7 +312,8 @@ namespace HexMesher
         // We can then determine r' via the law of sines as r' = d * sin(a) * sin(180 - 2a)
 
         double d = CGAL::to_double(CGAL::approximate_sqrt((closest_point - centroid).squared_length()));
-        double alpha = CGAL::to_double(CGAL::approximate_angle(inward_normal, Vector3D(centroid, closest_point))) / 180.0 * M_PI;
+        double alpha =
+          CGAL::to_double(CGAL::approximate_angle(inward_normal, Vector3D(centroid, closest_point))) / 180.0 * M_PI;
 
         Real new_radius;
         if(alpha != 0)
@@ -321,7 +324,6 @@ namespace HexMesher
         {
           new_radius = d;
         }
-
 
         prev_radius = radius;
         radius = std::min(new_radius, radius);
@@ -335,7 +337,8 @@ namespace HexMesher
       id_property[face_index] = id;
 
       // Record abs(cos(theta))
-      //similarity[face_index] = std::abs(CGAL::to_double(CGAL::scalar_product(inward_normal, surface_normal(mesh, id, closest_point))));
+      // similarity[face_index] = std::abs(CGAL::to_double(CGAL::scalar_product(inward_normal, surface_normal(mesh, id,
+      // closest_point))));
       similarity[face_index] = CGAL::scalar_product(inward_normal, -PMP::compute_face_normal(id, mesh));
     }
   }
@@ -346,8 +349,13 @@ namespace HexMesher
     VertexIndex idx;
     double priority;
 
-    FrontierEntry() : idx(0), priority(0) {}
-    FrontierEntry(VertexIndex v, double p) : idx(v), priority(p) {}
+    FrontierEntry() : idx(0), priority(0)
+    {
+    }
+
+    FrontierEntry(VertexIndex v, double p) : idx(v), priority(p)
+    {
+    }
   };
 
   // The priority_queue returns the last element of the defined ordering first.
@@ -367,8 +375,7 @@ namespace HexMesher
     const Mesh& mesh,
     const std::vector<double>& edge_lengths,
     std::vector<double>& distances,
-    double max_distance = 0.0
-  )
+    double max_distance = 0.0)
   {
     // Prepare scratch memory. -1.0 is sentinel value for an unvisited node.
     for(auto& entry : distances)
@@ -476,7 +483,8 @@ namespace HexMesher
 
     for(FaceIndex f : mesh.faces())
     {
-      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, scratch_distances, max_distance);
+      topo_distance[f] =
+        topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, scratch_distances, max_distance);
     }
   }
 
@@ -537,9 +545,10 @@ namespace HexMesher
 
     for(FaceIndex f : mesh.faces())
     {
-      double max_distance = M_PI* max_distances[f];
+      double max_distance = M_PI * max_distances[f];
       max_distance = std::max(max_distance, 0.001 * max_mesh_delta);
-      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, scratch_distances, max_distance);
+      topo_distance[f] =
+        topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, scratch_distances, max_distance);
     }
   }
 
@@ -658,8 +667,7 @@ namespace HexMesher
     std::vector<std::pair<HexMesher::FaceIndex, HexMesher::FaceIndex>> self_intersections;
     CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(self_intersections));
 
-    Mesh::Property_map<FaceIndex, double> gap_score =
-      mesh.add_property_map<FaceIndex, double>("f:gap_score", 0).first;
+    Mesh::Property_map<FaceIndex, double> gap_score = mesh.add_property_map<FaceIndex, double>("f:gap_score", 0).first;
 
     for(FaceIndex f : mesh.faces())
     {
@@ -671,19 +679,20 @@ namespace HexMesher
         edge_ratio = 1.0 / edge_ratio;
       }
 
-      if(PMP::face_aspect_ratio(f, mesh) < 5.0 &&
-         PMP::face_aspect_ratio(limiting, mesh) < 5.0 &&
-         std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(f, limiting)) == self_intersections.end() &&
-         std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(limiting, f)) == self_intersections.end() &&
-         diameters[f] / max_diameter > 1e-4 &&
-         edge_ratio < 5.0)
+      if(
+        PMP::face_aspect_ratio(f, mesh) < 5.0 && PMP::face_aspect_ratio(limiting, mesh) < 5.0 &&
+        std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(f, limiting)) ==
+          self_intersections.end() &&
+        std::find(self_intersections.begin(), self_intersections.end(), std::make_pair(limiting, f)) ==
+          self_intersections.end() &&
+        diameters[f] / max_diameter > 1e-4 && edge_ratio < 5.0)
       {
         if(topo_dists[f] == -1.0 && topo_dists[FaceIndex(ids[f])] == -1.0)
         {
           // Perfect gap if both triangles are unconnected.
           // NOTE(mmuegge): There are situations where a large triangle
           // hits a very small triangle across a corner of the mesh.
-          // In that case the small triangle might not find its limiting triangle 
+          // In that case the small triangle might not find its limiting triangle
           // within the search radius for topological distances, but the large
           // triangle might, because its vertices are further from its centroid,
           // giving an initial distance boost.
@@ -720,10 +729,7 @@ namespace HexMesher
     std::vector<double> percentiles(scores.begin(), scores.end());
 
     // Sort scores in descending order
-    std::sort(percentiles.begin(), percentiles.end(), [](double a, double b)
-    {
-      return a > b;
-    });
+    std::sort(percentiles.begin(), percentiles.end(), [](double a, double b) { return a > b; });
 
     /*
     auto last = std::unique(percentiles.begin(), percentiles.end(), [](double a, double b)
@@ -772,7 +778,11 @@ namespace HexMesher
     double threshold = 0.95;
 
     std::vector<FaceIndex> candidates;
-    std::copy_if(mesh.faces_begin(), mesh.faces_end(), std::back_inserter(candidates), [&](FaceIndex f) { return scores[f] > threshold; });
+    std::copy_if(
+      mesh.faces_begin(),
+      mesh.faces_end(),
+      std::back_inserter(candidates),
+      [&](FaceIndex f) { return scores[f] > threshold; });
 
     if(candidates.empty())
     {
@@ -780,15 +790,16 @@ namespace HexMesher
 
       std::vector<double> percentiles(scores.begin(), scores.end());
       // Sort scores in descending order
-      std::sort(percentiles.begin(), percentiles.end(), [](double a, double b)
-      {
-        return a > b;
-      });
+      std::sort(percentiles.begin(), percentiles.end(), [](double a, double b) { return a > b; });
 
       std::size_t percentile_size = std::ceil(Real(percentiles.size()) * Real(0.1));
       double cutoff_score = *(percentiles.begin() + percentile_size);
 
-      std::copy_if(mesh.faces_begin(), mesh.faces_end(), std::back_inserter(candidates), [&](FaceIndex f) { return scores[f] > cutoff_score; });
+      std::copy_if(
+        mesh.faces_begin(),
+        mesh.faces_end(),
+        std::back_inserter(candidates),
+        [&](FaceIndex f) { return scores[f] > cutoff_score; });
     }
 
     MinGap result;
@@ -806,4 +817,4 @@ namespace HexMesher
 
     return result;
   }
-}
+} // namespace HexMesher

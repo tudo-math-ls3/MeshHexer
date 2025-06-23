@@ -2,7 +2,8 @@
 
 #include <cgal_types.hpp>
 
-namespace HexMesher {
+namespace HexMesher
+{
   struct CuttingPlane
   {
     Plane3D plane;
@@ -35,7 +36,6 @@ namespace HexMesher {
     Vector3D _v;
 
   public:
-
     RadialCrossSectionSampler(int num_planes, const Point3D& o, const Vector3D& normal, const Vector3D& up) :
       _num_planes(num_planes),
       _origin(o),
@@ -73,8 +73,12 @@ namespace HexMesher {
     Vector3D _y_axis;
 
   public:
-
-    LineCrossSectionSampler(int num_planes, const Point3D& start, const Point3D& end, const Vector3D& normal, const Vector3D& up) :
+    LineCrossSectionSampler(
+      int num_planes,
+      const Point3D& start,
+      const Point3D& end,
+      const Vector3D& normal,
+      const Vector3D& up) :
       _num_planes(num_planes),
       _start(start),
       _end(end),
@@ -109,4 +113,4 @@ namespace HexMesher {
     const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred);
 
   Polygon2D grid_sample(const Polygon2D& polygon, Real min_dist);
-}
+} // namespace HexMesher

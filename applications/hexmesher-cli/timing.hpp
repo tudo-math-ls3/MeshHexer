@@ -1,7 +1,7 @@
 #pragma once
 
-#include <sys/time.h>
 #include <iomanip>
+#include <sys/time.h>
 
 /**
  * \brief Time stamp class
@@ -31,7 +31,7 @@ public:
    * This function updates the time-stamp to the current time.
    *
    * \returns \c *this
-    */
+   */
   TimeStamp& stamp()
   {
     gettimeofday(&_time, 0);
@@ -77,8 +77,8 @@ public:
    */
   long long elapsed_micros(const TimeStamp& before) const
   {
-    return 1000000ll * (long long)(_time.tv_sec - before._time.tv_sec)
-      + (long long)(_time.tv_usec - before._time.tv_usec);
+    return 1000000ll * (long long)(_time.tv_sec - before._time.tv_sec) +
+           (long long)(_time.tv_usec - before._time.tv_usec);
   }
 
   /**
@@ -191,10 +191,10 @@ public:
    * \returns
    * \c true, if \c this time-stamp has been taken earlier than \p other, otherwise \c false.
    */
-  bool operator< (const TimeStamp & other) const
+  bool operator<(const TimeStamp& other) const
   {
     return (_time.tv_sec < other._time.tv_sec) ||
-      ((_time.tv_sec == other._time.tv_sec) && (_time.tv_usec < other._time.tv_usec));
+           ((_time.tv_sec == other._time.tv_sec) && (_time.tv_usec < other._time.tv_usec));
   }
 }; // class TimeStamp
 
@@ -214,9 +214,7 @@ private:
   long long _micros;
 
 public:
-  StopWatch() :
-    _running(false),
-    _micros(0ll)
+  StopWatch() : _running(false), _micros(0ll)
   {
   }
 
@@ -289,7 +287,8 @@ public:
   }
 
   /**
-   * \brief Returns the formatted percentage that this stop watch elapsed time relative to another total runtime stop watch
+   * \brief Returns the formatted percentage that this stop watch elapsed time relative to another total runtime stop
+   * watch
    *
    * \param[in] total_watch
    * The stop watch that represents the total runtime
@@ -302,7 +301,8 @@ public:
    *
    * \returns The formatted percentage of this stop watch elapsed time relative to watch_total
    */
-  std::string percent_of(const StopWatch& total_watch, const std::string& prefix = " [", const std::string& postfix = "% ]") const
+  std::string
+  percent_of(const StopWatch& total_watch, const std::string& prefix = " [", const std::string& postfix = "% ]") const
   {
     return prefix + std::to_string(100.0 * this->elapsed() / total_watch.elapsed()) + postfix;
   }

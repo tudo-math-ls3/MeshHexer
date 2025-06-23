@@ -43,8 +43,8 @@ namespace HexMesher
   /**
    * \brief Returns true if face normals calculated via a cross product point towards the "unbounded" side of the mesh
    *
-   * We write "unbounded" because we do not assume that the mesh is watertight. There thus might not be a "bounded" side.angle
-   * This function will work either way.
+   * We write "unbounded" because we do not assume that the mesh is watertight. There thus might not be a "bounded"
+   * side.angle This function will work either way.
    */
   bool do_normals_point_outside(const Mesh& mesh);
 
@@ -57,4 +57,4 @@ namespace HexMesher
 
   /// Determine a best-effort guess at the minimal gap of the given mesh
   MinGap min_gap(Mesh& mesh);
-}
+} // namespace HexMesher

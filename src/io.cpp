@@ -13,10 +13,10 @@ namespace HexMesher
     }
 
     // Set options
-    output << "Mesh.Algorithm = 8;\n"; // Frontal-Delaunay for Quads
+    output << "Mesh.Algorithm = 8;\n";              // Frontal-Delaunay for Quads
     output << "Mesh.RecombinationAlgorithm = 3;\n"; // Blossom Full-Quad
-    output << "Mesh.Format = 16;\n"; // vtk
-    output << "Mesh.RecombineAll = 1;\n"; // Always produce quad meshes
+    output << "Mesh.Format = 16;\n";                // vtk
+    output << "Mesh.RecombineAll = 1;\n";           // Always produce quad meshes
 
     int next_tag = 1;
 
@@ -24,7 +24,6 @@ namespace HexMesher
     {
       output << "Point(" << next_tag++ << ") = {" << p.x() << ", " << p.y() << ", 0, 5.0};\n";
     }
-
 
     next_tag = 1;
     for(int i(0); i < poly.size() - 1; i++)
@@ -46,7 +45,7 @@ namespace HexMesher
     output << "};\n";
 
     int surface_tag = next_tag;
-    output << "Plane Surface(" << next_tag++ << ") = {" << line_loop_tag << "};\n"; 
+    output << "Plane Surface(" << next_tag++ << ") = {" << line_loop_tag << "};\n";
 
     output << "Compound Curve{";
     for(int i(0); i < poly.size(); i++)
@@ -62,7 +61,6 @@ namespace HexMesher
     output << "Mesh 2\n";
   }
 
-
   void write_geo(const std::string& filename, const Polygon2D& poly)
   {
     std::ofstream output(filename);
@@ -74,10 +72,10 @@ namespace HexMesher
     }
 
     // Set options
-    output << "Mesh.Algorithm = 8;\n"; // Frontal-Delaunay for Quads
+    output << "Mesh.Algorithm = 8;\n";              // Frontal-Delaunay for Quads
     output << "Mesh.RecombinationAlgorithm = 3;\n"; // Blossom Full-Quad
-    output << "Mesh.Format = 16;\n"; // vtk
-    output << "Mesh.RecombineAll = 1;\n"; // Always produce quad meshes
+    output << "Mesh.Format = 16;\n";                // vtk
+    output << "Mesh.RecombineAll = 1;\n";           // Always produce quad meshes
 
     int next_tag = 1;
 
@@ -85,7 +83,6 @@ namespace HexMesher
     {
       output << "Point(" << next_tag++ << ") = {" << p.x() << ", " << p.y() << ", 0, 5.0};\n";
     }
-
 
     next_tag = 1;
     for(int i(0); i < poly.size() - 1; i++)
@@ -107,9 +104,10 @@ namespace HexMesher
     output << "};\n";
 
     int surface_tag = next_tag;
-    output << "Plane Surface(" << next_tag++ << ") = {" << line_loop_tag << "};\n"; 
+    output << "Plane Surface(" << next_tag++ << ") = {" << line_loop_tag << "};\n";
 
-    //output << "Extrude {0, 0, 10} {Surface{" << surface_tag << "}; Layers {1}; }\n";
+    // output << "Extrude {0, 0, 10} {Surface{" << surface_tag << "}; Layers
+    // {1}; }\n";
     output << "Mesh 2\n";
   }
 
@@ -128,12 +126,12 @@ namespace HexMesher
     output << "Locations 0\n";
     output << "Curve2ds 0\n";
     output << "Curves 0\n";
-    output << "Polygon3D 1\n"; // One 3D polygon
+    output << "Polygon3D 1\n";                       // One 3D polygon
     output << std::to_string(poly.size()) << " 0\n"; // Number of points and parameter presence. 0 = no parameters.
-    output << "0.1\n"; // deflection
+    output << "0.1\n";                               // deflection
 
     // Points of the polygon, all on a single line, in triplets
-    for(const Point2D& p: poly)
+    for(const Point2D& p : poly)
     {
       output << p.x() << " " << p.y() << " 0 ";
     }
@@ -149,14 +147,18 @@ namespace HexMesher
   {
     std::ofstream output(filename);
 
-    if (output) {
-      output<< "<VTKFile type=\"PolyData\">\n";
+    if(output)
+    {
+      output << "<VTKFile type=\"PolyData\">\n";
       output << "<PolyData>\n";
-      output << "<Piece NumberOfPoints=\"" << poly.size() << "\" NumberOfVerts=\"0\" NumberOfLines=\"1\" NumberOfStrips=\"0\" NumberOfPolys=\"0\">\n";
+      output << "<Piece NumberOfPoints=\"" << poly.size()
+             << "\" NumberOfVerts=\"0\" NumberOfLines=\"1\" "
+                "NumberOfStrips=\"0\" NumberOfPolys=\"0\">\n";
       output << "<PointData></PointData>\n";
       output << "<CellData></CellData>\n";
       output << "<Points>\n";
-      output << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" Format=\"ascii\">\n";
+      output << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" "
+                "Format=\"ascii\">\n";
 
       for(const Point2D& p : poly.vertices())
       {
@@ -185,18 +187,20 @@ namespace HexMesher
       output << "<Polys></Polys>\n";
       output << "</Piece>\n";
       output << "</PolyData>\n";
-        output<< "</VTKFile>\n";
-      }
-      else {
-        std::cerr << "Failed to write polygon to " << filename << "!\n";
-      }
+      output << "</VTKFile>\n";
+    }
+    else
+    {
+      std::cerr << "Failed to write polygon to " << filename << "!\n";
+    }
   }
 
   void write_polygon(const std::string& filename, const PolygonWithHoles2D& poly)
   {
     std::ofstream output(filename);
 
-    if (output) {
+    if(output)
+    {
       int num_polys = 1 + poly.holes().size();
       int total_points = 0;
       std::vector<int> starting_points;
@@ -209,13 +213,15 @@ namespace HexMesher
         total_points += hole.size();
       }
 
-      output<< "<VTKFile type=\"PolyData\">\n";
+      output << "<VTKFile type=\"PolyData\">\n";
       output << "<PolyData>\n";
-      output << "<Piece NumberOfPoints=\"" << total_points << "\" NumberOfVerts=\"0\" NumberOfLines=\"" << num_polys << "\" NumberOfStrips=\"0\" NumberOfPolys=\"0\">\n";
+      output << "<Piece NumberOfPoints=\"" << total_points << "\" NumberOfVerts=\"0\" NumberOfLines=\"" << num_polys
+             << "\" NumberOfStrips=\"0\" NumberOfPolys=\"0\">\n";
       output << "<PointData></PointData>\n";
       output << "<CellData></CellData>\n";
       output << "<Points>\n";
-      output << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" Format=\"ascii\">\n";
+      output << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" "
+                "Format=\"ascii\">\n";
 
       for(const Point2D& p : poly.outer_boundary().vertices())
       {
@@ -273,9 +279,10 @@ namespace HexMesher
       output << "<Polys></Polys>\n";
       output << "</Piece>\n";
       output << "</PolyData>\n";
-      output<< "</VTKFile>\n";
+      output << "</VTKFile>\n";
     }
-    else {
+    else
+    {
       std::cerr << "Failed to write polygon to " << filename << "!\n";
     }
   }
@@ -284,7 +291,8 @@ namespace HexMesher
   {
     std::ofstream output(filename);
 
-    if (output) {
+    if(output)
+    {
       int num_lines = polylines.size();
       int total_points = 0;
       std::vector<int> starting_points;
@@ -295,13 +303,15 @@ namespace HexMesher
         total_points += line.size();
       }
 
-      output<< "<VTKFile type=\"PolyData\">\n";
+      output << "<VTKFile type=\"PolyData\">\n";
       output << "<PolyData>\n";
-      output << "<Piece NumberOfPoints=\"" << total_points << "\" NumberOfVerts=\"0\" NumberOfLines=\"" << num_lines << "\" NumberOfStrips=\"0\" NumberOfPolys=\"0\">\n";
+      output << "<Piece NumberOfPoints=\"" << total_points << "\" NumberOfVerts=\"0\" NumberOfLines=\"" << num_lines
+             << "\" NumberOfStrips=\"0\" NumberOfPolys=\"0\">\n";
       output << "<PointData></PointData>\n";
       output << "<CellData></CellData>\n";
       output << "<Points>\n";
-      output << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" Format=\"ascii\">\n";
+      output << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" "
+                "Format=\"ascii\">\n";
 
       for(const Polyline3D& polyline : polylines)
       {
@@ -344,7 +354,7 @@ namespace HexMesher
       output << "<Polys></Polys>\n";
       output << "</Piece>\n";
       output << "</PolyData>\n";
-      output<< "</VTKFile>\n";
+      output << "</VTKFile>\n";
     }
     else
     {
@@ -356,7 +366,8 @@ namespace HexMesher
   {
     std::ofstream output(filename);
 
-    if (output) {
+    if(output)
+    {
       int num_lines = polylines.size();
       int total_points = 0;
       std::vector<int> starting_points;
@@ -367,13 +378,15 @@ namespace HexMesher
         total_points += line.size();
       }
 
-      output<< "<VTKFile type=\"PolyData\">\n";
+      output << "<VTKFile type=\"PolyData\">\n";
       output << "<PolyData>\n";
-      output << "<Piece NumberOfPoints=\"" << total_points << "\" NumberOfVerts=\"0\" NumberOfLines=\"" << num_lines << "\" NumberOfStrips=\"0\" NumberOfPolys=\"0\">\n";
+      output << "<Piece NumberOfPoints=\"" << total_points << "\" NumberOfVerts=\"0\" NumberOfLines=\"" << num_lines
+             << "\" NumberOfStrips=\"0\" NumberOfPolys=\"0\">\n";
       output << "<PointData></PointData>\n";
       output << "<CellData></CellData>\n";
       output << "<Points>\n";
-      output << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" Format=\"ascii\">\n";
+      output << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" "
+                "Format=\"ascii\">\n";
 
       for(const Polyline2D& polyline : polylines)
       {
@@ -416,10 +429,11 @@ namespace HexMesher
       output << "<Polys></Polys>\n";
       output << "</Piece>\n";
       output << "</PolyData>\n";
-      output<< "</VTKFile>\n";
+      output << "</VTKFile>\n";
     }
-    else {
+    else
+    {
       std::cerr << "Failed to write polyline to " << filename << "!\n";
     }
   }
-}
+} // namespace HexMesher

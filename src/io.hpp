@@ -11,4 +11,4 @@ namespace HexMesher
   void write_polygon(const std::string& filename, const PolygonWithHoles2D& poly);
   void write_polylines(const std::string& filename, const Polylines3D& polylines);
   void write_polylines(const std::string& filename, const Polylines2D& polylines);
-}
+} // namespace HexMesher

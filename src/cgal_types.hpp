@@ -1,17 +1,17 @@
 #pragma once
 
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
-#include <CGAL/Surface_mesh.h>
 #include <CGAL/Polygon_2.h>
 #include <CGAL/Polygon_with_holes_2.h>
 #include <CGAL/Sphere_3.h>
+#include <CGAL/Surface_mesh.h>
 #include <CGAL/Triangle_3.h>
 
-#include <CGAL/AABB_tree.h>
-#include <CGAL/AABB_traits_3.h>
 #include <CGAL/AABB_face_graph_triangle_primitive.h>
+#include <CGAL/AABB_traits_3.h>
+#include <CGAL/AABB_tree.h>
 
-//#include <CGAL/Polygon_mesh_processing/interpolated_corrected_curvatures.h>
+// #include <CGAL/Polygon_mesh_processing/interpolated_corrected_curvatures.h>
 
 namespace HexMesher
 {
@@ -22,7 +22,7 @@ namespace HexMesher
 
   using Kernel = CGAL::Simple_cartesian<double>;
 
-  //using PrincipalVertexCurvature = CGAL::Polygon_mesh_processing::Principal_curvatures_and_directions<Kernel>;
+  // using PrincipalVertexCurvature = CGAL::Polygon_mesh_processing::Principal_curvatures_and_directions<Kernel>;
 
   using Real = Kernel::RT;
 
@@ -57,4 +57,4 @@ namespace HexMesher
 
   // Intersection types
   using RayIntersection = std::optional<AABBTree::Intersection_and_primitive_id<Ray3D>::Type>;
-}
+} // namespace HexMesher

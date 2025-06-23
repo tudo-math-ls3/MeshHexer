@@ -2,17 +2,22 @@
 
 #include <types.hpp>
 
-#include <variant>
-#include <optional>
 #include <memory>
+#include <optional>
+#include <variant>
 
 namespace HexMesher
 {
   template<typename T, typename E>
   class Result
   {
-    struct TagOK {};
-    struct TagErr {};
+    struct TagOK
+    {
+    };
+
+    struct TagErr
+    {
+    };
 
     std::variant<T, E> content;
 
@@ -20,11 +25,22 @@ namespace HexMesher
     // Rule of five
     Result() = delete;
 
-    Result(TagOK, const T& value) : content(std::in_place_index<0>, value) {}
-    Result(TagOK, T&& value) : content(std::in_place_index<0>, std::move(value)) {}
+    Result(TagOK, const T& value) : content(std::in_place_index<0>, value)
+    {
+    }
 
-    Result(TagErr, const E& value) : content(std::in_place_index<1>, value) {}
-    Result(TagErr, E&& value) : content(std::in_place_index<1>, std::move(value)) {}
+    Result(TagOK, T&& value) : content(std::in_place_index<0>, std::move(value))
+    {
+    }
+
+    Result(TagErr, const E& value) : content(std::in_place_index<1>, value)
+    {
+    }
+
+    Result(TagErr, E&& value) :
+      content(std::in_place_index<1>, std::move(value))
+    {
+    }
 
     Result(const Result&) = delete;
     Result& operator=(const Result&) = delete;
@@ -65,17 +81,45 @@ namespace HexMesher
       return content.index() == 1;
     }
 
-    T ok_value() const { return std::get<0>(content); }
-    E err_value() const { return std::get<1>(content); }
+    T ok_value() const
+    {
+      return std::get<0>(content);
+    }
 
-    T& ok_ref() { return std::get<0>(content); }
-    E& err_ref() { return std::get<1>(content); }
+    E err_value() const
+    {
+      return std::get<1>(content);
+    }
 
-    const T& ok_ref() const { return std::get<0>(content); }
-    const E& err_ref() const { return std::get<1>(content); }
+    T& ok_ref()
+    {
+      return std::get<0>(content);
+    }
 
-    T&& take_ok() && { return std::get<0>(std::move(content)); };
-    E&& take_err() && { return std::get<1>(std::move(content)); };
+    E& err_ref()
+    {
+      return std::get<1>(content);
+    }
+
+    const T& ok_ref() const
+    {
+      return std::get<0>(content);
+    }
+
+    const E& err_ref() const
+    {
+      return std::get<1>(content);
+    }
+
+    T&& take_ok() &&
+    {
+      return std::get<0>(std::move(content));
+    };
+
+    E&& take_err() &&
+    {
+      return std::get<1>(std::move(content));
+    };
   };
 
   template<typename E>
@@ -85,10 +129,17 @@ namespace HexMesher
 
   public:
     // Rule of five
-    Result() : error(std::nullopt) {}
+    Result() : error(std::nullopt)
+    {
+    }
 
-    Result(const E& value) : error(value) {}
-    Result(E&& value) : error(std::move(value)) {}
+    Result(const E& value) : error(value)
+    {
+    }
+
+    Result(E&& value) : error(std::move(value))
+    {
+    }
 
     Result(const Result&) = delete;
     Result& operator=(const Result&) = delete;
@@ -124,10 +175,25 @@ namespace HexMesher
       return error.has_value();
     }
 
-    E err_value() const { return error.value(); }
-    E& err_ref() { return error.value(); }
-    const E& err_ref() const { return error.value(); }
-    E&& take_err() && { return std::move(error).value(); };
+    E err_value() const
+    {
+      return error.value();
+    }
+
+    E& err_ref()
+    {
+      return error.value();
+    }
+
+    const E& err_ref() const
+    {
+      return error.value();
+    }
+
+    E&& take_err() &&
+    {
+      return std::move(error).value();
+    };
   };
 
   class SurfaceMesh
@@ -166,5 +232,6 @@ namespace HexMesher
     Result<void, std::string> write_to_file(const std::string& filename);
   };
 
-  Result<SurfaceMesh, std::string> load_from_file(const std::string& filename, bool triangulate = false);
-}
+  Result<SurfaceMesh, std::string>
+  load_from_file(const std::string& filename, bool triangulate = false);
+} // namespace HexMesher

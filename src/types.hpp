@@ -24,7 +24,9 @@ namespace HexMesher
     std::uint32_t tri_a;
     std::uint32_t tri_b;
 
-    SelfIntersectionWarning(std::uint32_t a, std::uint32_t b) : tri_a(a), tri_b(b) {}
+    SelfIntersectionWarning(std::uint32_t a, std::uint32_t b) : tri_a(a), tri_b(b)
+    {
+    }
   };
 
   struct DegenerateTriangleWarning
@@ -33,7 +35,9 @@ namespace HexMesher
 
     std::uint32_t idx;
 
-    DegenerateTriangleWarning(std::uint32_t i) : idx(i) {}
+    DegenerateTriangleWarning(std::uint32_t i) : idx(i)
+    {
+    }
   };
 
   struct AnisotropicTriangleWarning
@@ -42,7 +46,9 @@ namespace HexMesher
 
     std::uint32_t idx;
 
-    AnisotropicTriangleWarning(std::uint32_t i) : idx(i) {}
+    AnisotropicTriangleWarning(std::uint32_t i) : idx(i)
+    {
+    }
   };
 
   struct MeshWarnings
@@ -51,4 +57,4 @@ namespace HexMesher
     std::vector<DegenerateTriangleWarning> degenerate_triangles;
     std::vector<AnisotropicTriangleWarning> anisotropic_triangles;
   };
-}
+} // namespace HexMesher

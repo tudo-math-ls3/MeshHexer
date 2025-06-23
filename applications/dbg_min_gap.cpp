@@ -1,12 +1,13 @@
 #include <hexmesher.hpp>
 
-
 #include <iostream>
 
 static void print_min_gap(const HexMesher::MinGap& min_gap)
 {
-  std::cout << "Min-gap of " << min_gap.gap << " between faces " << min_gap.origin << " and " << min_gap.limiting << "\n";
-  std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.origin << ", 0, " << min_gap.limiting << "], FieldType='CELL')` to select the chosen triangles in ParaView\n";
+  std::cout << "Min-gap of " << min_gap.gap << " between faces " << min_gap.origin << " and " << min_gap.limiting
+            << "\n";
+  std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.origin << ", 0, " << min_gap.limiting
+            << "], FieldType='CELL')` to select the chosen triangles in ParaView\n";
 }
 
 int main(int argc, char* argv[])
@@ -15,8 +16,7 @@ int main(int argc, char* argv[])
   {
     const std::string filename(argv[1]);
 
-    HexMesher::Result<HexMesher::SurfaceMesh, std::string> result =
-      HexMesher::load_from_file(filename);
+    HexMesher::Result<HexMesher::SurfaceMesh, std::string> result = HexMesher::load_from_file(filename);
 
     if(result.is_err())
     {

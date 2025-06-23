@@ -1,26 +1,26 @@
 #include <hexmesher.hpp>
 
 #include <cgal_types.hpp>
-#include <types.hpp>
 #include <properties.hpp>
+#include <types.hpp>
 #include <warnings.hpp>
 
+#include <algorithm>
 #include <iostream>
 #include <math.h>
-#include <unistd.h>
 #include <optional>
+#include <unistd.h>
 #include <variant>
-#include <algorithm>
 
 #include <CGAL/Bbox_3.h>
 
+#include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
 #include <CGAL/Polygon_mesh_processing/compute_normal.h>
 #include <CGAL/Polygon_mesh_processing/locate.h>
 #include <CGAL/Polygon_mesh_processing/measure.h>
-#include <CGAL/Polygon_mesh_processing/self_intersections.h>
-#include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
-#include <CGAL/Polygon_mesh_processing/triangulate_faces.h>
 #include <CGAL/Polygon_mesh_processing/orientation.h>
+#include <CGAL/Polygon_mesh_processing/self_intersections.h>
+#include <CGAL/Polygon_mesh_processing/triangulate_faces.h>
 
 namespace HexMesher
 {
@@ -44,7 +44,9 @@ namespace HexMesher
     std::optional<AABBTree> _aabb_tree;
 
   public:
-    SurfaceMeshImpl(Mesh&& m) : _mesh(std::move(m)) {}
+    SurfaceMeshImpl(Mesh&& m) : _mesh(std::move(m))
+    {
+    }
 
     AABBTree& aabb_tree()
     {
@@ -73,10 +75,9 @@ namespace HexMesher
     void warnings(MeshWarnings&) const;
 
   private:
-
     /**
      * \brief Ensures the given property exists on the mesh
-     * 
+     *
      * Does nothing if the property already exists.
      * Otherwise it calls the given function.
      */
@@ -97,34 +98,29 @@ namespace HexMesher
   void SurfaceMesh::SurfaceMeshImpl::prepare_for_min_gap()
   {
     // Ensure vertex normals are available
-    ensure_property<VertexIndex, Vector3D>("v:normals", [&]()
-    {
-      compute_vertex_normals(_mesh);
-    });
+    ensure_property<VertexIndex, Vector3D>(
+      "v:normals",
+      [&]() { compute_vertex_normals(_mesh); });
 
     // Ensure maximal dihedral angles are available
-    ensure_property<FaceIndex, double>("f:dihedral_angle", [&]()
-    {
-      compute_max_dihedral_angle(_mesh);
-    });
+    ensure_property<FaceIndex, double>(
+      "f:dihedral_angle",
+      [&]() { compute_max_dihedral_angle(_mesh); });
 
     // Ensure maximal inscribed spheres are available
-    ensure_property<FaceIndex, double>("f:MIS_diameter", [&]()
-    {
-      maximal_inscribed_spheres(_mesh, aabb_tree());
-    });
+    ensure_property<FaceIndex, double>(
+      "f:MIS_diameter",
+      [&]() { maximal_inscribed_spheres(_mesh, aabb_tree()); });
 
     // Ensure topological distances are available
-    ensure_property<FaceIndex, double>("f:topological_distance", [&]()
-    {
-      topological_distances(_mesh, "f:MIS_id", "f:MIS_diameter");
-    });
+    ensure_property<FaceIndex, double>(
+      "f:topological_distance",
+      [&]() { topological_distances(_mesh, "f:MIS_id", "f:MIS_diameter"); });
 
     // Ensure gap scores are available
-    ensure_property<FaceIndex, double>("f:gap_score", [&]()
-    {
-      score_gaps(_mesh);
-    });
+    ensure_property<FaceIndex, double>(
+      "f:gap_score",
+      [&]() { score_gaps(_mesh); });
   }
 
   MinGap SurfaceMesh::SurfaceMeshImpl::min_gap()
@@ -139,7 +135,8 @@ namespace HexMesher
     return HexMesher::min_gap_percentile(_mesh, percentile);
   }
 
-  Result<void, std::string> SurfaceMesh::SurfaceMeshImpl::write_to_file(const std::string& filename)
+  Result<void, std::string>
+  SurfaceMesh::SurfaceMeshImpl::write_to_file(const std::string& filename)
   {
     using ResultType = Result<void, std::string>;
 
@@ -226,7 +223,11 @@ namespace HexMesher
     create_warnings(_mesh, ws);
   }
 
-  SurfaceMesh::SurfaceMesh(std::unique_ptr<SurfaceMesh::SurfaceMeshImpl> ptr) : impl(std::move(ptr)) {}
+  SurfaceMesh::SurfaceMesh(std::unique_ptr<SurfaceMesh::SurfaceMeshImpl> ptr) :
+    impl(std::move(ptr))
+  {
+  }
+
   SurfaceMesh::~SurfaceMesh() = default;
   SurfaceMesh::SurfaceMesh(SurfaceMesh&&) = default;
   SurfaceMesh& SurfaceMesh::operator=(SurfaceMesh&&) = default;
@@ -241,24 +242,59 @@ namespace HexMesher
     return impl->min_gap_percentile(percentile);
   }
 
-  Result<void, std::string> SurfaceMesh::write_to_file(const std::string& filename)
+  Result<void, std::string>
+  SurfaceMesh::write_to_file(const std::string& filename)
   {
     return impl->write_to_file(filename);
   }
 
-  std::uint32_t SurfaceMesh::num_vertices() const { return impl->num_vertices(); }
-  std::uint32_t SurfaceMesh::num_edges() const { return impl->num_edges(); }
-  std::uint32_t SurfaceMesh::num_faces() const { return impl->num_faces(); }
+  std::uint32_t SurfaceMesh::num_vertices() const
+  {
+    return impl->num_vertices();
+  }
 
-  bool SurfaceMesh::is_closed() const { return impl->is_closed(); }
-  bool SurfaceMesh::is_wound_consistently() const { return impl->is_wound_consistently(); }
-  bool SurfaceMesh::is_outward_oriented() const { return impl->is_outward_oriented(); }
-  double SurfaceMesh::minimal_aspect_ratio() const { return impl->minimal_aspect_ratio(); }
-  double SurfaceMesh::maximal_aspect_ratio() const { return impl->maximal_aspect_ratio(); }
+  std::uint32_t SurfaceMesh::num_edges() const
+  {
+    return impl->num_edges();
+  }
 
-  void SurfaceMesh::warnings(MeshWarnings& ws) const { impl->warnings(ws); }
+  std::uint32_t SurfaceMesh::num_faces() const
+  {
+    return impl->num_faces();
+  }
 
-  Result<SurfaceMesh, std::string> load_from_file(const std::string& filename, bool triangulate)
+  bool SurfaceMesh::is_closed() const
+  {
+    return impl->is_closed();
+  }
+
+  bool SurfaceMesh::is_wound_consistently() const
+  {
+    return impl->is_wound_consistently();
+  }
+
+  bool SurfaceMesh::is_outward_oriented() const
+  {
+    return impl->is_outward_oriented();
+  }
+
+  double SurfaceMesh::minimal_aspect_ratio() const
+  {
+    return impl->minimal_aspect_ratio();
+  }
+
+  double SurfaceMesh::maximal_aspect_ratio() const
+  {
+    return impl->maximal_aspect_ratio();
+  }
+
+  void SurfaceMesh::warnings(MeshWarnings& ws) const
+  {
+    impl->warnings(ws);
+  }
+
+  Result<SurfaceMesh, std::string>
+  load_from_file(const std::string& filename, bool triangulate)
   {
     using ResultType = Result<SurfaceMesh, std::string>;
 
@@ -272,7 +308,7 @@ namespace HexMesher
         return ResultType::err("Failed to read mesh " + filename);
       }
     }
-    else if(!CGAL::Polygon_mesh_processing::IO::read_polygon_mesh(filename, mesh))
+    else if(!PMP::IO::read_polygon_mesh(filename, mesh))
     {
       return ResultType::err("Failed to read mesh " + filename);
     }
@@ -297,4 +333,4 @@ namespace HexMesher
 
     return ResultType::ok(std::move(smesh));
   }
-}
+} // namespace HexMesher

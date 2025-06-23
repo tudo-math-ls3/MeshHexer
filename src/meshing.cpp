@@ -1,8 +1,8 @@
 #include <meshing.hpp>
 
 #include <CGAL/Boolean_set_operations_2.h>
-#include <CGAL/Polyline_simplification_2/simplify.h>
 #include <CGAL/Polygon_mesh_slicer.h>
+#include <CGAL/Polyline_simplification_2/simplify.h>
 
 namespace HexMesher
 {
@@ -153,7 +153,8 @@ namespace HexMesher
         // With this section we have covered all links of the original polyline.
         // The last vertex we pushed thus just gets connected to the inital vertex.
 
-        std::cout << "Polygon simplification done. Reduced from " << polygon.size() << " vertices to " << result.size() << " vertices.\n";
+        std::cout << "Polygon simplification done. Reduced from " << polygon.size() << " vertices to " << result.size()
+                  << " vertices.\n";
         return {Polygon2D(result.begin(), result.end()), chosen_points};
       }
 
@@ -229,8 +230,7 @@ namespace HexMesher
     std::sort(
       polygons.begin(),
       polygons.end(),
-      [](const Polygon2D& a, const Polygon2D& b) { return a.area() > b.area(); }
-    );
+      [](const Polygon2D& a, const Polygon2D& b) { return a.area() > b.area(); });
 
     // Create inclusion tree for polygons.
     const std::size_t num_polygons = polygons.size();
@@ -375,7 +375,6 @@ namespace HexMesher
     return result;
   }
 
-
   Point2D CuttingPlane::project(const Point3D& point) const
   {
     auto x = CGAL::scalar_product(Vector3D(origin, point), x_axis);
@@ -398,8 +397,7 @@ namespace HexMesher
   {
     idx = std::max(0, std::min(idx, _num_planes - 1));
 
-    const double delta_angle =
-      _num_planes > 1 ? (2.0 * M_PI) / double(_num_planes - 1) : 2.0 * M_PI;
+    const double delta_angle = _num_planes > 1 ? (2.0 * M_PI) / double(_num_planes - 1) : 2.0 * M_PI;
     const double angle = idx * delta_angle;
 
     Vector3D plane_normal = std::cos(angle) * _u + std::sin(angle) * _v;
@@ -408,12 +406,7 @@ namespace HexMesher
     Vector3D y_axis = _up;
     Vector3D x_axis = CGAL::cross_product(plane_normal, y_axis);
 
-    return CuttingPlane {
-      plane,
-      _origin,
-      x_axis,
-      y_axis
-    };
+    return CuttingPlane{plane, _origin, x_axis, y_axis};
   }
 
   Point2D RadialCrossSectionSampler::project(Point3D p) const
@@ -442,12 +435,7 @@ namespace HexMesher
     x_axis = x_axis / CGAL::approximate_sqrt(x_axis.squared_length());
     Vector3D normal = CGAL::cross_product(x_axis, y_axis);
 
-    return CuttingPlane {
-      Plane3D(_origin, normal),
-      _origin,
-      x_axis,
-      y_axis
-    };
+    return CuttingPlane{Plane3D(_origin, normal), _origin, x_axis, y_axis};
   }
 
   Point3D LineCrossSectionSampler::origin() const
@@ -470,13 +458,7 @@ namespace HexMesher
 
     Plane3D plane(origin, _normal);
 
-    return CuttingPlane
-    {
-      plane,
-      origin,
-      _x_axis,
-      _y_axis
-    };
+    return CuttingPlane{plane, origin, _x_axis, _y_axis};
   }
 
   Point2D LineCrossSectionSampler::project(Point3D p) const
@@ -498,17 +480,12 @@ namespace HexMesher
 
     Plane3D plane(origin, _normal);
 
-    return CuttingPlane
-    {
-      plane,
-      origin,
-      _x_axis,
-      _y_axis
-    };
+    return CuttingPlane{plane, origin, _x_axis, _y_axis};
   }
 
   template<typename OutputIterator>
-  void find_cross_section(CGAL::Polygon_mesh_slicer<Mesh, Kernel>& slicer, const CuttingPlane& plane, OutputIterator out)
+  void
+  find_cross_section(CGAL::Polygon_mesh_slicer<Mesh, Kernel>& slicer, const CuttingPlane& plane, OutputIterator out)
   {
     Polylines3D polylines;
     Polylines2D projected_polylines;
@@ -530,9 +507,10 @@ namespace HexMesher
       write_polyline("intersection_" + std::to_string(i) + "_polyline_" + std::to_string(j) + ".vtp", *it);
       it++;
     }*/
-    //write_polylines("intersection_" + std::to_string(i) + ".vtp", polylines);
+    // write_polylines("intersection_" + std::to_string(i) + ".vtp", polylines);
 
-    // The found polylines are 3d objects. We are actually only interested in the projection onto the current cutting plane.
+    // The found polylines are 3d objects. We are actually only interested in the projection onto the current cutting
+    // plane.
     for(const auto& polyline : polylines)
     {
       Polyline2D projected;
@@ -543,7 +521,7 @@ namespace HexMesher
       projected_polylines.push_back(projected);
     }
 
-    //write_polylines("projected_" + std::to_string(i) + ".vtp", projected_polylines);
+    // write_polylines("projected_" + std::to_string(i) + ".vtp", projected_polylines);
 
     std::vector<PolygonWithHoles2D> new_cross_sections = make_polygon(projected_polylines);
 
@@ -554,7 +532,10 @@ namespace HexMesher
   }
 
   template<typename OutputIterator>
-  void find_cross_sections(CGAL::Polygon_mesh_slicer<Mesh, Kernel>& slicer, const CrossSectionSampler& sampler, OutputIterator out)
+  void find_cross_sections(
+    CGAL::Polygon_mesh_slicer<Mesh, Kernel>& slicer,
+    const CrossSectionSampler& sampler,
+    OutputIterator out)
   {
     for(int i(0); i < sampler.num_planes(); i++)
     {
@@ -565,7 +546,11 @@ namespace HexMesher
   }
 
   template<typename CuttingPlaneIterator, typename OutputIterator>
-  void find_cross_sections(CGAL::Polygon_mesh_slicer<Mesh, Kernel>& slicer, const CuttingPlaneIterator start, const CuttingPlaneIterator end, OutputIterator out)
+  void find_cross_sections(
+    CGAL::Polygon_mesh_slicer<Mesh, Kernel>& slicer,
+    const CuttingPlaneIterator start,
+    const CuttingPlaneIterator end,
+    OutputIterator out)
   {
     for(CuttingPlaneIterator it = start; it != end; it++)
     {
@@ -662,12 +647,13 @@ namespace HexMesher
         union_components = merge(union_components);
       }
       feature_planes_checked++;
-      status("Checked " + std::to_string(feature_planes_checked + 1) + " of " + std::to_string(outside_vertices.size()) + " feature planes");
+      status("Checked " + std::to_string(feature_planes_checked + 1) + " of " + std::to_string(outside_vertices.size())
+    + " feature planes");
     }
 
-    std::cout << "Checked " << feature_planes_checked << " of " << outside_vertices.size() << " potential feature planes.\n";
+    std::cout << "Checked " << feature_planes_checked << " of " << outside_vertices.size() << " potential feature
+    planes.\n";
     */
-
 
     std::cout << "Done!\n";
     std::cout << "Found union of cross sections with " << union_components.size() << " components.\n";
@@ -709,10 +695,7 @@ namespace HexMesher
 
     Segment() = default;
 
-    Segment(const Point2D& a_, const Point2D& b_, const Vector2D& normal_) :
-      a(a_),
-      b(b_),
-      normal(normal_)
+    Segment(const Point2D& a_, const Point2D& b_, const Vector2D& normal_) : a(a_), b(b_), normal(normal_)
     {
     }
 
@@ -872,10 +855,9 @@ namespace HexMesher
     }
 
     // Choose points of simplified polygon
-    std::vector<int> simplified_points = simplify_by_normal(polygon, [](auto& normals, auto& next)
-    {
-      return angle(normals.front(), next) < 20.0;
-    }).second;;
+    std::vector<int> simplified_points =
+      simplify_by_normal(polygon, [](auto& normals, auto& next) { return angle(normals.front(), next) < 20.0; }).second;
+    ;
 
     characteristic_points.insert(simplified_points.begin(), simplified_points.end());
 
@@ -890,9 +872,14 @@ namespace HexMesher
     {
       indices[i] = i;
     }
-    std::sort(indices.begin(), indices.end(), [&](int a, int b) {
-      return CGAL::approximate_sqrt(offsets[a].squared_length()) > CGAL::approximate_sqrt(offsets[b].squared_length());
-    });
+    std::sort(
+      indices.begin(),
+      indices.end(),
+      [&](int a, int b)
+      {
+        return CGAL::approximate_sqrt(offsets[a].squared_length()) >
+               CGAL::approximate_sqrt(offsets[b].squared_length());
+      });
 
     // Pick top 5% of vertices by curvature
 
@@ -924,7 +911,8 @@ namespace HexMesher
     }
 
     // Build list of segments
-    const WindingOrder order = polygon.is_clockwise_oriented() ? WindingOrder::Clockwise : WindingOrder::CounterClockwise;
+    const WindingOrder order =
+      polygon.is_clockwise_oriented() ? WindingOrder::Clockwise : WindingOrder::CounterClockwise;
     std::vector<Segment> segments;
     for(int i(0); i < polyline.size(); i++)
     {
@@ -933,13 +921,15 @@ namespace HexMesher
       segments.push_back(Segment(a, b, outside_normal(a, b, order)));
     }
 
-    std::array<Vector2D, 4> directions = {Vector2D(-1.0, 0.0), Vector2D(1.0, 0.0), Vector2D(0.0, -1.0), Vector2D(0.0, 1.0)};
+    std::array<Vector2D, 4> directions =
+      {Vector2D(-1.0, 0.0), Vector2D(1.0, 0.0), Vector2D(0.0, -1.0), Vector2D(0.0, 1.0)};
     for(const Point2D& point : polyline)
     {
       for(const Vector2D& dir : directions)
       {
         Ray ray{point, dir};
-        std::optional<Intersection> intersection = closest_ray_segment_intersection(ray, segments.begin(), segments.end());
+        std::optional<Intersection> intersection =
+          closest_ray_segment_intersection(ray, segments.begin(), segments.end());
 
         if(intersection && !intersection.value().outside)
         {
@@ -952,8 +942,12 @@ namespace HexMesher
           Segment hit = *segment_iter;
 
           segment_iter = segments.erase(segment_iter);
-          segment_iter = segments.insert(segment_iter, Segment(intersection_point, hit.b, outside_normal(intersection_point, hit.b, order)));
-          segments.insert(segment_iter, Segment(hit.a, intersection_point, outside_normal(hit.a, intersection_point, order)));
+          segment_iter = segments.insert(
+            segment_iter,
+            Segment(intersection_point, hit.b, outside_normal(intersection_point, hit.b, order)));
+          segments.insert(
+            segment_iter,
+            Segment(hit.a, intersection_point, outside_normal(hit.a, intersection_point, order)));
         }
       }
     }
@@ -978,7 +972,6 @@ namespace HexMesher
         std::cerr << "Segments not contiguous!\n";
         exit(1);
       }
-
     }
 
     // Filter out too small segments
@@ -1012,7 +1005,8 @@ namespace HexMesher
       grid_sampled_polyline.push_back(segment.a);
     }
 
-    std::cout << "Finished grid sampling. Reduced from " << polygon.size() << " vertices to " << grid_sampled_polyline.size() << " vertices.\n";
+    std::cout << "Finished grid sampling. Reduced from " << polygon.size() << " vertices to "
+              << grid_sampled_polyline.size() << " vertices.\n";
     return Polygon2D(grid_sampled_polyline.begin(), grid_sampled_polyline.end());
   }
 
@@ -1020,7 +1014,8 @@ namespace HexMesher
   {
     /*
     Mesh::Property_map<VertexIndex, PrincipalVertexCurvature> principal__property =
-      mesh.add_property_map<VertexIndex, PrincipalVertexCurvature>("v:principal_curvature", PrincipalVertexCurvature()).first;
+      mesh.add_property_map<VertexIndex, PrincipalVertexCurvature>("v:principal_curvature",
+    PrincipalVertexCurvature()).first;
 
     CGAL::Polygon_mesh_processing::interpolated_corrected_curvatures(
       mesh,
@@ -1028,4 +1023,4 @@ namespace HexMesher
     );
     */
   }
-}
+} // namespace HexMesher
