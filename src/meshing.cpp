@@ -31,7 +31,7 @@ namespace HexMesher
   WindingOrder winding_order(const Polyline2D& polyline)
   {
     Real sum(0);
-    for(int i(0); i < polyline.size(); i++)
+    for(std::size_t i(0); i < polyline.size(); i++)
     {
       const Point2D& a = polyline[i];
       const Point2D& b = polyline[(i + 1) % polyline.size()];
@@ -92,9 +92,9 @@ namespace HexMesher
 
     // Find vertex of polyline with smallest inside angle as a safe starting point
     const std::size_t size = polygon.size();
-    int starting_vertex = 0;
+    std::size_t starting_vertex = 0;
     Real minimal_angle = 360.0;
-    for(int i(0); i < polygon.size(); i++)
+    for(std::size_t i(0); i < polygon.size(); i++)
     {
       const Point2D& a = polygon[i];
       const Point2D& b = polygon[(i + 1) % size];
@@ -117,9 +117,9 @@ namespace HexMesher
     // Build simplified result by finding sections with similar normals
     WindingOrder order = polygon.is_clockwise_oriented() ? WindingOrder::Clockwise : WindingOrder::CounterClockwise;
 
-    int section_start = starting_vertex;
-    int section_end = (starting_vertex + 1) % size;
-    int candidate = (starting_vertex + 2) % size;
+    std::size_t section_start = starting_vertex;
+    std::size_t section_end = (starting_vertex + 1) % size;
+    std::size_t candidate = (starting_vertex + 2) % size;
 
     Vector2D reference_normal = outside_normal(polygon[section_start], polygon[section_end], order);
     Vector2D link_normal = outside_normal(polygon[section_end], polygon[candidate], order);
@@ -235,16 +235,16 @@ namespace HexMesher
     // Create inclusion tree for polygons.
     const std::size_t num_polygons = polygons.size();
     std::vector<int> depths(num_polygons, 0);
-    std::vector<int> parents(num_polygons, -1);
+    std::vector<std::size_t> parents(num_polygons, -1);
 
     std::size_t current_idx = 0;
     for(const Polygon2D& polygon : polygons)
     {
-      int parent_candidate = -1;
+      std::size_t parent_candidate = ~std::size_t(0);
       int parent_depth = -1;
       // Find the deepest, i.e. smallest, already handled polygon
       // that still contains the current polygon
-      for(int j(0); j < current_idx; j++)
+      for(std::size_t j(0); j < current_idx; j++)
       {
         if(contains(polygons[j], polygon) && depths[j] > parent_depth)
         {
@@ -253,7 +253,7 @@ namespace HexMesher
         }
       }
 
-      if(parent_candidate != -1)
+      if(parent_candidate != ~std::size_t(0))
       {
         // Polygon is contained in another polygon. Set parent
         parents[current_idx] = parent_candidate;
@@ -274,7 +274,7 @@ namespace HexMesher
     std::size_t handled_polygons = 0;
 
     // Collect all roots
-    for(int i(0); i < num_polygons; i++)
+    for(std::size_t i(0); i < num_polygons; i++)
     {
       if(depths[i] == 0)
       {
@@ -285,7 +285,7 @@ namespace HexMesher
     }
 
     // Collect holes at depth 1
-    for(int i(0); i < num_polygons; i++)
+    for(std::size_t i(0); i < num_polygons; i++)
     {
       if(depths[i] == 1)
       {
@@ -666,7 +666,7 @@ namespace HexMesher
     std::vector<Vector2D> result(polygon.size());
 
     const std::size_t size = polygon.size();
-    for(int i(0); i < polygon.size(); i++)
+    for(std::size_t i(0); i < polygon.size(); i++)
     {
       const Point2D& a = polygon[i];
       const Point2D& b = polygon[(i + 1) % size];
@@ -830,7 +830,7 @@ namespace HexMesher
 
     // Choose points by interior angle
     const std::size_t size = polygon.size();
-    for(int i(0); i < polygon.size(); i++)
+    for(std::size_t i(0); i < polygon.size(); i++)
     {
       const Point2D& a = polygon[i];
       const Point2D& b = polygon[(i + 1) % size];
@@ -867,15 +867,15 @@ namespace HexMesher
     std::vector<Vector2D> offsets = laplace(polygon);
 
     // Sort indices based on laplace, in descending order
-    std::vector<int> indices(polygon.size());
-    for(int i(0); i < polygon.size(); i++)
+    std::vector<std::size_t> indices(polygon.size());
+    for(std::size_t i(0); i < polygon.size(); i++)
     {
       indices[i] = i;
     }
     std::sort(
       indices.begin(),
       indices.end(),
-      [&](int a, int b)
+      [&](std::size_t a, std::size_t b)
       {
         return CGAL::approximate_sqrt(offsets[a].squared_length()) >
                CGAL::approximate_sqrt(offsets[b].squared_length());
@@ -914,7 +914,7 @@ namespace HexMesher
     const WindingOrder order =
       polygon.is_clockwise_oriented() ? WindingOrder::Clockwise : WindingOrder::CounterClockwise;
     std::vector<Segment> segments;
-    for(int i(0); i < polyline.size(); i++)
+    for(std::size_t i(0); i < polyline.size(); i++)
     {
       const Point2D a = polyline[i];
       const Point2D b = polyline[(i + 1) % polyline.size()];
@@ -953,7 +953,7 @@ namespace HexMesher
     }
 
     {
-      for(int i(0); i < segments.size() - 1; i++)
+      for(std::size_t i(0); i < segments.size() - 1; i++)
       {
         const Segment& a = segments[i];
         const Segment& b = segments[i + 1];

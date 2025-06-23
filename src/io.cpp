@@ -26,17 +26,17 @@ namespace HexMesher
     }
 
     next_tag = 1;
-    for(int i(0); i < poly.size() - 1; i++)
+    for(std::size_t i(0); i < poly.size() - 1; i++)
     {
-      output << "Curve(" << next_tag++ << ") = {" << i + 1 << ", " << i + 2 << "};\n";
+      output << "Curve(" << next_tag++ << ") = {" << std::to_string(i + 1) << ", " << std::to_string(i + 2) << "};\n";
     }
     output << "Curve(" << next_tag++ << ") = {" << poly.size() << ", 1};\n";
 
     int line_loop_tag = next_tag;
     output << "Curve Loop(" << next_tag++ << ") = {";
-    for(int i(0); i < poly.size(); i++)
+    for(std::size_t i(0); i < poly.size(); i++)
     {
-      output << (i + 1);
+      output << std::to_string(i + 1);
       if(i + 1 != poly.size())
       {
         output << ", ";
@@ -48,9 +48,9 @@ namespace HexMesher
     output << "Plane Surface(" << next_tag++ << ") = {" << line_loop_tag << "};\n";
 
     output << "Compound Curve{";
-    for(int i(0); i < poly.size(); i++)
+    for(std::size_t i(0); i < poly.size(); i++)
     {
-      output << (i + 1);
+      output << std::to_string(i + 1);
       if(i + 1 != poly.size())
       {
         output << ", ";
@@ -77,7 +77,7 @@ namespace HexMesher
     output << "Mesh.Format = 16;\n";                // vtk
     output << "Mesh.RecombineAll = 1;\n";           // Always produce quad meshes
 
-    int next_tag = 1;
+    std::size_t next_tag = 1;
 
     for(const Point2D& p : poly)
     {
@@ -85,17 +85,17 @@ namespace HexMesher
     }
 
     next_tag = 1;
-    for(int i(0); i < poly.size() - 1; i++)
+    for(std::size_t i(0); i < poly.size() - 1; i++)
     {
-      output << "Line(" << next_tag++ << ") = {" << i + 1 << ", " << i + 2 << "};\n";
+      output << "Line(" << next_tag++ << ") = {" << std::to_string(i + 1) << ", " << std::to_string(i + 2) << "};\n";
     }
     output << "Line(" << next_tag++ << ") = {" << poly.size() << ", 1};\n";
 
     int line_loop_tag = next_tag;
     output << "Line Loop(" << next_tag++ << ") = {";
-    for(int i(0); i < poly.size(); i++)
+    for(std::size_t i(0); i < poly.size(); i++)
     {
-      output << (i + 1);
+      output << std::to_string(i + 1);
       if(i + 1 != poly.size())
       {
         output << ", ";
@@ -103,7 +103,7 @@ namespace HexMesher
     }
     output << "};\n";
 
-    int surface_tag = next_tag;
+    // std::size_t surface_tag = next_tag;
     output << "Plane Surface(" << next_tag++ << ") = {" << line_loop_tag << "};\n";
 
     // output << "Extrude {0, 0, 10} {Surface{" << surface_tag << "}; Layers
@@ -171,9 +171,9 @@ namespace HexMesher
       output << "<Lines>\n";
       output << "<DataArray type=\"UInt32\" Name=\"connectivity\">\n";
 
-      for(int i(0); i < poly.size(); i++)
+      for(std::size_t i(0); i < poly.size(); i++)
       {
-        output << i << " ";
+        output << unsigned(i) << " ";
       }
       output << "0\n";
       output << "</DataArray>\n";
@@ -245,9 +245,9 @@ namespace HexMesher
       if(poly.outer_boundary().size() > 0)
       {
         int idx = 0;
-        for(int i(0); i < poly.outer_boundary().size() - 1; i++)
+        for(std::size_t i(0); i < poly.outer_boundary().size() - 1; i++)
         {
-          output << i << " ";
+          output << unsigned(i) << " ";
         }
         output << starting_points[idx] << "\n";
         idx++;
@@ -255,7 +255,7 @@ namespace HexMesher
         for(const Polygon2D& hole : poly.holes())
         {
           int starting_index = starting_points[idx];
-          for(int i(0); i < hole.size() - 1; i++)
+          for(std::size_t i(0); i < hole.size() - 1; i++)
           {
             output << starting_index + i << "\n";
           }
@@ -267,7 +267,7 @@ namespace HexMesher
       output << "</DataArray>\n";
 
       output << "<DataArray type=\"UInt32\" Name=\"offsets\">\n";
-      for(int i(1); i < starting_points.size(); i++)
+      for(std::size_t i(1); i < starting_points.size(); i++)
       {
         output << starting_points[i] << "\n";
       }
@@ -328,11 +328,11 @@ namespace HexMesher
       output << "<DataArray type=\"UInt32\" Name=\"connectivity\">\n";
 
       auto it = polylines.begin();
-      for(int i(0); i < polylines.size(); i++)
+      for(std::size_t i(0); i < polylines.size(); i++)
       {
         int starting_idx = starting_points[i];
 
-        for(int j(0); j < it->size() - 1; j++)
+        for(std::size_t j(0); j < it->size() - 1; j++)
         {
           output << starting_idx + j << "\n";
         }
@@ -342,7 +342,7 @@ namespace HexMesher
       output << "</DataArray>\n";
 
       output << "<DataArray type=\"UInt32\" Name=\"offsets\">\n";
-      for(int i(1); i < starting_points.size(); i++)
+      for(std::size_t i(1); i < starting_points.size(); i++)
       {
         output << starting_points[i] << "\n";
       }
@@ -403,11 +403,11 @@ namespace HexMesher
       output << "<DataArray type=\"UInt32\" Name=\"connectivity\">\n";
 
       auto it = polylines.begin();
-      for(int i(0); i < polylines.size(); i++)
+      for(std::size_t i(0); i < polylines.size(); i++)
       {
         int starting_idx = starting_points[i];
 
-        for(int j(0); j < it->size() - 1; j++)
+        for(std::size_t j(0); j < it->size() - 1; j++)
         {
           output << starting_idx + j << "\n";
         }
@@ -417,7 +417,7 @@ namespace HexMesher
       output << "</DataArray>\n";
 
       output << "<DataArray type=\"UInt32\" Name=\"offsets\">\n";
-      for(int i(1); i < starting_points.size(); i++)
+      for(std::size_t i(1); i < starting_points.size(); i++)
       {
         output << starting_points[i] << "\n";
       }

@@ -268,7 +268,6 @@ namespace HexMesher
         }
 
         Real distance_to_closest = CGAL::approximate_sqrt(Vector3D(center, closest_point).squared_length());
-        Vector3D closest_normal = -Intern::surface_normal(mesh, closest_point_data.second, closest_point_data.first);
 
         Real discretization_error(0);
         // NOTE(mmuegge): Must be local_max_edge_length < 2 * radius to be a valid triangle
@@ -519,13 +518,13 @@ namespace HexMesher
       edge_lengths.push_back(std::sqrt((a - b).squared_length()));
     }
 
-    double min_x;
-    double min_y;
-    double min_z;
+    double min_x = 0.0;
+    double min_y = 0.0;
+    double min_z = 0.0;
 
-    double max_x;
-    double max_y;
-    double max_z;
+    double max_x = std::numeric_limits<double>::max();
+    double max_y = std::numeric_limits<double>::max();
+    double max_z = std::numeric_limits<double>::max();
 
     for(const HexMesher::Point3D& p : mesh.points())
     {
@@ -574,13 +573,13 @@ namespace HexMesher
     // because it reuses values of the points in the exact kernel
     // and cleans them up recursively.
     // Try again once we support the inexact kernel.
-    double min_x;
-    double min_y;
-    double min_z;
+    double min_x = 0.0;
+    double min_y = 0.0;
+    double min_z = 0.0;
 
-    double max_x;
-    double max_y;
-    double max_z;
+    double max_x = std::numeric_limits<double>::max();
+    double max_y = std::numeric_limits<double>::max();
+    double max_z = std::numeric_limits<double>::max();
 
     for(const HexMesher::Point3D& p : mesh.points())
     {
@@ -618,20 +617,6 @@ namespace HexMesher
 
       // Above a relative distance of 0.5 there must be some amount of space between the MIS and the mesh.
       // All these gaps are ok.
-      return 1.0;
-    };
-
-    auto normalized_diameter_score = [&](FaceIndex f)
-    {
-      double normalized = diameters[f] / max_diameter;
-
-      // Penalize any gaps smaller than a tenth of a percent of the mesh size
-      if(normalized < 1e-3)
-      {
-        return 1e3 * normalized;
-      }
-
-      // Full score for anything else
       return 1.0;
     };
 

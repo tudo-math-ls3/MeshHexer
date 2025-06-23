@@ -98,19 +98,13 @@ namespace HexMesher
   void SurfaceMesh::SurfaceMeshImpl::prepare_for_min_gap()
   {
     // Ensure vertex normals are available
-    ensure_property<VertexIndex, Vector3D>(
-      "v:normals",
-      [&]() { compute_vertex_normals(_mesh); });
+    ensure_property<VertexIndex, Vector3D>("v:normals", [&]() { compute_vertex_normals(_mesh); });
 
     // Ensure maximal dihedral angles are available
-    ensure_property<FaceIndex, double>(
-      "f:dihedral_angle",
-      [&]() { compute_max_dihedral_angle(_mesh); });
+    ensure_property<FaceIndex, double>("f:dihedral_angle", [&]() { compute_max_dihedral_angle(_mesh); });
 
     // Ensure maximal inscribed spheres are available
-    ensure_property<FaceIndex, double>(
-      "f:MIS_diameter",
-      [&]() { maximal_inscribed_spheres(_mesh, aabb_tree()); });
+    ensure_property<FaceIndex, double>("f:MIS_diameter", [&]() { maximal_inscribed_spheres(_mesh, aabb_tree()); });
 
     // Ensure topological distances are available
     ensure_property<FaceIndex, double>(
@@ -118,9 +112,7 @@ namespace HexMesher
       [&]() { topological_distances(_mesh, "f:MIS_id", "f:MIS_diameter"); });
 
     // Ensure gap scores are available
-    ensure_property<FaceIndex, double>(
-      "f:gap_score",
-      [&]() { score_gaps(_mesh); });
+    ensure_property<FaceIndex, double>("f:gap_score", [&]() { score_gaps(_mesh); });
   }
 
   MinGap SurfaceMesh::SurfaceMeshImpl::min_gap()
@@ -135,8 +127,7 @@ namespace HexMesher
     return HexMesher::min_gap_percentile(_mesh, percentile);
   }
 
-  Result<void, std::string>
-  SurfaceMesh::SurfaceMeshImpl::write_to_file(const std::string& filename)
+  Result<void, std::string> SurfaceMesh::SurfaceMeshImpl::write_to_file(const std::string& filename)
   {
     using ResultType = Result<void, std::string>;
 
@@ -223,8 +214,7 @@ namespace HexMesher
     create_warnings(_mesh, ws);
   }
 
-  SurfaceMesh::SurfaceMesh(std::unique_ptr<SurfaceMesh::SurfaceMeshImpl> ptr) :
-    impl(std::move(ptr))
+  SurfaceMesh::SurfaceMesh(std::unique_ptr<SurfaceMesh::SurfaceMeshImpl> ptr) : impl(std::move(ptr))
   {
   }
 
@@ -242,8 +232,7 @@ namespace HexMesher
     return impl->min_gap_percentile(percentile);
   }
 
-  Result<void, std::string>
-  SurfaceMesh::write_to_file(const std::string& filename)
+  Result<void, std::string> SurfaceMesh::write_to_file(const std::string& filename)
   {
     return impl->write_to_file(filename);
   }
@@ -293,8 +282,7 @@ namespace HexMesher
     impl->warnings(ws);
   }
 
-  Result<SurfaceMesh, std::string>
-  load_from_file(const std::string& filename, bool triangulate)
+  Result<SurfaceMesh, std::string> load_from_file(const std::string& filename, bool triangulate)
   {
     using ResultType = Result<SurfaceMesh, std::string>;
 
