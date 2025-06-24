@@ -112,7 +112,7 @@ namespace HexMesher
       [&]() { topological_distances(_mesh, "f:MIS_id", "f:MIS_diameter"); });
 
     // Ensure gap scores are available
-    ensure_property<FaceIndex, double>("f:gap_score", [&]() { score_gaps(_mesh); });
+    score_gaps(_mesh);
   }
 
   MinGap SurfaceMesh::SurfaceMeshImpl::min_gap()
