@@ -545,13 +545,13 @@ namespace HexMesher
       edge_lengths.push_back(std::sqrt((a - b).squared_length()));
     }
 
-    double min_x = 0.0;
-    double min_y = 0.0;
-    double min_z = 0.0;
+    double max_x = 0.0;
+    double max_y = 0.0;
+    double max_z = 0.0;
 
-    double max_x = std::numeric_limits<double>::max();
-    double max_y = std::numeric_limits<double>::max();
-    double max_z = std::numeric_limits<double>::max();
+    double min_x = std::numeric_limits<double>::max();
+    double min_y = std::numeric_limits<double>::max();
+    double min_z = std::numeric_limits<double>::max();
 
     for(const HexMesher::Point3D& p : mesh.points())
     {
@@ -600,13 +600,13 @@ namespace HexMesher
     // because it reuses values of the points in the exact kernel
     // and cleans them up recursively.
     // Try again once we support the inexact kernel.
-    double min_x = 0.0;
-    double min_y = 0.0;
-    double min_z = 0.0;
+    double max_x = 0.0;
+    double max_y = 0.0;
+    double max_z = 0.0;
 
-    double max_x = std::numeric_limits<double>::max();
-    double max_y = std::numeric_limits<double>::max();
-    double max_z = std::numeric_limits<double>::max();
+    double min_x = std::numeric_limits<double>::max();
+    double min_y = std::numeric_limits<double>::max();
+    double min_z = std::numeric_limits<double>::max();
 
     for(const HexMesher::Point3D& p : mesh.points())
     {
