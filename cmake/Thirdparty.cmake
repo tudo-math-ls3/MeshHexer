@@ -6,6 +6,29 @@ include(PrintPackageConfig)
 set(MAKE_AVAIL_LIST)
 mark_as_advanced(MAKE_AVAIL_LIST)
 
+if(HEXMESHER_PREFER_EXTERNAL_TPL OR Eigen3_DIR)
+  if(NOT HEXMESHER_ALLOW_EXTERNAL_DOWNLOAD)
+    find_package(Eigen3 3.4.0 CONFIG REQUIRED)
+  else()
+    find_package(Eigen3 3.4.0 CONFIG)
+  endif()
+endif()
+
+if(NOT Eigen3_FOUND)
+  FetchContent_declare(
+    Eigen3
+    URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
+    URL_HASH MD5=4c527a9171d71a72a9d4186e65bea559
+    UPDATE_DISCONNECTED ON
+    OVERRIDE_FIND_PACKAGE
+    EXCLUDE_FROM_ALL
+  )
+  list(APPEND MAKE_AVAIL_LIST Eigen3)
+  find_package_override_helper(Eigen3 3.4.0 AnyNewerVersion)
+else()
+  print_package_info(Eigen3)
+endif()
+
 if(HEXMESHER_PREFER_EXTERNAL_TPL OR Boost_DIR)
   if(NOT HEXMESHER_ALLOW_EXTERNAL_DOWNLOAD)
     find_package(Boost 1.88 REQUIRED)
@@ -44,6 +67,7 @@ if(HEXMESHER_PREFER_EXTERNAL_TPL OR CGAL_DIR)
   endif()
 endif()
 
+message(STATUS "EIGEN3_INCLUDE_DIR: ${EIGEN3_INCLUDE_DIR}")
 if(NOT CGAL_FOUND)
   FetchContent_declare(
     CGAL
@@ -58,14 +82,35 @@ if(NOT CGAL_FOUND)
   set(CGAL_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/cgal-src)
   set(CGAL_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/cgal-build)
 
-  #SET(CGAL_CMAKE_EXACT_NT_BACKEND BOOST_BACKEND CACHE STRING "" FORCE)
-  #SET(CGAL_DISABLE_GMP ON CACHE BOOL "" FORCE)
-  #set(CMAKE_DISABLE_FIND_PACKAGE_GMP ON CACHE BOOL "" FORCE)
-  message(STATUS "Cgal source dir: ${CGAL_SOURCE_DIR}")
   list(APPEND MAKE_AVAIL_LIST CGAL)
   find_package_override_helper(cgal 6.0.1 AnyNewerVersion)
 else()
   print_package_info(CGAL)
+endif()
+
+if(HEXMESHER_PREFER_EXTERNAL_TPL OR pmp_DIR)
+  if(NOT HEXMESHER_ALLOW_EXTERNAL_DOWNLOAD)
+    find_package(pmp 3.0.0 CONFIG REQUIRED)
+  else()
+    find_package(pmp 3.0.0 CONFIG)
+  endif()
+endif()
+
+if(NOT pmp_FOUND)
+  FetchContent_declare(
+    pmp
+    URL https://github.com/pmp-library/pmp-library/archive/refs/tags/3.0.0.zip
+    URL_HASH MD5=7b7f9ce07a7a687c9d78a6583cf64a2c
+    SOURCE_SUBDIR Non-Existing # Use non-existing source dir to disable add_subdirectory call of MakeAvailable
+    UPDATE_DISCONNECTED ON
+    # FIND_PACKAGE_ARGS NAMES CGAL GLOBAL
+    OVERRIDE_FIND_PACKAGE
+  )
+
+  list(APPEND MAKE_AVAIL_LIST pmp)
+  find_package_override_helper(pmp 3.0.0 AnyNewerVersion)
+else()
+  print_package_info(pmp)
 endif()
 
 if(MAKE_AVAIL_LIST)

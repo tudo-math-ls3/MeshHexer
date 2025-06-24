@@ -34,4 +34,5 @@ target_sources(HexMesher
 target_compile_options(HexMesher PRIVATE -Wall)
 
 find_package(CGAL)
-target_link_libraries(HexMesher PRIVATE CGAL::CGAL)
+find_package(pmp)
+target_link_libraries(HexMesher PRIVATE CGAL::CGAL pmp::pmp)
