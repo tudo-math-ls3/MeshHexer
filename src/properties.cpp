@@ -7,6 +7,7 @@
 #include <CGAL/AABB_tree.h>
 
 #include <CGAL/Polygon_mesh_processing/compute_normal.h>
+#include <CGAL/Polygon_mesh_processing/interpolated_corrected_curvatures.h>
 #include <CGAL/Polygon_mesh_processing/locate.h>
 #include <CGAL/Polygon_mesh_processing/measure.h>
 #include <CGAL/Polygon_mesh_processing/orientation.h>
@@ -111,6 +112,32 @@ namespace HexMesher
       mesh.add_property_map<VertexIndex, Vector3D>("v:normals", Vector3D(0.0, 0.0, 0.0)).first;
 
     CGAL::Polygon_mesh_processing::compute_vertex_normals(mesh, normals);
+  }
+
+  void compute_curvature(Mesh& mesh)
+  {
+    Mesh::Property_map<VertexIndex, double> mean_curvature =
+      mesh.add_property_map<VertexIndex, double>("v:mean_curvature", 0).first;
+
+    Mesh::Property_map<VertexIndex, double> gaussian_curvature =
+      mesh.add_property_map<VertexIndex, double>("v:gaussian_curvature", 0).first;
+
+    Mesh::Property_map<VertexIndex, PMP::Principal_curvatures_and_directions<Kernel>> principal_curvatures =
+      mesh
+        .add_property_map<VertexIndex, PMP::Principal_curvatures_and_directions<Kernel>>(
+          "v:principal_curvatures",
+          PMP::Principal_curvatures_and_directions<Kernel>(
+            Real(0),
+            Real(0),
+            Vector3D(0.0, 0.0, 0.0),
+            Vector3D(0.0, 0.0, 0.0)))
+        .first;
+
+    PMP::interpolated_corrected_curvatures(
+      mesh,
+      CGAL::parameters::vertex_mean_curvature_map(mean_curvature)
+        .vertex_Gaussian_curvature(gaussian_curvature)
+        .vertex_principal_curvatures_and_directions_map(principal_curvatures));
   }
 
   void maximal_inscribed_spheres(Mesh& mesh, const AABBTree& aabb_tree)

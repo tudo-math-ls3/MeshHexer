@@ -39,6 +39,7 @@ namespace HexMesher
    */
   void compute_vertex_normals(Mesh& mesh);
   void compute_max_dihedral_angle(Mesh& mesh);
+  void compute_curvature(Mesh& mesh);
 
   /**
    * \brief Returns true if face normals calculated via a cross product point towards the "unbounded" side of the mesh

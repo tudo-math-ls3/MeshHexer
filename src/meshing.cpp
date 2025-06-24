@@ -1009,18 +1009,4 @@ namespace HexMesher
               << grid_sampled_polyline.size() << " vertices.\n";
     return Polygon2D(grid_sampled_polyline.begin(), grid_sampled_polyline.end());
   }
-
-  void compute_curvature(Mesh& mesh)
-  {
-    /*
-    Mesh::Property_map<VertexIndex, PrincipalVertexCurvature> principal__property =
-      mesh.add_property_map<VertexIndex, PrincipalVertexCurvature>("v:principal_curvature",
-    PrincipalVertexCurvature()).first;
-
-    CGAL::Polygon_mesh_processing::interpolated_corrected_curvatures(
-      mesh,
-      CGAL::parameters::vertex_principal_curvatures_and_directions_map(principal__property)
-    );
-    */
-  }
 } // namespace HexMesher
