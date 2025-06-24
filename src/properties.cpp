@@ -226,15 +226,6 @@ namespace HexMesher
       normal /= std::sqrt(normal.squared_length());
       Vector3D inward_normal = normal_direction * normal;
 
-      if(std::abs(CGAL::approximate_sqrt(inward_normal.squared_length()) - 1.0) > 1e-2)
-      {
-        std::cout << "Non-unit normal at face " << face_index << "\n";
-        std::cout << "Vector: " << normal << "\n";
-        std::cout << "Length: " << CGAL::approximate_sqrt(normal.squared_length()) << "\n";
-        std::cout << "Aborting\n";
-        exit(1);
-      }
-
       // Cast ray
       Ray3D ray(centroid, inward_normal);
       auto skip = [=](FaceIndex idx) { return idx == face_index; };
@@ -400,17 +391,13 @@ namespace HexMesher
     FaceIndex b,
     const Mesh& mesh,
     const std::vector<double>& edge_lengths,
-    std::vector<double>& distances,
     double max_distance = 0.0)
   {
-    // Prepare scratch memory. -1.0 is sentinel value for an unvisited node.
-    for(auto& entry : distances)
-    {
-      entry = -1.0;
-    }
-
     // Allocate frontier
     std::priority_queue<FrontierEntry, std::vector<FrontierEntry>, Comparator> frontier;
+
+    // Allocate distances
+    std::unordered_map<VertexIndex, double> distances;
 
     // Initialise starting points.
     for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(a)))
@@ -424,21 +411,22 @@ namespace HexMesher
 
     // Determine end points
     std::vector<VertexIndex> goal_vertices;
+    std::vector<Point3D> goal_points;
     for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(b)))
     {
       goal_vertices.push_back(v);
+      goal_points.push_back(mesh.point(v));
     }
 
     // Set up heuristic
     // Heuristic is shortest direct distance to any of the goal vertices
     auto heuristic = [&](VertexIndex v)
     {
+      const Point3D& a = mesh.point(v);
       double result = std::numeric_limits<double>::max();
-      for(VertexIndex g : goal_vertices)
+      for(const Point3D& b : goal_points)
       {
-        const Point3D& a = mesh.point(v);
-        const Point3D& b = mesh.point(g);
-        double distance = CGAL::to_double(CGAL::approximate_sqrt(Vector3D(a, b).squared_length()));
+        double distance = std::sqrt(Vector3D(a, b).squared_length());
         result = std::min(result, distance);
       }
       return result;
@@ -450,10 +438,12 @@ namespace HexMesher
       VertexIndex current = frontier.top().idx;
       frontier.pop();
 
+      double current_distance = distances[current];
+
       if(std::find(goal_vertices.begin(), goal_vertices.end(), current) != goal_vertices.end())
       {
         // We found one of the target vertices.
-        return distances[current];
+        return current_distance;
       }
 
       for(HalfedgeIndex hedge : mesh.halfedges_around_target(mesh.halfedge(current)))
@@ -461,16 +451,24 @@ namespace HexMesher
         VertexIndex neighbor = mesh.source(hedge);
 
         double edge_length = edge_lengths[mesh.edge(hedge)];
-        double new_cost = distances[current] + edge_length;
+        double new_cost = current_distance + edge_length;
 
         if(max_distance != 0.0 && new_cost > max_distance)
         {
           continue;
         }
 
-        if(distances[neighbor] == -1.0 || new_cost < distances[neighbor])
+        auto it = distances.find(neighbor);
+        if(it == distances.end() || new_cost < it->second)
         {
-          distances[neighbor] = new_cost;
+          if(it != distances.end())
+          {
+            it->second = new_cost;
+          }
+          else
+          {
+            distances[neighbor] = new_cost;
+          }
 
           double priority = new_cost + heuristic(neighbor);
           frontier.push(FrontierEntry(neighbor, priority));
@@ -504,13 +502,9 @@ namespace HexMesher
       edge_lengths.push_back(std::sqrt((a - b).squared_length()));
     }
 
-    // Allocate scratch memory for distances
-    std::vector<double> scratch_distances(mesh.num_vertices(), -1.0);
-
     for(FaceIndex f : mesh.faces())
     {
-      topo_distance[f] =
-        topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, scratch_distances, max_distance);
+      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, max_distance);
     }
   }
 
@@ -566,15 +560,11 @@ namespace HexMesher
 
     double max_mesh_delta = std::max({max_x - min_x, max_y - min_y, max_z - min_z});
 
-    // Allocate scratch memory for distances
-    std::vector<double> scratch_distances(mesh.num_vertices(), -1.0);
-
     for(FaceIndex f : mesh.faces())
     {
       double max_distance = M_PI * max_distances[f];
       max_distance = std::max(max_distance, 0.001 * max_mesh_delta);
-      topo_distance[f] =
-        topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, scratch_distances, max_distance);
+      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, max_distance);
     }
   }
 

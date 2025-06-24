@@ -67,7 +67,6 @@ if(HEXMESHER_PREFER_EXTERNAL_TPL OR CGAL_DIR)
   endif()
 endif()
 
-message(STATUS "EIGEN3_INCLUDE_DIR: ${EIGEN3_INCLUDE_DIR}")
 if(NOT CGAL_FOUND)
   FetchContent_declare(
     CGAL
