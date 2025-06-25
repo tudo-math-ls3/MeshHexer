@@ -1,5 +1,6 @@
 #pragma once
 
+#include <CGAL/Bbox_3.h>
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Polygon_2.h>
 #include <CGAL/Polygon_with_holes_2.h>
@@ -35,6 +36,7 @@ namespace HexMesher
   using Segment3D = Kernel::Segment_3;
   using Polyline3D = std::vector<Point3D>;
   using Polylines3D = std::list<Polyline3D>;
+  using BBox3D = CGAL::Bbox_3;
 
   using Point2D = Kernel::Point_2;
   using Vector2D = Kernel::Vector_2;

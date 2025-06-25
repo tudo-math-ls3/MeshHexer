@@ -106,10 +106,24 @@ namespace HexMesher
     // Ensure maximal inscribed spheres are available
     ensure_property<FaceIndex, double>("f:MIS_diameter", [&]() { maximal_inscribed_spheres(_mesh, aabb_tree()); });
 
+    // Calculate maximum search distances for topological distances
+
+    Mesh::Property_map<FaceIndex, double> max_distances =
+      _mesh.add_property_map<FaceIndex, double>("f:max_search_distance", 0.0).first;
+
+    Mesh::Property_map<FaceIndex, double> diameters =
+      _mesh.add_property_map<FaceIndex, double>("f:MIS_diameter", 0.0).first;
+
+    const double ms = mesh_size(_mesh);
+    for(FaceIndex f : _mesh.faces())
+    {
+      max_distances[f] = std::max(M_PI * diameters[f], 0.005 * ms);
+    }
+
     // Ensure topological distances are available
     ensure_property<FaceIndex, double>(
       "f:topological_distance",
-      [&]() { topological_distances(_mesh, "f:MIS_id", "f:MIS_diameter"); });
+      [&]() { topological_distances(_mesh, "f:MIS_id", "f:max_search_distance"); });
 
     // Ensure gap scores are available
     score_gaps(_mesh);

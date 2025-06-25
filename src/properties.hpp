@@ -53,6 +53,11 @@ namespace HexMesher
 
   Vector3D surface_normal(Mesh& mesh, FaceIndex f, Point3D point);
 
+  /**
+   * \brief Returns largest length of AABB surrounding the mesh
+   */
+  double mesh_size(const Mesh& mesh);
+
   void score_gaps(Mesh& mesh);
   MinGap min_gap_percentile(Mesh& mesh, double percentile);
 

@@ -51,6 +51,12 @@ namespace HexMesher
 {
   namespace PMP = CGAL::Polygon_mesh_processing;
 
+  double mesh_size(const Mesh& mesh)
+  {
+    BBox3D bb = CGAL::bbox_3(mesh.points().begin(), mesh.points().end());
+    return std::max({bb.xmax() - bb.xmin(), bb.ymax() - bb.ymin(), bb.zmax() - bb.zmin()});
+  }
+
   bool is_wound_consistently(const Mesh& mesh)
   {
     for(HalfedgeIndex idx : mesh.halfedges())
@@ -545,33 +551,10 @@ namespace HexMesher
       edge_lengths.push_back(std::sqrt((a - b).squared_length()));
     }
 
-    double max_x = 0.0;
-    double max_y = 0.0;
-    double max_z = 0.0;
-
-    double min_x = std::numeric_limits<double>::max();
-    double min_y = std::numeric_limits<double>::max();
-    double min_z = std::numeric_limits<double>::max();
-
-    for(const HexMesher::Point3D& p : mesh.points())
-    {
-      min_x = std::min(CGAL::to_double(p.x()), min_x);
-      min_y = std::min(CGAL::to_double(p.y()), min_y);
-      min_z = std::min(CGAL::to_double(p.z()), min_z);
-
-      max_x = std::max(CGAL::to_double(p.x()), max_x);
-      max_y = std::max(CGAL::to_double(p.y()), max_y);
-      max_z = std::max(CGAL::to_double(p.z()), max_z);
-    }
-
-    double max_mesh_delta = std::max({max_x - min_x, max_y - min_y, max_z - min_z});
-
     HEXMESHER_PRAGMA_OMP(parallel for schedule(dynamic))
     for(FaceIndex f : mesh.faces())
     {
-      double max_distance = M_PI * max_distances[f];
-      max_distance = std::max(max_distance, 0.001 * max_mesh_delta);
-      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, max_distance);
+      topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, max_distances[f]);
     }
   }
 
@@ -592,31 +575,8 @@ namespace HexMesher
     HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
       mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id").value();
 
-    // NOTE(mmuegge): Tried to store these as HexMesher::Points,
-    // but CGAL produced a stack overflow on cleanup,
-    // because it reuses values of the points in the exact kernel
-    // and cleans them up recursively.
-    // Try again once we support the inexact kernel.
-    double max_x = 0.0;
-    double max_y = 0.0;
-    double max_z = 0.0;
-
-    double min_x = std::numeric_limits<double>::max();
-    double min_y = std::numeric_limits<double>::max();
-    double min_z = std::numeric_limits<double>::max();
-
-    for(const HexMesher::Point3D& p : mesh.points())
-    {
-      min_x = std::min(CGAL::to_double(p.x()), min_x);
-      min_y = std::min(CGAL::to_double(p.y()), min_y);
-      min_z = std::min(CGAL::to_double(p.z()), min_z);
-
-      max_x = std::max(CGAL::to_double(p.x()), max_x);
-      max_y = std::max(CGAL::to_double(p.y()), max_y);
-      max_z = std::max(CGAL::to_double(p.z()), max_z);
-    }
-
-    double max_diameter = std::min({max_x - min_x, max_y - min_y, max_z - min_z});
+    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> max_search_distances =
+      mesh.property_map<HexMesher::FaceIndex, double>("f:max_search_distance").value();
 
     auto topo_dist_score = [&](FaceIndex f)
     {
@@ -632,14 +592,21 @@ namespace HexMesher
         return 1.0;
 
       // Divide by maximum search range for this face
-      double rel = topo_dists[f] / std::max(0.001 * max_diameter, M_PI * diameters[f]);
+      double rel = topo_dists[f] / max_search_distances[f];
 
-      // At a relative distance of 0.5 the limiting face is (at best) at the opposite end of the MIS.
-      // Penalize all distances below that.
-      if(rel < 0.5)
-        return 4 * rel * rel;
+      // Relative distance to opposite side of sphere
+      double opposite = ((M_PI / 2.0) * diameters[f]) / max_search_distances[f];
 
-      // Above a relative distance of 0.5 there must be some amount of space between the MIS and the mesh.
+      if(opposite < 1.0 && rel < opposite)
+      {
+        // Opposite side of sphere is reachable within max_search_distance and limiting face is
+        // closer than opposite side.
+        // Empirically scoring quadratically works well. We thus want the score to be
+        // a * rel^2 with a * opposite^2 = 1 => a = 1 / opposite^2
+        return (1.0 / (opposite * opposite)) * rel * rel;
+      }
+
+      // Above a relative distance of opposite there must be some amount of space between the MIS and the mesh.
       // All these gaps are ok.
       return 1.0;
     };
@@ -677,6 +644,8 @@ namespace HexMesher
     CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(self_intersections));
 
     Mesh::Property_map<FaceIndex, double> gap_score = mesh.add_property_map<FaceIndex, double>("f:gap_score", 0).first;
+
+    double max_diameter = mesh_size(mesh);
 
     for(FaceIndex f : mesh.faces())
     {
