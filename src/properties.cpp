@@ -1,3 +1,4 @@
+#include <macros.hpp>
 #include <properties.hpp>
 
 #include <queue>
@@ -11,6 +12,8 @@
 #include <CGAL/Polygon_mesh_processing/locate.h>
 #include <CGAL/Polygon_mesh_processing/measure.h>
 #include <CGAL/Polygon_mesh_processing/orientation.h>
+
+#include <omp.h>
 
 namespace HexMesher::Intern
 {
@@ -77,6 +80,7 @@ namespace HexMesher
     Mesh::Property_map<FaceIndex, double> dihedral_angles =
       mesh.add_property_map<FaceIndex, double>("f:dihedral_angle", 0).first;
 
+    HEXMESHER_PRAGMA_OMP(parallel for)
     for(FaceIndex current : mesh.faces())
     {
       double max_angle = 0;
@@ -163,12 +167,12 @@ namespace HexMesher
     Mesh::Property_map<FaceIndex, int> iters = mesh.add_property_map<FaceIndex, int>("f:MIS_iters", 0).first;
 
     // Determine bounding box of mesh
-    Real max_radius = std::min({
-                        aabb_tree.bbox().xmax() - aabb_tree.bbox().xmin(),
-                        aabb_tree.bbox().ymax() - aabb_tree.bbox().ymin(),
-                        aabb_tree.bbox().zmax() - aabb_tree.bbox().zmin(),
-                      }) /
-                      Real(2.0);
+    const Real max_radius = std::min({
+                              aabb_tree.bbox().xmax() - aabb_tree.bbox().xmin(),
+                              aabb_tree.bbox().ymax() - aabb_tree.bbox().ymin(),
+                              aabb_tree.bbox().zmax() - aabb_tree.bbox().zmin(),
+                            }) /
+                            Real(2.0);
 
     // Determine maximum edge length of mesh
     Real max_edge_length(0);
@@ -180,8 +184,9 @@ namespace HexMesher
     }
     average_edge_length /= Real(mesh.num_edges());
 
-    Real normal_direction = PMP::is_outward_oriented(mesh) ? Real(-1.0) : Real(1.0);
+    const Real normal_direction = PMP::is_outward_oriented(mesh) ? Real(-1.0) : Real(1.0);
 
+    HEXMESHER_PRAGMA_OMP(parallel for)
     for(FaceIndex face_index : mesh.faces())
     {
       // Determine centroid of face
@@ -502,6 +507,7 @@ namespace HexMesher
       edge_lengths.push_back(std::sqrt((a - b).squared_length()));
     }
 
+    HEXMESHER_PRAGMA_OMP(parallel for schedule(dynamic))
     for(FaceIndex f : mesh.faces())
     {
       topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, max_distance);
@@ -560,6 +566,7 @@ namespace HexMesher
 
     double max_mesh_delta = std::max({max_x - min_x, max_y - min_y, max_z - min_z});
 
+    HEXMESHER_PRAGMA_OMP(parallel for schedule(dynamic))
     for(FaceIndex f : mesh.faces())
     {
       double max_distance = M_PI * max_distances[f];

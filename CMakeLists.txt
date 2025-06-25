@@ -36,6 +36,16 @@ set_target_properties(hexmesher-settings PROPERTIES
   CXX_STANDARD 17
 )
 
+#########
+# OpenMP
+#########
+
+option(HEXMESHER_HAVE_OMP "Build HexMesherV2 with OpenMP" ON)
+if(HEXMESHER_HAVE_OMP)
+  find_package(OpenMP REQUIRED)
+  target_link_libraries(hexmesher-settings INTERFACE OpenMP::OpenMP_CXX)
+endif()
+
 #####################
 # Add subdirectories
 #####################
@@ -45,6 +55,16 @@ if(HEXMESHER_BUILD_APPLICATIONS)
   add_subdirectory(applications)
 endif()
 
+##############
+# Config file
+##############
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/hexmesher_config.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/hexmesher_config.hpp)
+target_sources(HexMesher
+  PRIVATE FILE_SET private_headers
+  TYPE HEADERS
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}
+  FILES ${CMAKE_CURRENT_BINARY_DIR}/hexmesher_config.hpp)
 
 ############
 # Packaging
