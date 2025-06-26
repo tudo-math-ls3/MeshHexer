@@ -31,7 +31,34 @@ target_sources(HexMesher
   TYPE HEADERS
   FILES ${HEXMESHER_PRIVATE_HEADERS})
 
-target_compile_options(HexMesher PRIVATE -Wall)
+target_compile_options(HexMesher PRIVATE 
+  -Wall
+  -Wextra
+  -Wundef
+  -Wshadow
+  -Woverloaded-virtual
+  -Wuninitialized
+  -Wvla
+  -Wdouble-promotion
+  -Wformat=2
+  -Wnonnull
+  -Wswitch-bool
+  -Wsizeof-array-argument
+  -Wbool-compare
+  -Wsuggest-override
+  -Wnon-virtual-dtor
+  -Wdelete-non-virtual-dtor
+  -Wshift-negative-value
+  -Wduplicated-cond
+  -Wduplicated-branches
+  -Wrestrict
+  -Wdangling-else
+  -Wnonnull
+  -Wrestrict
+  -Walloc-zero
+  -Wparentheses
+  -Wpedantic
+)
 
 find_package(CGAL)
 find_package(pmp)

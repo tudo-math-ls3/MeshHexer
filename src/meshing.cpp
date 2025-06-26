@@ -774,7 +774,7 @@ namespace HexMesher
       std::cout << "t: " << t << "\n";
       std::cout << "u: " << u << "\n";
 
-      return Intersection{distance, point, normal, outside};
+      return Intersection{distance, point, normal, outside, 0};
     }
 
     return std::nullopt;

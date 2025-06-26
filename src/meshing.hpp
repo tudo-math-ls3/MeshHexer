@@ -18,6 +18,7 @@ namespace HexMesher
   class CrossSectionSampler
   {
   public:
+    virtual ~CrossSectionSampler() = default;
     virtual Point3D origin() const = 0;
     virtual int num_planes() const = 0;
     virtual CuttingPlane get_plane(int) const = 0;
