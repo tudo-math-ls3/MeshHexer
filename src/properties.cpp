@@ -180,16 +180,6 @@ namespace HexMesher
                             }) /
                             Real(2.0);
 
-    // Determine maximum edge length of mesh
-    Real max_edge_length(0);
-    Real average_edge_length(0);
-    for(auto e : mesh.edges())
-    {
-      max_edge_length = std::max(max_edge_length, PMP::edge_length(e, mesh));
-      average_edge_length += PMP::edge_length(e, mesh);
-    }
-    average_edge_length /= Real(mesh.num_edges());
-
     const Real normal_direction = PMP::is_outward_oriented(mesh) ? Real(-1.0) : Real(1.0);
 
     HEXMESHER_PRAGMA_OMP(parallel for)
@@ -207,14 +197,11 @@ namespace HexMesher
       // actually a closer point or just a slightly closer
       // vertex of the discretization of the same inscribed sphere
 
-      Real local_edge_length(0);
       Real local_max_edge_length(0);
       for(HalfedgeIndex e : mesh.halfedges_around_face(mesh.halfedge(face_index)))
       {
-        local_edge_length += PMP::edge_length(e, mesh);
         local_max_edge_length = std::max(local_max_edge_length, PMP::edge_length(e, mesh));
       }
-      local_edge_length /= Real(3.0);
 
       // Determine initial sphere radius
       // We need an initial radius that is large enough for our initial sphere
@@ -437,10 +424,10 @@ namespace HexMesher
       double result = std::numeric_limits<double>::max();
       for(const Point3D& b : goal_points)
       {
-        double distance = std::sqrt(Vector3D(a, b).squared_length());
+        double distance = Vector3D(a, b).squared_length();
         result = std::min(result, distance);
       }
-      return result;
+      return std::sqrt(result);
     };
 
     while(!frontier.empty())
