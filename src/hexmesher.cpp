@@ -4,6 +4,7 @@
 #include <properties.hpp>
 #include <types.hpp>
 #include <warnings.hpp>
+#include <meshing.hpp>
 
 #include <algorithm>
 #include <iostream>
@@ -60,7 +61,11 @@ namespace HexMesher
     MinGap min_gap();
     MinGap min_gap_percentile(double percentile);
 
+    VolumeMesh base_mesh(std::size_t num_cells, std::uint64_t levels);
+
     Result<void, std::string> write_to_file(const std::string& filename);
+
+    BoundingBox bounding_box() const;
 
     std::uint32_t num_vertices() const;
     std::uint32_t num_edges() const;
@@ -141,6 +146,12 @@ namespace HexMesher
     return HexMesher::min_gap_percentile(_mesh, percentile);
   }
 
+  VolumeMesh SurfaceMesh::SurfaceMeshImpl::base_mesh(std::size_t num_cells, std::uint64_t levels)
+  {
+    prepare_for_min_gap();
+    return HexMesher::base_mesh(_mesh, aabb_tree(), num_cells, levels);
+  }
+
   Result<void, std::string> SurfaceMesh::SurfaceMeshImpl::write_to_file(const std::string& filename)
   {
     using ResultType = Result<void, std::string>;
@@ -163,6 +174,11 @@ namespace HexMesher
     }
 
     return ResultType();
+  }
+
+  BoundingBox SurfaceMesh::SurfaceMeshImpl::bounding_box() const
+  {
+    return HexMesher::bounding_box(_mesh);
   }
 
   std::uint32_t SurfaceMesh::SurfaceMeshImpl::num_vertices() const
@@ -246,9 +262,19 @@ namespace HexMesher
     return impl->min_gap_percentile(percentile);
   }
 
+  VolumeMesh SurfaceMesh::base_mesh(std::size_t num_cells, std::uint64_t levels)
+  {
+    return impl->base_mesh(num_cells, levels);
+  }
+
   Result<void, std::string> SurfaceMesh::write_to_file(const std::string& filename)
   {
     return impl->write_to_file(filename);
+  }
+
+  BoundingBox SurfaceMesh::bounding_box() const
+  {
+    return impl->bounding_box();
   }
 
   std::uint32_t SurfaceMesh::num_vertices() const

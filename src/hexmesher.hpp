@@ -215,9 +215,12 @@ namespace HexMesher
     SurfaceMesh& operator=(SurfaceMesh&&);
     SurfaceMesh& operator=(const SurfaceMesh&) = delete;
 
+    BoundingBox bounding_box() const;
+
     std::uint32_t num_vertices() const;
     std::uint32_t num_edges() const;
     std::uint32_t num_faces() const;
+
     bool is_closed() const;
     bool is_wound_consistently() const;
     bool is_outward_oriented() const;
@@ -226,6 +229,8 @@ namespace HexMesher
 
     MinGap min_gap();
     MinGap min_gap_percentile(double);
+
+    VolumeMesh base_mesh(std::size_t num_cells, std::uint64_t levels);
 
     void warnings(MeshWarnings&) const;
 

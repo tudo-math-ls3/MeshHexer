@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cgal_types.hpp>
+#include <types.hpp>
 
 namespace HexMesher
 {
@@ -114,4 +115,6 @@ namespace HexMesher
     const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred);
 
   Polygon2D grid_sample(const Polygon2D& polygon, Real min_dist);
+
+  VolumeMesh base_mesh(Mesh& mesh, AABBTree& aabb_tree, std::uint64_t num_cells, std::uint64_t levels);
 } // namespace HexMesher

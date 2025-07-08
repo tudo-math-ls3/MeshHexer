@@ -1,5 +1,7 @@
 #include <macros.hpp>
 #include <properties.hpp>
+#include <cgal_types.hpp>
+#include <types.hpp>
 
 #include <queue>
 
@@ -50,6 +52,12 @@ namespace HexMesher::Intern
 namespace HexMesher
 {
   namespace PMP = CGAL::Polygon_mesh_processing;
+
+  BoundingBox bounding_box(const Mesh& mesh)
+  {
+    BBox3D bb = CGAL::bbox_3(mesh.points().begin(), mesh.points().end());
+    return BoundingBox{Point{bb.xmin(), bb.ymin(), bb.zmin()}, Point{bb.xmax(), bb.ymax(), bb.zmax()}};
+  }
 
   double mesh_size(const Mesh& mesh)
   {
@@ -227,7 +235,7 @@ namespace HexMesher
       // Cast ray
       Ray3D ray(centroid, inward_normal);
       auto skip = [=](FaceIndex idx) { return idx == face_index; };
-      RayIntersection intersection = aabb_tree.first_intersection(ray, skip);
+      std::optional<RayIntersection> intersection = aabb_tree.first_intersection(ray, skip);
 
       if(intersection && std::holds_alternative<Point3D>(intersection.value().first))
       {
@@ -420,11 +428,11 @@ namespace HexMesher
     // Heuristic is shortest direct distance to any of the goal vertices
     auto heuristic = [&](VertexIndex v)
     {
-      const Point3D& a = mesh.point(v);
+      const Point3D& pa = mesh.point(v);
       double result = std::numeric_limits<double>::max();
-      for(const Point3D& b : goal_points)
+      for(const Point3D& pb : goal_points)
       {
-        double distance = Vector3D(a, b).squared_length();
+        double distance = Vector3D(pa, pb).squared_length();
         result = std::min(result, distance);
       }
       return std::sqrt(result);
@@ -680,6 +688,69 @@ namespace HexMesher
     }
   }
 
+  std::vector<std::pair<Point, double>> gaps(Mesh& mesh, BoundingBox bb)
+  {
+    std::vector<std::pair<Point, double>> result;
+
+    const double threshold = 0.95;
+
+    Mesh::Property_map<FaceIndex, double> gap_scores =
+      mesh.add_property_map<FaceIndex, double>("f:gap_score", 0.0).first;
+
+    Mesh::Property_map<FaceIndex, double> gaps =
+      mesh.add_property_map<FaceIndex, double>("f:MIS_diameter", 0.0).first;
+
+    for(const FaceIndex f : mesh.faces())
+    {
+      if(gap_scores[f] > threshold)
+      {
+        Point3D centroid(0.0, 0.0, 0.0);
+        for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(f)))
+        {
+          centroid += Real(1.0 / 3.0) * Vector3D(Point3D(CGAL::Origin()), mesh.point(v));
+        }
+
+        if(bb.min.x <= centroid.x() && centroid.x() <= bb.max.x &&
+           bb.min.y <= centroid.y() && centroid.y() <= bb.max.y &&
+           bb.min.z <= centroid.z() && centroid.z() <= bb.max.z)
+        {
+          result.emplace_back(Point{centroid.x(), centroid.y(), centroid.z()}, gaps[f]);
+        }
+      }
+    }
+
+    return result;
+  }
+
+  std::vector<std::pair<Point, double>> gaps(Mesh& mesh)
+  {
+    std::vector<std::pair<Point, double>> result;
+
+    const double threshold = 0.95;
+
+    Mesh::Property_map<FaceIndex, double> gap_scores =
+      mesh.add_property_map<FaceIndex, double>("f:gap_score", 0.0).first;
+
+    Mesh::Property_map<FaceIndex, double> gaps =
+      mesh.add_property_map<FaceIndex, double>("f:MIS_diameter", 0.0).first;
+
+    for(const FaceIndex f : mesh.faces())
+    {
+      if(gap_scores[f] > threshold)
+      {
+        Point3D centroid(0.0, 0.0, 0.0);
+        for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(f)))
+        {
+          centroid += Real(1.0 / 3.0) * Vector3D(Point3D(CGAL::Origin()), mesh.point(v));
+        }
+
+        result.emplace_back(Point{centroid.x(), centroid.y(), centroid.z()}, gaps[f]);
+      }
+    }
+
+    return result;
+  }
+
   MinGap min_gap_percentile(Mesh& mesh, double percentile)
   {
     HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameters =
@@ -751,6 +822,7 @@ namespace HexMesher
 
     if(candidates.empty())
     {
+      std::cout << "Threshold fallback" << "\n";
       // No gaps with score above 0.95. Take 10th percentile instead.
 
       std::vector<double> percentiles(scores.begin(), scores.end());
@@ -778,6 +850,81 @@ namespace HexMesher
         result.origin = f;
         result.limiting = FaceIndex(ids[f]);
       }
+    }
+
+    return result;
+  }
+
+  std::vector<std::pair<Point2D, double>> z_depths(Mesh& mesh, AABBTree& aabb_tree)
+  {
+    const Real start_z = aabb_tree.bbox().zmin() - Real(1);
+    const Vector3D ray_dir(0.0, 0.0, 1.0);
+
+    std::vector<std::pair<Point2D, double>> result;
+
+    // Shoot a ray from start_z in direction -z through all vertices of the mesh
+
+    std::vector<RayIntersection> intersections;
+
+    for(const FaceIndex face : mesh.faces())
+    {
+      if(CGAL::scalar_product(PMP::compute_face_normal(face, mesh), ray_dir) >= -1e-4)
+      {
+        // Face is orthogonal to ray direction or points away. Skip it.
+        continue;
+      }
+
+      Point3D centroid(0.0, 0.0, 0.0);
+      for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(face)))
+      {
+        centroid += Real(1.0 / 3.0) * Vector3D(Point3D(CGAL::Origin()), mesh.point(v));
+      }
+
+      intersections.clear();
+
+      const Point3D ray_origin(centroid.x(), centroid.y(), start_z);
+      const Ray3D ray(ray_origin, ray_dir);
+
+      aabb_tree.all_intersections(ray, std::back_inserter(intersections));
+
+      // Walk through intersections
+      // Every second invertval is inside the mesh and counts as depth
+
+      auto it = intersections.begin();
+
+      double depth = 0;
+      while(it + 1 < intersections.end())
+      {
+        RayIntersection& entry = *it;
+        RayIntersection& exit = *(it + 1);
+
+        it += 2;
+
+        if(!std::holds_alternative<Point3D>(entry.first) || !std::holds_alternative<Point3D>(exit.first))
+        {
+          // Ray passes along face, rather than through it.
+          // Just ignore this face for now
+          break;
+        }
+
+        const Point3D& entry_point = std::get<Point3D>(entry.first);
+        const Point3D& exit_point = std::get<Point3D>(exit.first);
+
+        depth += exit_point.z() - entry_point.z();
+      }
+
+      if(depth > aabb_tree.bbox().zmax() - aabb_tree.bbox().zmin() + 1)
+      {
+        std::cout << "Bad depth for face " << face << "\n";
+        std::cout << "Face normal is " << PMP::compute_face_normal(face, mesh) << "\n";
+        std::cout << "Scalar product with ray direction is " << CGAL::scalar_product(PMP::compute_face_normal(face, mesh), ray_dir) << "\n";
+        std::cout << "Depth is " << depth << "\n";
+        std::cout << "Found " << intersections.size() << " intersections.\n";
+
+        break;
+      }
+
+      result.emplace_back(Point2D(ray_origin.x(), ray_origin.y()), depth);
     }
 
     return result;

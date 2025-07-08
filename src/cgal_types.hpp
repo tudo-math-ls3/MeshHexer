@@ -58,5 +58,5 @@ namespace HexMesher
   using AABBTree = CGAL::AABB_tree<AABBTraits>;
 
   // Intersection types
-  using RayIntersection = std::optional<AABBTree::Intersection_and_primitive_id<Ray3D>::Type>;
+  using RayIntersection = AABBTree::Intersection_and_primitive_id<Ray3D>::Type;
 } // namespace HexMesher

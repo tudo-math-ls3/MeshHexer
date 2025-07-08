@@ -1,3 +1,4 @@
 find_package(CGAL 6.0.1 REQUIRED)
+find_package(OpenMP REQUIRED)
 
-include(${CMAKE_CURRENT_LIST_DIR}/hexmesherTargets.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/hexmesherv2Targets.cmake)

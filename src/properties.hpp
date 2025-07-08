@@ -57,10 +57,17 @@ namespace HexMesher
    * \brief Returns largest length of AABB surrounding the mesh
    */
   double mesh_size(const Mesh& mesh);
+  BoundingBox bounding_box(const Mesh& mesh);
 
   void score_gaps(Mesh& mesh);
+
+  std::vector<std::pair<Point, double>> gaps(Mesh& mesh);
+  std::vector<std::pair<Point, double>> gaps(Mesh& mesh, BoundingBox bb);
+
   MinGap min_gap_percentile(Mesh& mesh, double percentile);
 
   /// Determine a best-effort guess at the minimal gap of the given mesh
   MinGap min_gap(Mesh& mesh);
+
+  std::vector<std::pair<Point2D, double>> z_depths(Mesh& mesh, AABBTree& aabb_tree);
 } // namespace HexMesher

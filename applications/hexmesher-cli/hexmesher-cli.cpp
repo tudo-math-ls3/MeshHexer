@@ -3,6 +3,10 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <algorithm>
+#include <functional>
+#include <fstream>
+#include <iostream>
 
 #include <hexmesher.hpp>
 
@@ -106,12 +110,25 @@ namespace HexMesherCLI
       std::cout << Markdown::h2("Metadata") << "\n";
       std::cout << Markdown::li("Path: " + absolute_path.string()) << "\n";
 
+
       std::cout << "\n";
 
       std::cout << Markdown::h2("Topology") << "\n";
       std::cout << Markdown::li("Number of vertices: " + std::to_string(mesh.num_vertices())) << "\n";
       std::cout << Markdown::li("Number of edges: " + std::to_string(mesh.num_edges())) << "\n";
       std::cout << Markdown::li("Number of faces: " + std::to_string(mesh.num_faces())) << "\n";
+
+      HexMesher::BoundingBox bb = mesh.bounding_box();
+      // clang-format off
+      std::cout << Markdown::li("Extent (x, y, z): [" +
+        std::to_string(bb.min.x) + ", " +
+        std::to_string(bb.max.x) + "] x [" +
+        std::to_string(bb.min.y) + ", " +
+        std::to_string(bb.max.y) + "] x [" +
+        std::to_string(bb.min.z) + ", " +
+        std::to_string(bb.max.z) + "]") << "\n";
+      // clang-format on
+
       std::cout << Markdown::li("Is closed: " + std::string(mesh.is_closed() ? "True" : "False")) << "\n";
       std::cout << Markdown::li(
                      "Is wound consistently: " + std::string(mesh.is_wound_consistently() ? "True" : "False"))
