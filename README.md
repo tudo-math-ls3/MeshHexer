@@ -18,14 +18,25 @@ Assuming you cloned this repo to ``~/hexmesherv2`` you can build the library via
 mkdir build
 cd build
 cmake ~/hexmesherv2
-make HexMesher
+cmake --build . --target HexMesher
 ```
 
 Additionally run
 ```
-make hexmesher-cli
+cmake --build . --target hexmesher-cli
 ```
-to build the corresponding command-line application. Or just run ``make all``.
+to build the corresponding command-line application. Or just run ``cmake --build .``.
+
+## Installing
+
+To install the library (and its dependencies, if they were built during the configure step) run
+```
+cmake --install . --prefix=path/to/install/dir
+```
+
+HexMesher will be installed as a CMake package and can be found via ``find_package(HexMesherV2)`` if the install directory is seen by CMake.
+After finding HexMesher a HexMesher::HexMesher target is available to link against.
+See src/hexmesher.hpp for the public API.
 
 ## hexmesher-cli
 

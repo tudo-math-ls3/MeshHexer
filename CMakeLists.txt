@@ -17,7 +17,7 @@ project(
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 option(HEXMESHER_BUILD_APPLICATIONS "should targets for application be added?" ON)
-option(HEXMESHER_INSTALL "should installation of HexMesher be set up?" OFF)
+option(HEXMESHER_INSTALL "should installation of HexMesher be set up?" ON)
 option(HEXMESHER_PREFER_EXTERNAL_TPL "try to find external libraries before fetching" ON)
 option(HEXMESHER_ALLOW_EXTERNAL_DOWNLOAD "enable download of TPLs" ON)
 
