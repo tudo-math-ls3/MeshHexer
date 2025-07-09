@@ -7,6 +7,13 @@ endif()
 ################
 # Setup project
 ################
+option(HEXMESHER_BUILD_APPLICATIONS "should targets for applications be added?" ON)
+option(HEXMESHER_INSTALL "should installation of HexMesher be set up?" ON)
+option(HEXMESHER_TESTING "should testing be enabled?" ON)
+option(HEXMESHER_PREFER_EXTERNAL_TPL "try to find external libraries before fetching" ON)
+option(HEXMESHER_ALLOW_EXTERNAL_DOWNLOAD "enable download of TPLs" ON)
+option(HEXMESHER_TPL_CACHE_DIRECTORY "directory for caching thirdparty dependencies" "")
+
 project(
   HexMesherV2
   VERSION 0.1
@@ -14,12 +21,12 @@ project(
   LANGUAGES CXX
 )
 
+if(HEXMESHER_TESTING)
+  enable_testing()
+endif()
+
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
-option(HEXMESHER_BUILD_APPLICATIONS "should targets for application be added?" ON)
-option(HEXMESHER_INSTALL "should installation of HexMesher be set up?" ON)
-option(HEXMESHER_PREFER_EXTERNAL_TPL "try to find external libraries before fetching" ON)
-option(HEXMESHER_ALLOW_EXTERNAL_DOWNLOAD "enable download of TPLs" ON)
 
 # Setup thirdparty dependencies.
 # Ensures targets Boost::boost and CGAL::CGAL are available to link against
@@ -36,6 +43,35 @@ set_target_properties(hexmesher-settings PROPERTIES
   CXX_STANDARD 17
 )
 
+target_compile_options(hexmesher-settings INTERFACE
+  -Wall
+  -Wextra
+  -Wundef
+  -Wshadow
+  -Woverloaded-virtual
+  -Wuninitialized
+  -Wvla
+  -Wdouble-promotion
+  -Wformat=2
+  -Wnonnull
+  -Wswitch-bool
+  -Wsizeof-array-argument
+  -Wbool-compare
+  -Wsuggest-override
+  -Wnon-virtual-dtor
+  -Wdelete-non-virtual-dtor
+  -Wshift-negative-value
+  -Wduplicated-cond
+  -Wduplicated-branches
+  -Wrestrict
+  -Wdangling-else
+  -Wnonnull
+  -Wrestrict
+  -Walloc-zero
+  -Wparentheses
+  -Wpedantic
+)
+
 #########
 # OpenMP
 #########
@@ -44,6 +80,20 @@ option(HEXMESHER_HAVE_OMP "Build HexMesherV2 with OpenMP" ON)
 if(HEXMESHER_HAVE_OMP)
   find_package(OpenMP REQUIRED)
   target_link_libraries(hexmesher-settings INTERFACE OpenMP::OpenMP_CXX)
+endif()
+
+##########
+# Testing
+##########
+
+if(HEXMESHER_TESTING)
+  # Add Catch2 scripts to module path if integrated via FetchContent
+  if(NOT Catch2_FOUND)
+    message(STATUS "Adding ${catch2_SOURCE_DIR}/extras to module path")
+    list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+  endif()
+
+  add_custom_target(tests)
 endif()
 
 #####################

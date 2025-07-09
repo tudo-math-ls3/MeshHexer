@@ -18,6 +18,10 @@ set(HEXMESHER_PRIVATE_HEADERS
   warnings.hpp
 )
 
+set(HEXMESHER_TESTS
+  properties-test
+)
+
 add_library(HexMesher)
 
 target_link_libraries(HexMesher PRIVATE hexmesher-settings)
@@ -31,35 +35,22 @@ target_sources(HexMesher
   TYPE HEADERS
   FILES ${HEXMESHER_PRIVATE_HEADERS})
 
-target_compile_options(HexMesher PRIVATE 
-  -Wall
-  -Wextra
-  -Wundef
-  -Wshadow
-  -Woverloaded-virtual
-  -Wuninitialized
-  -Wvla
-  -Wdouble-promotion
-  -Wformat=2
-  -Wnonnull
-  -Wswitch-bool
-  -Wsizeof-array-argument
-  -Wbool-compare
-  -Wsuggest-override
-  -Wnon-virtual-dtor
-  -Wdelete-non-virtual-dtor
-  -Wshift-negative-value
-  -Wduplicated-cond
-  -Wduplicated-branches
-  -Wrestrict
-  -Wdangling-else
-  -Wnonnull
-  -Wrestrict
-  -Walloc-zero
-  -Wparentheses
-  -Wpedantic
-)
-
 find_package(CGAL)
 find_package(pmp)
 target_link_libraries(HexMesher PRIVATE CGAL::CGAL pmp::pmp)
+
+if(HEXMESHER_TESTING)
+  find_package(Catch2)
+
+  include(Catch)
+  foreach (test ${HEXMESHER_TESTS})
+    add_executable(${test} ${test}.cpp)
+
+    target_link_libraries(${test} PRIVATE HexMesher Catch2::Catch2WithMain)
+    target_include_directories(${test} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    add_dependencies(tests ${test})
+
+    catch_discover_tests(${test})
+  endforeach()
+endif()
