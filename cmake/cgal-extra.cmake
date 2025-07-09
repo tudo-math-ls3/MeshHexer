@@ -1,6 +1,6 @@
 if(NOT TARGET CGAL::CGAL)
   FetchContent_GetProperties(cgal)
-  find_package(Boost 1.88 REQUIRED)
+  find_package(Boost 1.81 REQUIRED)
   find_package(Eigen3 3.4.0 CONFIG REQUIRED)
 
   add_library(hexmesher-cgal-extern INTERFACE IMPORTED)

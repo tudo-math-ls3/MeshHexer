@@ -7,7 +7,7 @@ To build HexMesherV2 you need:
 - A C++17 compatible C++ compiler
 - CMake version 3.28.3 or newer
 - CGAL version 6.0.1 or newer
-- Boost version 1.88 or newer
+- Boost version 1.81 or newer
  
 CGAL and Boost will be downloaded and built automatically if they are not found by CMake.
 
