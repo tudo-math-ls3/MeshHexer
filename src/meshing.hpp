@@ -116,5 +116,5 @@ namespace HexMesher
 
   Polygon2D grid_sample(const Polygon2D& polygon, Real min_dist);
 
-  VolumeMesh base_mesh(Mesh& mesh, AABBTree& aabb_tree, std::uint64_t num_cells, std::uint64_t levels);
+  VolumeMesh fbm_mesh(Mesh& mesh, AABBTree& aabb_tree, std::uint64_t levels);
 } // namespace HexMesher

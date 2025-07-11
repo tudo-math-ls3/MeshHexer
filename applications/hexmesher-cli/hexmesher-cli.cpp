@@ -38,15 +38,41 @@ namespace HexMesherCLI
               << "], FieldType='CELL')` to select the chosen triangles in ParaView\n";
   }
 
-  const char* usage = "Usage:\n"
-                      "hexmesher-cli [-h|--help] <mesh> <command> [<args>]\n\n"
-                      "Available commands:\n"
-                      "min-gap: Calculate smallest inside gap between opposite faces of the "
-                      "mesh\n"
-                      "report: Print information about the mesh\n"
-                      "warnings: Print warnings about the mesh. Warns about self-intersections, "
-                      "degenerate triangle, "
-                      "and anisotropic triangles. Pass --summarize to summarize warnings\n";
+  const char* usage = "hexmesher-cli: Commandline tool for the hexmesher library\n"
+                      "\n"
+                      "Usage:\n"
+                      "hexmesher-cli [-h|--help] <mesh> <command> [<args>]\n"
+                      "\n"
+                      "Options:\n"
+                      "\t-h, --help\n"
+                      "\t\t Produce this help text\n"
+                      "\n"
+                      "Commands:\n"
+                      "\tfbm-mesh\n"
+                      "\t\tGenerate a non-fitting volume mesh from the surface mesh.\n"
+                      "\t\tThe mesh is output as fbm_mesh.xml in FEAT3's mesh file format.\n"
+                      "\t\tA separate fbm_mesh.mtx file is created with recommended adaptive\n"
+                      "\t\trefinement levels for all vertices.\n"
+                      "\t\tThe output mesh is constructed such that all cells are about the same\n"
+                      "\t\tsize as their local min-gaps.\n"
+                      "\n"
+                      "\t\tOptions:\n"
+                      "\t\t--levels: Set size of multigrid-hierarchy. If passed, the mesh will be constructed\n"
+                      "\t\tsuch that the finest level of the hierarchy matches the min-gaps.\n"
+                      "\n"
+                      "\tmin-gap\n"
+                      "\t\tCalculate smallest inside gap between opposite faces of the mesh\n"
+                      "\n"
+                      "\treport\n"
+                      "\t\tPrint information about the mesh\n"
+                      "\n"
+                      "\twarnings\n"
+                      "\t\tPrint warnings about the mesh. Warns about self-intersections,\n"
+                      "\t\tdegenerate triangles, and anisotropic triangles.\n"
+                      "\n"
+                      "\t\tOptions:\n"
+                      "\n"
+                      "\t\t--summarize: Summarize warnings\n";
 
   int main(int argc, char* argv[])
   {
@@ -82,6 +108,44 @@ namespace HexMesherCLI
     }
 
     HexMesher::SurfaceMesh mesh = std::move(result).take_ok();
+
+    if(mode == "fbm-mesh")
+    {
+      std::uint64_t levels = 0;
+      if(argc > 3)
+      {
+        if(strcmp(argv[3], "--levels") == 0)
+        {
+          levels = std::strtoull(argv[3], nullptr, 10);
+        }
+      }
+      HexMesher::VolumeMesh vmesh = mesh.fbm_mesh(levels);
+
+      std::ofstream mesh_file("fbm_mesh.xml");
+
+      if(mesh_file.fail())
+      {
+        std::cerr << "Error opening fbm_mesh.xml for writing\n";
+        return 1;
+      }
+
+      vmesh.write_feat_xml(mesh_file);
+
+      std::ofstream mtx_file("fbm_mesh.mtx");
+
+      if(mtx_file.fail())
+      {
+        std::cerr << "Error opening fbm_mesh.mtx for writing\n";
+      }
+
+      std::vector<std::uint64_t> sdls;
+      for(std::size_t i(0); i < vmesh.num_vertices(); i++)
+      {
+        sdls.push_back(vmesh.subdivision_level(i));
+      }
+
+      HexMesher::write_range_as_mtx(mtx_file, sdls.begin(), sdls.end());
+    }
 
     if(mode == "min-gap")
     {

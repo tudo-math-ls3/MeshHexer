@@ -1135,7 +1135,7 @@ namespace HexMesher
       add_slice(axis, Slice(coord, 0));
     }
 
-    VolumeMesh build(Mesh& mesh, std::uint64_t /*target_cells*/, std::uint64_t levels)
+    VolumeMesh build(Mesh& mesh, std::uint64_t levels)
     {
       for(int i = 0; i < 6; i++)
       {
@@ -1390,7 +1390,7 @@ namespace HexMesher
     }
   };
 
-  VolumeMesh base_mesh(Mesh& mesh, AABBTree& aabb_tree, std::uint64_t target_cells, std::uint64_t levels)
+  VolumeMesh fbm_mesh(Mesh& mesh, AABBTree& aabb_tree, std::uint64_t levels)
   {
     BoundingBox bb = bounding_box(mesh);
     const double mesh_size = std::max({bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z});
@@ -1699,6 +1699,6 @@ namespace HexMesher
     }
     builder.add_slice(Axis::Z, bb.max.z);
 
-    return builder.build(mesh, target_cells, levels);
+    return builder.build(mesh, levels);
   }
 } // namespace HexMesher

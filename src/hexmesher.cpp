@@ -61,7 +61,7 @@ namespace HexMesher
     MinGap min_gap();
     MinGap min_gap_percentile(double percentile);
 
-    VolumeMesh base_mesh(std::size_t num_cells, std::uint64_t levels);
+    VolumeMesh fbm_mesh(std::uint64_t levels);
 
     Result<void, std::string> write_to_file(const std::string& filename);
 
@@ -146,10 +146,10 @@ namespace HexMesher
     return HexMesher::min_gap_percentile(_mesh, percentile);
   }
 
-  VolumeMesh SurfaceMesh::SurfaceMeshImpl::base_mesh(std::size_t num_cells, std::uint64_t levels)
+  VolumeMesh SurfaceMesh::SurfaceMeshImpl::fbm_mesh(std::uint64_t levels)
   {
     prepare_for_min_gap();
-    return HexMesher::base_mesh(_mesh, aabb_tree(), num_cells, levels);
+    return HexMesher::fbm_mesh(_mesh, aabb_tree(), levels);
   }
 
   Result<void, std::string> SurfaceMesh::SurfaceMeshImpl::write_to_file(const std::string& filename)
@@ -262,9 +262,9 @@ namespace HexMesher
     return impl->min_gap_percentile(percentile);
   }
 
-  VolumeMesh SurfaceMesh::base_mesh(std::size_t num_cells, std::uint64_t levels)
+  VolumeMesh SurfaceMesh::fbm_mesh(std::uint64_t levels)
   {
-    return impl->base_mesh(num_cells, levels);
+    return impl->fbm_mesh(levels);
   }
 
   Result<void, std::string> SurfaceMesh::write_to_file(const std::string& filename)

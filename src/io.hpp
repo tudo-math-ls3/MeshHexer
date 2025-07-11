@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cgal_types.hpp>
+#include <types.hpp>
 
 namespace HexMesher
 {
@@ -11,4 +12,6 @@ namespace HexMesher
   void write_polygon(const std::string& filename, const PolygonWithHoles2D& poly);
   void write_polylines(const std::string& filename, const Polylines3D& polylines);
   void write_polylines(const std::string& filename, const Polylines2D& polylines);
+
+  void write_feat_xml(std::ostream& stream, const VolumeMesh& vmesh);
 } // namespace HexMesher

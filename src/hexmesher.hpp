@@ -230,7 +230,7 @@ namespace HexMesher
     MinGap min_gap();
     MinGap min_gap_percentile(double);
 
-    VolumeMesh base_mesh(std::size_t num_cells, std::uint64_t levels);
+    VolumeMesh fbm_mesh(std::uint64_t levels);
 
     void warnings(MeshWarnings&) const;
 
@@ -239,4 +239,23 @@ namespace HexMesher
 
   Result<SurfaceMesh, std::string>
   load_from_file(const std::string& filename, bool triangulate = false);
+
+  // NOTE(mmuegge): This really belongs in the io header. Maybe introduce a public io header?
+  template<typename Iter>
+  void write_range_as_mtx(std::ostream& stream, Iter begin, Iter end)
+  {
+    // NOTE(mmuegge): For compatability with FEAT3 we write everything as
+    // real. We could inspect the type produced by the iterator and set
+    // integer as type if appropriate, but then we would also need to update
+    // the parsing logic in FEAT3.
+    stream << "%%MatrixMarket matrix array real general\n";
+
+    const auto size = std::distance(begin, end);
+    stream << size << " 1\n";
+
+    for(Iter it = begin; it != end; it++)
+    {
+      stream << *it << "\n";
+    }
+  }
 } // namespace HexMesher

@@ -20,6 +20,7 @@ set(HEXMESHER_PRIVATE_HEADERS
 
 set(HEXMESHER_TESTS
   properties-test
+  io-test
 )
 
 add_library(HexMesher)
