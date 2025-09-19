@@ -91,7 +91,7 @@ namespace HexMesher
     }
     output << "Line(" << next_tag++ << ") = {" << poly.size() << ", 1};\n";
 
-    int line_loop_tag = next_tag;
+    std::size_t line_loop_tag = next_tag;
     output << "Line Loop(" << next_tag++ << ") = {";
     for(std::size_t i(0); i < poly.size(); i++)
     {
@@ -201,9 +201,9 @@ namespace HexMesher
 
     if(output)
     {
-      int num_polys = 1 + poly.holes().size();
-      int total_points = 0;
-      std::vector<int> starting_points;
+      std::size_t num_polys = 1 + poly.holes().size();
+      std::size_t total_points = 0;
+      std::vector<std::size_t> starting_points;
 
       starting_points.push_back(total_points);
       total_points += poly.outer_boundary().size();
@@ -254,7 +254,7 @@ namespace HexMesher
 
         for(const Polygon2D& hole : poly.holes())
         {
-          int starting_index = starting_points[idx];
+          std::size_t starting_index = starting_points[idx];
           for(std::size_t i(0); i < hole.size() - 1; i++)
           {
             output << starting_index + i << "\n";
@@ -293,9 +293,9 @@ namespace HexMesher
 
     if(output)
     {
-      int num_lines = polylines.size();
-      int total_points = 0;
-      std::vector<int> starting_points;
+      std::size_t num_lines = polylines.size();
+      std::size_t total_points = 0;
+      std::vector<std::size_t> starting_points;
 
       for(const Polyline3D& line : polylines)
       {
@@ -330,7 +330,7 @@ namespace HexMesher
       auto it = polylines.begin();
       for(std::size_t i(0); i < polylines.size(); i++)
       {
-        int starting_idx = starting_points[i];
+        std::size_t starting_idx = starting_points[i];
 
         for(std::size_t j(0); j < it->size() - 1; j++)
         {
@@ -368,9 +368,9 @@ namespace HexMesher
 
     if(output)
     {
-      int num_lines = polylines.size();
-      int total_points = 0;
-      std::vector<int> starting_points;
+      std::size_t num_lines = polylines.size();
+      std::size_t total_points = 0;
+      std::vector<std::size_t> starting_points;
 
       for(const Polyline2D& line : polylines)
       {
@@ -405,7 +405,7 @@ namespace HexMesher
       auto it = polylines.begin();
       for(std::size_t i(0); i < polylines.size(); i++)
       {
-        int starting_idx = starting_points[i];
+        std::size_t starting_idx = starting_points[i];
 
         for(std::size_t j(0); j < it->size() - 1; j++)
         {

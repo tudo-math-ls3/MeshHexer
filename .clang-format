@@ -36,7 +36,14 @@ PackConstructorInitializers: CurrentLine
 AlwaysBreakTemplateDeclarations: Yes
 AllowShortFunctionsOnASingleLine: None
 SpaceAfterTemplateKeyword: false
+AllowShortCaseLabelsOnASingleLine: true
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: true
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 1
 # Personal preference -- mmuegge
 AllowAllParametersOfDeclarationOnNextLine: false
 AllowAllArgumentsOnNextLine: false
-SeparateDefinitionBlocks: Always

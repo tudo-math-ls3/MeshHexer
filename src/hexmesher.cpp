@@ -1,22 +1,19 @@
 #include <hexmesher.hpp>
 
 #include <cgal_types.hpp>
+#include <meshing.hpp>
 #include <properties.hpp>
 #include <types.hpp>
 #include <warnings.hpp>
-#include <meshing.hpp>
 
 #include <algorithm>
 #include <iostream>
-#include <math.h>
 #include <optional>
 #include <unistd.h>
-#include <variant>
 
 #include <CGAL/Bbox_3.h>
-
-#include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
 #include <CGAL/Polygon_mesh_processing/compute_normal.h>
+#include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
 #include <CGAL/Polygon_mesh_processing/locate.h>
 #include <CGAL/Polygon_mesh_processing/measure.h>
 #include <CGAL/Polygon_mesh_processing/orientation.h>
@@ -27,14 +24,17 @@ namespace HexMesher
 {
   namespace PMP = CGAL::Polygon_mesh_processing;
 
-  static bool ends_with(const std::string& string, const std::string& ending)
+  namespace
   {
-    if(ending.size() > string.size())
+    bool ends_with(const std::string& string, const std::string& ending)
     {
-      return false;
+      if(ending.size() > string.size())
+      {
+        return false;
+      }
+      return std::equal(ending.rbegin(), ending.rend(), string.rbegin());
     }
-    return std::equal(ending.rbegin(), ending.rend(), string.rbegin());
-  }
+  } // namespace
 
   class SurfaceMesh::SurfaceMeshImpl
   {
@@ -45,7 +45,7 @@ namespace HexMesher
     std::optional<AABBTree> _aabb_tree;
 
   public:
-    SurfaceMeshImpl(Mesh&& m) : _mesh(std::move(m))
+    explicit SurfaceMeshImpl(Mesh&& m) : _mesh(std::move(m))
     {
     }
 
@@ -77,7 +77,7 @@ namespace HexMesher
     double minimal_aspect_ratio() const;
     double maximal_aspect_ratio() const;
 
-    void warnings(MeshWarnings&) const;
+    void warnings(MeshWarnings& ws) const;
 
   private:
     /**
@@ -93,7 +93,7 @@ namespace HexMesher
 
       if(prop.second)
       {
-        fn();
+        std::forward<Fn>(fn)();
       }
     }
 
@@ -120,9 +120,11 @@ namespace HexMesher
       _mesh.add_property_map<FaceIndex, double>("f:MIS_diameter", 0.0).first;
 
     const double ms = mesh_size(_mesh);
+    // Search for at least 0.5% of the mesh size
+    constexpr double relative_minimal_search_radius = 0.005;
     for(FaceIndex f : _mesh.faces())
     {
-      max_distances[f] = std::max(M_PI * diameters[f], 0.005 * ms);
+      max_distances[f] = std::max(M_PI * diameters[f], relative_minimal_search_radius * ms);
     }
 
     // Ensure topological distances are available
@@ -249,8 +251,8 @@ namespace HexMesher
   }
 
   SurfaceMesh::~SurfaceMesh() = default;
-  SurfaceMesh::SurfaceMesh(SurfaceMesh&&) = default;
-  SurfaceMesh& SurfaceMesh::operator=(SurfaceMesh&&) = default;
+  SurfaceMesh::SurfaceMesh(SurfaceMesh&&) noexcept = default;
+  SurfaceMesh& SurfaceMesh::operator=(SurfaceMesh&&) noexcept = default;
 
   MinGap SurfaceMesh::min_gap()
   {
@@ -330,7 +332,7 @@ namespace HexMesher
     if(ends_with(filename, ".ply"))
     {
       std::ifstream mesh_file(filename);
-      std::string comment("");
+      std::string comment;
       if(!CGAL::IO::read_PLY(mesh_file, mesh, comment, true))
       {
         return ResultType::err("Failed to read mesh " + filename);

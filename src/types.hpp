@@ -3,7 +3,6 @@
 #include <array>
 #include <cstdint>
 #include <iostream>
-#include <string>
 #include <vector>
 
 namespace HexMesher
@@ -64,7 +63,8 @@ namespace HexMesher
       _xs(nx),
       _ys(ny),
       _zs(nz),
-      _num_slices({nx - 1, ny - 1, nz - 1})
+      _num_slices({nx - 1, ny - 1, nz - 1}),
+      _num_elements()
     {
       _num_elements[0] = nx * ny * nz;
       _num_elements[1] = (nx - 1) * ny * nz + nx * (ny - 1) * nz + nx * ny * (nz - 1);
@@ -83,7 +83,8 @@ namespace HexMesher
       _xs(x_begin, x_end),
       _ys(y_begin, y_end),
       _zs(z_begin, z_end),
-      _num_slices({_xs.size() - 1, _ys.size() - 1, _zs.size() - 1})
+      _num_slices({_xs.size() - 1, _ys.size() - 1, _zs.size() - 1}),
+      _num_elements()
     {
       std::size_t nx = _xs.size();
       std::size_t ny = _ys.size();
@@ -142,14 +143,14 @@ namespace HexMesher
 
     std::size_t num_edges() const
     {
-      return (_xs.size() - 1) * _ys.size() * _zs.size() + (_ys.size() - 1) * _xs.size() * _zs.size() +
-             (_zs.size() - 1) * _xs.size() * _ys.size();
+      return ((_xs.size() - 1) * _ys.size() * _zs.size()) + ((_ys.size() - 1) * _xs.size() * _zs.size()) +
+             ((_zs.size() - 1) * _xs.size() * _ys.size());
     }
 
     std::size_t num_faces() const
     {
-      return _xs.size() * (_ys.size() - 1) * (_zs.size() - 1) + _ys.size() * (_xs.size() - 1) * (_zs.size() - 1) +
-             _zs.size() * (_xs.size() - 1) * (_ys.size() - 1);
+      return (_xs.size() * (_ys.size() - 1) * (_zs.size() - 1)) + (_ys.size() * (_xs.size() - 1) * (_zs.size() - 1)) +
+             (_zs.size() * (_xs.size() - 1) * (_ys.size() - 1));
     }
 
     std::size_t num_cells() const
@@ -175,7 +176,7 @@ namespace HexMesher
       const std::array<std::size_t, 3> num_slices = {_xs.size() - 1, _ys.size() - 1, _zs.size() - 1};
 
       // auxiliary index
-      std::size_t pos;
+      std::size_t pos = 0;
 
       // z-direction
       if(
@@ -184,7 +185,7 @@ namespace HexMesher
       {
         pos = i - num_slices[1] * (num_slices[0] + 1) * (num_slices[2] + 1) -
               (num_slices[2] + 1) * (num_slices[1] + 1) * num_slices[0];
-        return (pos / num_slices[2]) + (pos % num_slices[2] + j) * (num_slices[0] + 1) * (num_slices[1] + 1);
+        return (pos / num_slices[2]) + ((pos % num_slices[2] + j) * (num_slices[0] + 1) * (num_slices[1] + 1));
       }
       // y-direction
       else if(i >= (num_slices[2] + 1) * (num_slices[1] + 1) * num_slices[0])
@@ -193,12 +194,12 @@ namespace HexMesher
         std::size_t x = (pos / num_slices[1]) % (num_slices[0] + 1);
         std::size_t y = pos % num_slices[1];
         std::size_t z = (pos / num_slices[1]) / (num_slices[0] + 1);
-        return z * (num_slices[0] + 1) * (num_slices[1] + 1) + (y + j) * (num_slices[0] + 1) + x;
+        return (z * (num_slices[0] + 1) * (num_slices[1] + 1)) + ((y + j) * (num_slices[0] + 1)) + x;
       }
       // x-direction
       else
       {
-        return i + j + i / num_slices[0];
+        return i + j + (i / num_slices[0]);
       }
     }
 
@@ -210,27 +211,27 @@ namespace HexMesher
 
       const std::array<std::size_t, 3> num_slices = {_xs.size() - 1, _ys.size() - 1, _zs.size() - 1};
 
-      std::size_t pos;
+      std::size_t pos = 0;
       if(i < num_slices[0] * num_slices[1] * (num_slices[2] + 1))
       {
-        return i + (i / num_slices[0]) + (i / (num_slices[0] * num_slices[1])) * (num_slices[0] + 1) + (j % 2) +
-               (j / 2) * (num_slices[0] + 1);
+        return i + (i / num_slices[0]) + ((i / (num_slices[0] * num_slices[1])) * (num_slices[0] + 1)) + (j % 2) +
+               ((j / 2) * (num_slices[0] + 1));
       }
       else if(
         i >= num_slices[0] * num_slices[1] * (num_slices[2] + 1) &&
         i < num_slices[0] * (num_slices[1] * (num_slices[2] + 1) + num_slices[2] * (num_slices[1] + 1)))
       {
         pos = i - num_slices[0] * num_slices[1] * (num_slices[2] + 1);
-        return pos % num_slices[0] + (pos / (num_slices[0] * num_slices[2])) * (num_slices[0] + 1) +
-               (pos % (num_slices[0] * num_slices[2])) / num_slices[0] * (num_slices[0] + 1) * (num_slices[1] + 1) +
-               (j % 2) + (j / 2) * (num_slices[0] + 1) * (num_slices[1] + 1);
+        return (pos % num_slices[0]) + ((pos / (num_slices[0] * num_slices[2])) * (num_slices[0] + 1)) +
+               ((pos % (num_slices[0] * num_slices[2])) / num_slices[0] * (num_slices[0] + 1) * (num_slices[1] + 1)) +
+               (j % 2) + ((j / 2) * (num_slices[0] + 1) * (num_slices[1] + 1));
       }
       else
       {
         pos = i - num_slices[0] * (num_slices[1] * (num_slices[2] + 1) + num_slices[2] * (num_slices[1] + 1));
-        return pos / (num_slices[1] * num_slices[2]) + (pos % num_slices[1]) * (num_slices[0] + 1) +
-               ((pos / num_slices[1]) % num_slices[2]) * (num_slices[0] + 1) * (num_slices[1] + 1) +
-               (j % 2) * (num_slices[0] + 1) + (j / 2) * (num_slices[0] + 1) * (num_slices[1] + 1);
+        return (pos / (num_slices[1] * num_slices[2])) + ((pos % num_slices[1]) * (num_slices[0] + 1)) +
+               (((pos / num_slices[1]) % num_slices[2]) * (num_slices[0] + 1) * (num_slices[1] + 1)) +
+               ((j % 2) * (num_slices[0] + 1)) + ((j / 2) * (num_slices[0] + 1) * (num_slices[1] + 1));
       }
     }
 
@@ -240,7 +241,7 @@ namespace HexMesher
       const std::size_t y_layer = idx % ((_xs.size() - 1) * (_ys.size() - 1)) / (_xs.size() - 1);
       const std::size_t x_layer = idx % ((_xs.size() - 1) * (_ys.size() - 1)) % (_xs.size() - 1);
 
-      const std::size_t base = z_layer * (_xs.size() * _ys.size()) + y_layer * _xs.size() + x_layer;
+      const std::size_t base = (z_layer * (_xs.size() * _ys.size())) + (y_layer * _xs.size()) + x_layer;
       const std::size_t z_offset = _xs.size() * _ys.size();
 
       switch(vert)
@@ -283,7 +284,7 @@ namespace HexMesher
       return level;
     }
 
-    void write_feat_xml(std::ostream& stream)
+    void write_feat_xml(std::ostream& stream) const
     {
       stream << "<FeatMeshFile version=\"1\" mesh=\"conformal:hypercube:3:3\">\n";
       stream << "<Mesh type=\"conformal:hypercube:3:3\" size=\""
@@ -355,7 +356,7 @@ namespace HexMesher
 
     std::uint32_t idx;
 
-    DegenerateTriangleWarning(std::uint32_t i) : idx(i)
+    explicit DegenerateTriangleWarning(std::uint32_t i) : idx(i)
     {
     }
   };
@@ -366,7 +367,7 @@ namespace HexMesher
 
     std::uint32_t idx;
 
-    AnisotropicTriangleWarning(std::uint32_t i) : idx(i)
+    explicit AnisotropicTriangleWarning(std::uint32_t i) : idx(i)
     {
     }
   };

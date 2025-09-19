@@ -17,41 +17,160 @@
 
 #include <omp.h>
 
-namespace HexMesher::Intern
-{
-  Vector3D surface_normal(Mesh& mesh, FaceIndex f, Point3D point)
-  {
-    auto maybe_normals_map = mesh.property_map<VertexIndex, Vector3D>("v:normals");
-    if(!maybe_normals_map.has_value())
-    {
-      // TODO: Should be an assert
-      std::cout << "surface_normals failed: missing property v:normals\n";
-      return Vector3D(0.0, 0.0, 0.0);
-    }
-    Mesh::Property_map<VertexIndex, Vector3D> vertex_normals = maybe_normals_map.value();
-
-    // Get barycentric coordinates of point
-    auto location = CGAL::Polygon_mesh_processing::locate_in_face(point, f, mesh);
-
-    std::array<Vector3D, 3> normals;
-
-    // Get vertex normals
-    int i(0);
-    for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(f)))
-    {
-      normals[i++] = vertex_normals[v];
-    }
-
-    // Interpolate
-    Vector3D result =
-      location.second[0] * normals[0] + location.second[1] * normals[1] + location.second[2] * normals[2];
-    return result;
-  }
-} // namespace HexMesher::Intern
-
 namespace HexMesher
 {
   namespace PMP = CGAL::Polygon_mesh_processing;
+
+  namespace
+  {
+    Vector3D surface_normal(Mesh& mesh, FaceIndex f, Point3D point)
+    {
+      auto maybe_normals_map = mesh.property_map<VertexIndex, Vector3D>("v:normals");
+      if(!maybe_normals_map.has_value())
+      {
+        // TODO: Should be an assert
+        std::cout << "surface_normals failed: missing property v:normals\n";
+        return {0.0, 0.0, 0.0};
+      }
+      const Mesh::Property_map<VertexIndex, Vector3D>& vertex_normals = maybe_normals_map.value();
+
+      // Get barycentric coordinates of point
+      auto location = CGAL::Polygon_mesh_processing::locate_in_face(point, f, mesh);
+
+      std::array<Vector3D, 3> normals;
+
+      // Get vertex normals
+      int i(0);
+      for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(f)))
+      {
+        normals.at(i++) = vertex_normals[v];
+      }
+
+      // Interpolate
+      Vector3D result =
+        location.second[0] * normals[0] + location.second[1] * normals[1] + location.second[2] * normals[2];
+      return result;
+    }
+
+    // Set up priority queue for choosing next vertex to explore
+    struct FrontierEntry
+    {
+      VertexIndex idx;
+      double priority;
+
+      FrontierEntry() : idx(0), priority(0)
+      {
+      }
+
+      FrontierEntry(VertexIndex v, double p) : idx(v), priority(p)
+      {
+      }
+    };
+
+    // The priority_queue returns the last element of the defined ordering first.
+    // We want the last element to be the one with the lowest estimated distance.
+    // Thus we sort in descending order.
+    struct Comparator
+    {
+      bool operator()(FrontierEntry a, FrontierEntry b)
+      {
+        return a.priority > b.priority;
+      }
+    };
+
+    double topological_distance(
+      FaceIndex a,
+      FaceIndex b,
+      const Mesh& mesh,
+      const std::vector<double>& edge_lengths,
+      double max_distance = 0.0)
+    {
+      // Allocate frontier
+      std::priority_queue<FrontierEntry, std::vector<FrontierEntry>, Comparator> frontier;
+
+      // Allocate distances
+      std::unordered_map<VertexIndex, double> distances;
+
+      // Initialise starting points.
+      for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(a)))
+      {
+        // Add start point to frontier
+        frontier.push(FrontierEntry(v, 0));
+
+        // Start point has best known distance 0.0
+        distances[v] = 0.0;
+      }
+
+      // Determine end points
+      std::vector<VertexIndex> goal_vertices;
+      std::vector<Point3D> goal_points;
+      for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(b)))
+      {
+        goal_vertices.push_back(v);
+        goal_points.push_back(mesh.point(v));
+      }
+
+      // Set up heuristic
+      // Heuristic is shortest direct distance to any of the goal vertices
+      auto heuristic = [&](VertexIndex v)
+      {
+        const Point3D& pa = mesh.point(v);
+        double result = std::numeric_limits<double>::max();
+        for(const Point3D& pb : goal_points)
+        {
+          double distance = Vector3D(pa, pb).squared_length();
+          result = std::min(result, distance);
+        }
+        return std::sqrt(result);
+      };
+
+      while(!frontier.empty())
+      {
+        // Remove next best element from the frontier
+        VertexIndex current = frontier.top().idx;
+        frontier.pop();
+
+        double current_distance = distances[current];
+
+        if(std::find(goal_vertices.begin(), goal_vertices.end(), current) != goal_vertices.end())
+        {
+          // We found one of the target vertices.
+          return current_distance;
+        }
+
+        for(HalfedgeIndex hedge : mesh.halfedges_around_target(mesh.halfedge(current)))
+        {
+          VertexIndex neighbor = mesh.source(hedge);
+
+          double edge_length = edge_lengths[mesh.edge(hedge)];
+          double new_cost = current_distance + edge_length;
+
+          if(max_distance != 0.0 && new_cost > max_distance)
+          {
+            continue;
+          }
+
+          auto it = distances.find(neighbor);
+          if(it == distances.end() || new_cost < it->second)
+          {
+            if(it != distances.end())
+            {
+              it->second = new_cost;
+            }
+            else
+            {
+              distances[neighbor] = new_cost;
+            }
+
+            double priority = new_cost + heuristic(neighbor);
+            frontier.emplace(neighbor, priority);
+          }
+        }
+      }
+
+      return -1.0;
+    }
+  }
 
   BoundingBox bounding_box(const Mesh& mesh)
   {
@@ -74,7 +193,7 @@ namespace HexMesher
 
       HalfedgeIndex opposite = mesh.opposite(idx);
 
-      if(opposite != mesh.null_halfedge())
+      if(opposite != Mesh::null_halfedge())
       {
         // If the mesh is wound consistently, then opposite halfedges need
         // to visit the same vertices in the opposite order.
@@ -228,7 +347,7 @@ namespace HexMesher
       // No reason for surface_normal to recalculate them
       // Either offer a version of surface_normal that accepts a point in barycentric coordinates
       // or a centroid_normal function.
-      Vector3D normal(Intern::surface_normal(mesh, face_index, centroid));
+      Vector3D normal(surface_normal(mesh, face_index, centroid));
       normal /= std::sqrt(normal.squared_length());
       Vector3D inward_normal = normal_direction * normal;
 
@@ -299,10 +418,10 @@ namespace HexMesher
         if(local_max_edge_length < 1.5 * radius)
         {
           // Largest distance between sphere and an edge of maximum length, assuming the vertices of that edge lie on
-          // the sphere Any closest points within this distance belong to the same radius, they are just slightly offset
+          // the sphere. Any closest points within this distance belong to the same radius, they are just slightly offset
           // due to the surface discretization.
           discretization_error =
-            radius - CGAL::approximate_sqrt(radius * radius - std::pow(local_max_edge_length / 2.0, 2));
+            radius - CGAL::approximate_sqrt((radius * radius) - std::pow(local_max_edge_length / 2.0, 2));
         }
         else
         {
@@ -338,10 +457,10 @@ namespace HexMesher
         double alpha =
           CGAL::to_double(CGAL::approximate_angle(inward_normal, Vector3D(centroid, closest_point))) / 180.0 * M_PI;
 
-        Real new_radius;
+        Real new_radius = NAN;
         if(alpha != 0)
         {
-          new_radius = Real(d * std::sin(alpha) / std::sin(M_PI - 2.0 * alpha));
+          new_radius = Real(d * std::sin(alpha) / std::sin(M_PI - (2.0 * alpha)));
         }
         else
         {
@@ -366,124 +485,6 @@ namespace HexMesher
     }
   }
 
-  // Set up priority queue for choosing next vertex to explore
-  struct FrontierEntry
-  {
-    VertexIndex idx;
-    double priority;
-
-    FrontierEntry() : idx(0), priority(0)
-    {
-    }
-
-    FrontierEntry(VertexIndex v, double p) : idx(v), priority(p)
-    {
-    }
-  };
-
-  // The priority_queue returns the last element of the defined ordering first.
-  // We want the last element to be the one with the lowest estimated distance.
-  // Thus we sort in descending order.
-  struct Comparator
-  {
-    bool operator()(FrontierEntry a, FrontierEntry b)
-    {
-      return a.priority > b.priority;
-    }
-  };
-
-  double topological_distance(
-    FaceIndex a,
-    FaceIndex b,
-    const Mesh& mesh,
-    const std::vector<double>& edge_lengths,
-    double max_distance = 0.0)
-  {
-    // Allocate frontier
-    std::priority_queue<FrontierEntry, std::vector<FrontierEntry>, Comparator> frontier;
-
-    // Allocate distances
-    std::unordered_map<VertexIndex, double> distances;
-
-    // Initialise starting points.
-    for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(a)))
-    {
-      // Add start point to frontier
-      frontier.push(FrontierEntry(v, 0));
-
-      // Start point has best known distance 0.0
-      distances[v] = 0.0;
-    }
-
-    // Determine end points
-    std::vector<VertexIndex> goal_vertices;
-    std::vector<Point3D> goal_points;
-    for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(b)))
-    {
-      goal_vertices.push_back(v);
-      goal_points.push_back(mesh.point(v));
-    }
-
-    // Set up heuristic
-    // Heuristic is shortest direct distance to any of the goal vertices
-    auto heuristic = [&](VertexIndex v)
-    {
-      const Point3D& pa = mesh.point(v);
-      double result = std::numeric_limits<double>::max();
-      for(const Point3D& pb : goal_points)
-      {
-        double distance = Vector3D(pa, pb).squared_length();
-        result = std::min(result, distance);
-      }
-      return std::sqrt(result);
-    };
-
-    while(!frontier.empty())
-    {
-      // Remove next best element from the frontier
-      VertexIndex current = frontier.top().idx;
-      frontier.pop();
-
-      double current_distance = distances[current];
-
-      if(std::find(goal_vertices.begin(), goal_vertices.end(), current) != goal_vertices.end())
-      {
-        // We found one of the target vertices.
-        return current_distance;
-      }
-
-      for(HalfedgeIndex hedge : mesh.halfedges_around_target(mesh.halfedge(current)))
-      {
-        VertexIndex neighbor = mesh.source(hedge);
-
-        double edge_length = edge_lengths[mesh.edge(hedge)];
-        double new_cost = current_distance + edge_length;
-
-        if(max_distance != 0.0 && new_cost > max_distance)
-        {
-          continue;
-        }
-
-        auto it = distances.find(neighbor);
-        if(it == distances.end() || new_cost < it->second)
-        {
-          if(it != distances.end())
-          {
-            it->second = new_cost;
-          }
-          else
-          {
-            distances[neighbor] = new_cost;
-          }
-
-          double priority = new_cost + heuristic(neighbor);
-          frontier.push(FrontierEntry(neighbor, priority));
-        }
-      }
-    }
-
-    return -1.0;
-  }
 
   void topological_distances(Mesh& mesh, const std::string& targets_property, double max_distance)
   {
@@ -579,12 +580,16 @@ namespace HexMesher
 
       // If the topological_distance is zero, this is not a valid gap
       if(dist == 0.0)
+      {
         return 0.0;
+      }
 
       // If the faces are either unconnected or farther apart than the search radius,
       // then this is an ideal gap
       if(dist == -1.0)
+      {
         return 1.0;
+      }
 
       // Divide by maximum search range for this face
       double rel = topo_dists[f] / max_search_distances[f];
@@ -644,7 +649,7 @@ namespace HexMesher
 
     for(FaceIndex f : mesh.faces())
     {
-      FaceIndex limiting = FaceIndex(ids[f]);
+      auto limiting = FaceIndex(ids[f]);
 
       double edge_ratio = max_edge_length(f) / max_edge_length(limiting);
       if(edge_ratio < 1.0)

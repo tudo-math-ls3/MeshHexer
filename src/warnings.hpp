@@ -29,7 +29,7 @@ namespace HexMesher
       int idx = 0;
       for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(f)))
       {
-        points[idx++] = mesh.point(v);
+        points.at(idx++) = mesh.point(v);
       }
 
       if(CGAL::collinear(points[0], points[1], points[2]))
@@ -51,7 +51,7 @@ namespace HexMesher
     }
   }
 
-  void create_warnings(const Mesh& mesh, MeshWarnings& warnings)
+  inline void create_warnings(const Mesh& mesh, MeshWarnings& warnings)
   {
     self_intersection_warnings(mesh, std::back_inserter(warnings.self_intersections));
     degenerate_triangles_warnings(mesh, std::back_inserter(warnings.degenerate_triangles));

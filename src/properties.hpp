@@ -51,8 +51,6 @@ namespace HexMesher
 
   bool is_wound_consistently(const Mesh& mesh);
 
-  Vector3D surface_normal(Mesh& mesh, FaceIndex f, Point3D point);
-
   /**
    * \brief Returns largest length of AABB surrounding the mesh
    */

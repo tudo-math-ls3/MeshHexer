@@ -106,15 +106,11 @@ namespace HexMesher
     CuttingPlane get_plane_through_vertex(Point3D p) const override;
   };
 
-  double angle(const Vector2D& a, const Vector2D& b);
-
-  std::vector<PolygonWithHoles2D> union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler);
-
-  std::pair<Polygon2D, std::vector<int>> simplify_by_normal(
+  std::pair<Polygon2D, std::vector<std::size_t>> simplify_by_normal(
     const Polygon2D& polygon,
     const std::function<bool(const std::vector<Vector2D>&, const Vector2D&)>& continue_pred);
 
-  Polygon2D grid_sample(const Polygon2D& polygon, Real min_dist);
+  std::vector<PolygonWithHoles2D> union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler);
 
   VolumeMesh fbm_mesh(Mesh& mesh, AABBTree& aabb_tree, std::uint64_t levels);
 } // namespace HexMesher

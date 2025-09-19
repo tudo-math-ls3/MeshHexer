@@ -25,19 +25,19 @@ namespace HexMesher
     // Rule of five
     Result() = delete;
 
-    Result(TagOK, const T& value) : content(std::in_place_index<0>, value)
+    Result(TagOK /*tag*/, const T& value) : content(std::in_place_index<0>, value)
     {
     }
 
-    Result(TagOK, T&& value) : content(std::in_place_index<0>, std::move(value))
+    Result(TagOK /*tag*/, T&& value) : content(std::in_place_index<0>, std::move(value))
     {
     }
 
-    Result(TagErr, const E& value) : content(std::in_place_index<1>, value)
+    Result(TagErr /*tag*/, const E& value) : content(std::in_place_index<1>, value)
     {
     }
 
-    Result(TagErr, E&& value) :
+    Result(TagErr /*tag*/, E&& value) :
       content(std::in_place_index<1>, std::move(value))
     {
     }
@@ -58,7 +58,7 @@ namespace HexMesher
 
     static Result ok(T&& value)
     {
-      return Result(TagOK{}, std::forward<T>(value));
+      return Result(TagOK{}, std::move(value));
     }
 
     static Result err(const E& value)
@@ -68,7 +68,7 @@ namespace HexMesher
 
     static Result err(E&& value)
     {
-      return Result(TagErr{}, std::forward<E>(value));
+      return Result(TagErr{}, std::move(value));
     }
 
     bool is_ok() const
@@ -133,11 +133,11 @@ namespace HexMesher
     {
     }
 
-    Result(const E& value) : error(value)
+    explicit Result(const E& value) : error(value)
     {
     }
 
-    Result(E&& value) : error(std::move(value))
+    explicit Result(E&& value) : error(std::move(value))
     {
     }
 
@@ -162,7 +162,7 @@ namespace HexMesher
 
     static Result err(E&& value)
     {
-      return Result(std::forward<E>(value));
+      return Result(std::move(value));
     }
 
     bool is_ok() const
@@ -209,10 +209,10 @@ namespace HexMesher
     explicit SurfaceMesh(std::unique_ptr<SurfaceMeshImpl> ptr);
     ~SurfaceMesh();
 
-    SurfaceMesh(SurfaceMesh&&);
+    SurfaceMesh(SurfaceMesh&&) noexcept ;
     SurfaceMesh(const SurfaceMesh&) = delete;
 
-    SurfaceMesh& operator=(SurfaceMesh&&);
+    SurfaceMesh& operator=(SurfaceMesh&&) noexcept ;
     SurfaceMesh& operator=(const SurfaceMesh&) = delete;
 
     BoundingBox bounding_box() const;
