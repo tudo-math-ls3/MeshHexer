@@ -1,5 +1,3 @@
-find_package(cgal CONFIG)
-
 set(HEXMESHER_CLI_SOURCES
   hexmesher-cli.cpp
 )
@@ -13,4 +11,4 @@ target_sources(hexmesher-cli
   PUBLIC FILE_SET headers
   TYPE HEADERS
   FILES ${HEXMESHER_CLI_HEADERS})
-target_link_libraries(hexmesher-cli PRIVATE HexMesher CGAL::CGAL Boost::boost)
+target_link_libraries(hexmesher-cli PRIVATE HexMesher)

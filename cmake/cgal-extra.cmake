@@ -3,10 +3,11 @@ if(NOT TARGET CGAL::CGAL)
   find_package(Boost 1.81 REQUIRED)
   find_package(Eigen3 3.4.0 CONFIG REQUIRED)
 
-  add_library(hexmesher-cgal-extern INTERFACE IMPORTED)
+  add_library(hexmesher-cgal-extern INTERFACE)
   target_include_directories(hexmesher-cgal-extern INTERFACE "${cgal_SOURCE_DIR}/include")
   target_link_libraries(hexmesher-cgal-extern INTERFACE Boost::boost Eigen3::Eigen)
   target_compile_definitions(hexmesher-cgal-extern INTERFACE CGAL_DISABLE_GMP CGAL_EIGEN3_ENABLED)
+  target_compile_options(hexmesher-cgal-extern INTERFACE -w)
 
   add_library(CGAL::CGAL ALIAS hexmesher-cgal-extern)
 else()

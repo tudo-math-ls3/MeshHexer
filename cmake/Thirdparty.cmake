@@ -31,6 +31,7 @@ endif()
 
 get_tpl(
   PACKAGE_NAME CGAL
+  VERSION 6.0.1
   URL https://github.com/CGAL/cgal/releases/download/v6.0.1/CGAL-6.0.1.tar.xz
   URL_HASH MD5=944c789615bff14a56d78b398ec2cc49
   SOURCE_SUBDIR Non-Existing

@@ -13,6 +13,7 @@ option(HEXMESHER_TESTING "should testing be enabled?" ON)
 option(HEXMESHER_PREFER_EXTERNAL_TPL "try to find external libraries before fetching" ON)
 option(HEXMESHER_ALLOW_EXTERNAL_DOWNLOAD "enable download of TPLs" ON)
 option(HEXMESHER_TPL_CACHE_DIRECTORY "directory for caching thirdparty dependencies" "")
+option(HEXMESHER_SHARED_LIB "build as shared library" OFF)
 
 project(
   HexMesherV2

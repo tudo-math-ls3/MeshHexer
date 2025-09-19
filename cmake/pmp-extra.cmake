@@ -5,7 +5,11 @@ if(NOT TARGET pmp::pmp)
   file(GLOB pmp-headers ${pmp_SOURCE_DIR}/src/pmp/*.h ${pmp_SOURCE_DIR}/src/pmp/algorithms/*.h ${pmp_SOURCE_DIR}/src/pmp/io/*.h)
   file(GLOB_RECURSE eigen-headers ${pmp_SOURCE_DIR}/external/eigen-3.4.0/Eigen/*)
 
-  add_library(hexmesher-extern-pmp)
+  if(HEXMESHER_SHARED_LIB)
+    add_library(hexmesher-extern-pmp SHARED)
+  else()
+    add_library(hexmesher-extern-pmp STATIC)
+  endif()
 
   target_sources(hexmesher-extern-pmp PRIVATE ${pmp-sources})
 
@@ -23,8 +27,8 @@ if(NOT TARGET pmp::pmp)
   target_compile_features(hexmesher-extern-pmp PRIVATE cxx_std_20)
   target_compile_options(hexmesher-extern-pmp PRIVATE -w)
 
-  if(FEAT_HAVE_OMP)
-    find_package(OpenMP)
+  if(HEXMESHER_HAVE_OMP)
+    find_package(OpenMP REQUIRED)
     if(OpenMP_CXX_FOUND)
       target_link_libraries(hexmesher-extern-pmp PUBLIC OpenMP::OpenMP_CXX)
     endif()
