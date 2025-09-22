@@ -1,6 +1,7 @@
 #include <hexmesher.hpp>
 
 #include <cgal_types.hpp>
+#include <macros.hpp>
 #include <meshing.hpp>
 #include <properties.hpp>
 #include <types.hpp>
@@ -58,26 +59,40 @@ namespace HexMesher
       return _aabb_tree.value();
     }
 
-    MinGap min_gap();
-    MinGap min_gap_percentile(double percentile);
-
-    VolumeMesh fbm_mesh(std::uint64_t levels);
-
-    Result<void, std::string> write_to_file(const std::string& filename);
-
+    /// \copydoc SurfaceMesh::bounding_box()
     BoundingBox bounding_box() const;
 
+    /// \copydoc SurfaceMesh::num_vertices()
     std::uint32_t num_vertices() const;
+    /// \copydoc SurfaceMesh::num_edges()
     std::uint32_t num_edges() const;
+    /// \copydoc SurfaceMesh::num_faces()
     std::uint32_t num_faces() const;
 
+    /// \copydoc SurfaceMesh::is_closed()
     bool is_closed() const;
+    /// \copydoc SurfaceMesh::is_wound_consistently()
     bool is_wound_consistently() const;
+    /// \copydoc SurfaceMesh::is_outward_oriented()
     bool is_outward_oriented() const;
+    /// \copydoc SurfaceMesh::minimal_aspect_ratio()
     double minimal_aspect_ratio() const;
+    /// \copydoc SurfaceMesh::maximal_aspect_ratio()
     double maximal_aspect_ratio() const;
 
-    void warnings(MeshWarnings& ws) const;
+    /// \copydoc SurfaceMesh::gaps()
+    std::vector<Gap> gaps();
+    /// \copydoc SurfaceMesh::min_gap()
+    Gap min_gap();
+
+    /// \copydoc SurfaceMesh::fbm_mesh()
+    VolumeMesh fbm_mesh(std::uint64_t levels);
+
+    /// \copydoc SurfaceMesh::warnings()
+    MeshWarnings warnings() const;
+
+    /// \copydoc SurfaceMesh::write_to_file()
+    Result<void, std::string> write_to_file(const std::string& filename);
 
   private:
     /**
@@ -136,16 +151,10 @@ namespace HexMesher
     score_gaps(_mesh);
   }
 
-  MinGap SurfaceMesh::SurfaceMeshImpl::min_gap()
+  Gap SurfaceMesh::SurfaceMeshImpl::min_gap()
   {
     prepare_for_min_gap();
     return HexMesher::min_gap(_mesh);
-  }
-
-  MinGap SurfaceMesh::SurfaceMeshImpl::min_gap_percentile(double percentile)
-  {
-    prepare_for_min_gap();
-    return HexMesher::min_gap_percentile(_mesh, percentile);
   }
 
   VolumeMesh SurfaceMesh::SurfaceMeshImpl::fbm_mesh(std::uint64_t levels)
@@ -210,6 +219,8 @@ namespace HexMesher
 
   bool SurfaceMesh::SurfaceMeshImpl::is_outward_oriented() const
   {
+    XASSERT(is_closed());
+    XASSERT(is_wound_consistently());
     return CGAL::Polygon_mesh_processing::is_outward_oriented(_mesh);
   }
 
@@ -237,31 +248,24 @@ namespace HexMesher
     return max_aspect_ratio;
   }
 
-  void SurfaceMesh::SurfaceMeshImpl::warnings(MeshWarnings& ws) const
+  MeshWarnings SurfaceMesh::SurfaceMeshImpl::warnings() const
   {
-    ws.self_intersections.clear();
-    ws.degenerate_triangles.clear();
-    ws.anisotropic_triangles.clear();
-
+    MeshWarnings ws;
     create_warnings(_mesh, ws);
+    return ws;
   }
 
   SurfaceMesh::SurfaceMesh(std::unique_ptr<SurfaceMesh::SurfaceMeshImpl> ptr) : impl(std::move(ptr))
   {
   }
-
-  SurfaceMesh::~SurfaceMesh() = default;
+  
   SurfaceMesh::SurfaceMesh(SurfaceMesh&&) noexcept = default;
   SurfaceMesh& SurfaceMesh::operator=(SurfaceMesh&&) noexcept = default;
+  SurfaceMesh::~SurfaceMesh() = default;
 
-  MinGap SurfaceMesh::min_gap()
+  Gap SurfaceMesh::min_gap()
   {
     return impl->min_gap();
-  }
-
-  MinGap SurfaceMesh::min_gap_percentile(double percentile)
-  {
-    return impl->min_gap_percentile(percentile);
   }
 
   VolumeMesh SurfaceMesh::fbm_mesh(std::uint64_t levels)
@@ -319,9 +323,9 @@ namespace HexMesher
     return impl->maximal_aspect_ratio();
   }
 
-  void SurfaceMesh::warnings(MeshWarnings& ws) const
+  MeshWarnings SurfaceMesh::warnings() const
   {
-    impl->warnings(ws);
+    return impl->warnings();
   }
 
   Result<SurfaceMesh, std::string> load_from_file(const std::string& filename, bool triangulate)

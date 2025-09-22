@@ -69,23 +69,3 @@ TEST_CASE("Write FEAT mesh format", "[IO]")
 
   REQUIRE(output.str() == expected);
 }
-
-TEST_CASE("Write range to .mtx", "[IO]")
-{
-  std::vector<std::uint64_t> test_data {0, 1, 2, std::numeric_limits<std::uint64_t>::max()};
-
-  std::ostringstream output;
-
-  write_range_as_mtx(output, test_data.begin(), test_data.end());
-
-  constexpr std::string_view expected(
-    "%%MatrixMarket matrix array real general\n"
-    "4 1\n"
-    "0\n"
-    "1\n"
-    "2\n"
-    "18446744073709551615\n"
-  );
-
-  REQUIRE(output.str() == expected);
-}

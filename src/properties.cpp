@@ -1,6 +1,7 @@
+#include <cgal_types.hpp>
+#include <limits>
 #include <macros.hpp>
 #include <properties.hpp>
-#include <cgal_types.hpp>
 #include <types.hpp>
 
 #include <queue>
@@ -26,12 +27,8 @@ namespace HexMesher
     Vector3D surface_normal(Mesh& mesh, FaceIndex f, Point3D point)
     {
       auto maybe_normals_map = mesh.property_map<VertexIndex, Vector3D>("v:normals");
-      if(!maybe_normals_map.has_value())
-      {
-        // TODO: Should be an assert
-        std::cout << "surface_normals failed: missing property v:normals\n";
-        return {0.0, 0.0, 0.0};
-      }
+      XASSERTM(maybe_normals_map.has_value(), "No vertex normals!");
+
       const Mesh::Property_map<VertexIndex, Vector3D>& vertex_normals = maybe_normals_map.value();
 
       // Get barycentric coordinates of point
@@ -46,10 +43,11 @@ namespace HexMesher
         normals.at(i++) = vertex_normals[v];
       }
 
-      // Interpolate
-      Vector3D result =
-        location.second[0] * normals[0] + location.second[1] * normals[1] + location.second[2] * normals[2];
-      return result;
+      if(i == 3)
+      {
+        return location.second[0] * normals[0] + location.second[1] * normals[1] + location.second[2] * normals[2];
+      }
+      return {0.0, 0.0, 0.0};
     }
 
     // Set up priority queue for choosing next vertex to explore
@@ -170,18 +168,31 @@ namespace HexMesher
 
       return -1.0;
     }
-  }
+  } // namespace
 
   BoundingBox bounding_box(const Mesh& mesh)
   {
-    BBox3D bb = CGAL::bbox_3(mesh.points().begin(), mesh.points().end());
-    return BoundingBox{Point{bb.xmin(), bb.ymin(), bb.zmin()}, Point{bb.xmax(), bb.ymax(), bb.zmax()}};
+    const Point3D& p = mesh.point(VertexIndex(0));
+    Point min = {p.x(), p.y(), p.z()};
+    Point max = {p.x(), p.y(), p.z()};
+    for(const auto& vertex : mesh.points())
+    {
+      min.x = std::min(min.x, vertex.x());
+      min.y = std::min(min.y, vertex.y());
+      min.z = std::min(min.z, vertex.z());
+
+      max.x = std::max(max.x, vertex.x());
+      max.y = std::max(max.y, vertex.y());
+      max.z = std::max(max.z, vertex.z());
+    }
+
+    return BoundingBox{min, max};
   }
 
   double mesh_size(const Mesh& mesh)
   {
-    BBox3D bb = CGAL::bbox_3(mesh.points().begin(), mesh.points().end());
-    return std::max({bb.xmax() - bb.xmin(), bb.ymax() - bb.ymin(), bb.zmax() - bb.zmin()});
+    BoundingBox bb = bounding_box(mesh);
+    return std::max({bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z});
   }
 
   bool is_wound_consistently(const Mesh& mesh)
@@ -418,8 +429,8 @@ namespace HexMesher
         if(local_max_edge_length < 1.5 * radius)
         {
           // Largest distance between sphere and an edge of maximum length, assuming the vertices of that edge lie on
-          // the sphere. Any closest points within this distance belong to the same radius, they are just slightly offset
-          // due to the surface discretization.
+          // the sphere. Any closest points within this distance belong to the same radius, they are just slightly
+          // offset due to the surface discretization.
           discretization_error =
             radius - CGAL::approximate_sqrt((radius * radius) - std::pow(local_max_edge_length / 2.0, 2));
         }
@@ -484,7 +495,6 @@ namespace HexMesher
       similarity[face_index] = CGAL::scalar_product(inward_normal, -PMP::compute_face_normal(id, mesh));
     }
   }
-
 
   void topological_distances(Mesh& mesh, const std::string& targets_property, double max_distance)
   {
@@ -693,119 +703,34 @@ namespace HexMesher
     }
   }
 
-  std::vector<std::pair<Point, double>> gaps(Mesh& mesh, BoundingBox bb)
+  std::vector<Gap> gaps(Mesh& mesh)
   {
-    std::vector<std::pair<Point, double>> result;
-
-    const double threshold = 0.95;
+    std::vector<Gap> result;
 
     Mesh::Property_map<FaceIndex, double> gap_scores =
-      mesh.add_property_map<FaceIndex, double>("f:gap_score", 0.0).first;
+      mesh.property_map<FaceIndex, double>("f:gap_score").value();
 
-    Mesh::Property_map<FaceIndex, double> gaps =
-      mesh.add_property_map<FaceIndex, double>("f:MIS_diameter", 0.0).first;
+    Mesh::Property_map<FaceIndex, std::uint32_t> ids =
+      mesh.property_map<FaceIndex, std::uint32_t>("f:MIS_id").value();
+
+    Mesh::Property_map<FaceIndex, double> gaps = 
+      mesh.property_map<FaceIndex, double>("f:MIS_diameter").value();
 
     for(const FaceIndex f : mesh.faces())
     {
-      if(gap_scores[f] > threshold)
+      Point3D centroid(0.0, 0.0, 0.0);
+      for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(f)))
       {
-        Point3D centroid(0.0, 0.0, 0.0);
-        for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(f)))
-        {
-          centroid += Real(1.0 / 3.0) * Vector3D(Point3D(CGAL::Origin()), mesh.point(v));
-        }
-
-        if(bb.min.x <= centroid.x() && centroid.x() <= bb.max.x &&
-           bb.min.y <= centroid.y() && centroid.y() <= bb.max.y &&
-           bb.min.z <= centroid.z() && centroid.z() <= bb.max.z)
-        {
-          result.emplace_back(Point{centroid.x(), centroid.y(), centroid.z()}, gaps[f]);
-        }
+        centroid += Real(1.0 / 3.0) * Vector3D(Point3D(CGAL::Origin()), mesh.point(v));
       }
+
+      result.emplace_back(static_cast<std::uint32_t>(f), ids[f], gaps[f], gap_scores[f]);
     }
 
     return result;
   }
 
-  std::vector<std::pair<Point, double>> gaps(Mesh& mesh)
-  {
-    std::vector<std::pair<Point, double>> result;
-
-    const double threshold = 0.95;
-
-    Mesh::Property_map<FaceIndex, double> gap_scores =
-      mesh.add_property_map<FaceIndex, double>("f:gap_score", 0.0).first;
-
-    Mesh::Property_map<FaceIndex, double> gaps =
-      mesh.add_property_map<FaceIndex, double>("f:MIS_diameter", 0.0).first;
-
-    for(const FaceIndex f : mesh.faces())
-    {
-      if(gap_scores[f] > threshold)
-      {
-        Point3D centroid(0.0, 0.0, 0.0);
-        for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(f)))
-        {
-          centroid += Real(1.0 / 3.0) * Vector3D(Point3D(CGAL::Origin()), mesh.point(v));
-        }
-
-        result.emplace_back(Point{centroid.x(), centroid.y(), centroid.z()}, gaps[f]);
-      }
-    }
-
-    return result;
-  }
-
-  MinGap min_gap_percentile(Mesh& mesh, double percentile)
-  {
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameters =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter").value();
-
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> scores =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:gap_score").value();
-
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
-      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id").value();
-
-    std::vector<double> percentiles(scores.begin(), scores.end());
-
-    // Sort scores in descending order
-    std::sort(percentiles.begin(), percentiles.end(), [](double a, double b) { return a > b; });
-
-    /*
-    auto last = std::unique(percentiles.begin(), percentiles.end(), [](double a, double b)
-    {
-      return std::abs(a -b) < 1e-6;
-    });
-    percentiles.erase(last, percentiles.end());
-    */
-
-    std::size_t percentile_size = std::ceil(Real(percentiles.size()) * Real(percentile));
-    double cutoff_score = *(percentiles.begin() + percentile_size);
-
-    std::cout << "Score cutoff is " << cutoff_score << "\n";
-
-    MinGap result;
-    result.gap = std::numeric_limits<double>::max();
-
-    for(FaceIndex f : mesh.faces())
-    {
-      if(scores[f] < cutoff_score)
-      {
-        continue;
-      }
-      if(diameters[f] < result.gap)
-      {
-        result.gap = diameters[f];
-        result.origin = f;
-        result.limiting = FaceIndex(ids[f]);
-      }
-    }
-
-    return result;
-  }
-
-  MinGap min_gap(Mesh& mesh)
+  Gap min_gap(Mesh& mesh)
   {
     HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameters =
       mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter").value();
@@ -827,7 +752,6 @@ namespace HexMesher
 
     if(candidates.empty())
     {
-      std::cout << "Threshold fallback" << "\n";
       // No gaps with score above 0.95. Take 10th percentile instead.
 
       std::vector<double> percentiles(scores.begin(), scores.end());
@@ -844,20 +768,19 @@ namespace HexMesher
         [&](FaceIndex f) { return scores[f] > cutoff_score; });
     }
 
-    MinGap result;
-    result.gap = std::numeric_limits<double>::max();
+    FaceIndex gap_face(0);
+    double minimum = std::numeric_limits<double>::max();
 
     for(FaceIndex f : candidates)
     {
-      if(diameters[f] < result.gap)
+      if(diameters[f] < minimum)
       {
-        result.gap = diameters[f];
-        result.origin = f;
-        result.limiting = FaceIndex(ids[f]);
+        gap_face = f;
+        minimum = diameters[f];
       }
     }
 
-    return result;
+    return {gap_face, ids[gap_face], diameters[gap_face], scores[gap_face]};
   }
 
   std::vector<std::pair<Point2D, double>> z_depths(Mesh& mesh, AABBTree& aabb_tree)
@@ -920,12 +843,6 @@ namespace HexMesher
 
       if(depth > aabb_tree.bbox().zmax() - aabb_tree.bbox().zmin() + 1)
       {
-        std::cout << "Bad depth for face " << face << "\n";
-        std::cout << "Face normal is " << PMP::compute_face_normal(face, mesh) << "\n";
-        std::cout << "Scalar product with ray direction is " << CGAL::scalar_product(PMP::compute_face_normal(face, mesh), ray_dir) << "\n";
-        std::cout << "Depth is " << depth << "\n";
-        std::cout << "Found " << intersections.size() << " intersections.\n";
-
         break;
       }
 

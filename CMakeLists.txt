@@ -14,6 +14,8 @@ option(HEXMESHER_PREFER_EXTERNAL_TPL "try to find external libraries before fetc
 option(HEXMESHER_ALLOW_EXTERNAL_DOWNLOAD "enable download of TPLs" ON)
 option(HEXMESHER_TPL_CACHE_DIRECTORY "directory for caching thirdparty dependencies" "")
 option(HEXMESHER_SHARED_LIB "build as shared library" OFF)
+option(HEXMESHER_DOCUMENTATION "add doc target for building documentation" ON)
+option(HEXMESHER_DOCUMENTATION_INTERNAL "also document internal headers in documentation" OFF)
 
 project(
   HexMesherV2

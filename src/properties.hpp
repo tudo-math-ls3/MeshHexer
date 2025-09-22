@@ -59,13 +59,10 @@ namespace HexMesher
 
   void score_gaps(Mesh& mesh);
 
-  std::vector<std::pair<Point, double>> gaps(Mesh& mesh);
-  std::vector<std::pair<Point, double>> gaps(Mesh& mesh, BoundingBox bb);
-
-  MinGap min_gap_percentile(Mesh& mesh, double percentile);
+  std::vector<Gap> gaps(Mesh& mesh);
 
   /// Determine a best-effort guess at the minimal gap of the given mesh
-  MinGap min_gap(Mesh& mesh);
+  Gap min_gap(Mesh& mesh);
 
   std::vector<std::pair<Point2D, double>> z_depths(Mesh& mesh, AABBTree& aabb_tree);
 } // namespace HexMesher

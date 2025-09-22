@@ -23,7 +23,7 @@ namespace HexMesher
   template<typename OutputIterator>
   void degenerate_triangles_warnings(const Mesh& mesh, OutputIterator output)
   {
-    std::array<Point3D, 3> points;
+    std::array<Point3D, 3> points{};
     for(FaceIndex f : mesh.faces())
     {
       int idx = 0;
@@ -32,7 +32,7 @@ namespace HexMesher
         points.at(idx++) = mesh.point(v);
       }
 
-      if(CGAL::collinear(points[0], points[1], points[2]))
+      if(idx == 3 && CGAL::collinear(points[0], points[1], points[2]))
       {
         *output = DegenerateTriangleWarning(f);
       }

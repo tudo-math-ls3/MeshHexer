@@ -30,12 +30,34 @@ namespace HexMesherCLI::Markdown
 
 namespace HexMesherCLI
 {
-  void print_min_gap(const HexMesher::MinGap& min_gap)
+  namespace
   {
-    std::cout << "Min-gap of " << min_gap.gap << " between faces " << min_gap.origin << " and " << min_gap.limiting
-              << "\n";
-    std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.origin << ", 0, " << min_gap.limiting
-              << "], FieldType='CELL')` to select the chosen triangles in ParaView\n";
+    void print_min_gap(const HexMesher::Gap& min_gap)
+    {
+      std::cout << "Min-gap of " << min_gap.diameter << " between faces " << min_gap.face << " and " << min_gap.opposite_face
+                << "\n";
+      std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.face << ", 0, " << min_gap.opposite_face
+                << "], FieldType='CELL')` to select the chosen triangles in ParaView\n";
+    }
+
+    // NOTE(mmuegge): This really belongs in the io header. Maybe introduce a public io header?
+    template<typename Iter>
+    void write_range_as_mtx(std::ostream& stream, Iter begin, Iter end)
+    {
+      // NOTE(mmuegge): For compatability with FEAT3 we write everything as
+      // real. We could inspect the type produced by the iterator and set
+      // integer as type if appropriate, but then we would also need to update
+      // the parsing logic in FEAT3.
+      stream << "%%MatrixMarket matrix array real general\n";
+
+      const auto size = std::distance(begin, end);
+      stream << size << " 1\n";
+
+      for(Iter it = begin; it != end; it++)
+      {
+        stream << *it << "\n";
+      }
+    }
   }
 
   const char* usage = "hexmesher-cli: Commandline tool for the hexmesher library\n"
@@ -139,17 +161,18 @@ namespace HexMesherCLI
       }
 
       std::vector<std::uint64_t> sdls;
+      sdls.reserve(vmesh.num_vertices());
       for(std::size_t i(0); i < vmesh.num_vertices(); i++)
       {
         sdls.push_back(vmesh.subdivision_level(i));
       }
 
-      HexMesher::write_range_as_mtx(mtx_file, sdls.begin(), sdls.end());
+      write_range_as_mtx(mtx_file, sdls.begin(), sdls.end());
     }
 
     if(mode == "min-gap")
     {
-      HexMesher::MinGap min_gap = mesh.min_gap();
+      HexMesher::Gap min_gap = mesh.min_gap();
       print_min_gap(min_gap);
 
       HexMesher::Result<void, std::string> result = mesh.write_to_file("thickness.ply");
@@ -164,8 +187,7 @@ namespace HexMesherCLI
     {
       std::filesystem::path absolute_path = std::filesystem::canonical(filename);
 
-      HexMesher::MeshWarnings warnings;
-      mesh.warnings(warnings);
+      HexMesher::MeshWarnings warnings = mesh.warnings();
 
       std::cout << Markdown::h1("Mesh-Report for " + absolute_path.filename().string()) << "\n";
 
@@ -218,8 +240,7 @@ namespace HexMesherCLI
 
     if(mode == "warnings")
     {
-      HexMesher::MeshWarnings warnings;
-      mesh.warnings(warnings);
+      HexMesher::MeshWarnings warnings = mesh.warnings();
 
       bool summarize = false;
       if(argc > 3)

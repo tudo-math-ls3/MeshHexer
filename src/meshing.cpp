@@ -1,3 +1,4 @@
+#include "cgal_types.hpp"
 #include <CGAL/enum.h>
 #include <meshing.hpp>
 #include <properties.hpp>
@@ -14,20 +15,6 @@ namespace HexMesher
 
   namespace
   {
-    void status(const std::string& message)
-    {
-      if(isatty(fileno(stdout)) != 0)
-      {
-        std::cout << "\33[2K\r"; // Clear line and reset cursor to beginning
-        std::cout << message;
-        std::cout.flush();
-      }
-      else
-      {
-        std::cout << message;
-      }
-    }
-
     enum class WindingOrder : std::uint8_t
     {
       Clockwise,
@@ -295,7 +282,6 @@ namespace HexMesher
     {
       for(int i(0); i < sampler.num_planes(); i++)
       {
-        status("Finding cross section " + std::to_string(i) + " of " + std::to_string(sampler.num_planes()));
         CuttingPlane cutting_plane = sampler.get_plane(i);
         find_cross_section(slicer, cutting_plane, out);
       }
@@ -415,6 +401,16 @@ namespace HexMesher
         case Axis::Y: return {Axis::X, Axis::Z};
         default: return {Axis::X, Axis::Y};
       }
+    }
+
+    Point3D face_center(const Mesh& mesh, FaceIndex f)
+    {
+      Point3D centroid(0.0, 0.0, 0.0);
+      for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(f)))
+      {
+        centroid += Real(1.0 / 3.0) * Vector3D(Point3D(CGAL::Origin()), mesh.point(v));
+      }
+      return centroid;
     }
   }
 
@@ -604,8 +600,6 @@ namespace HexMesher
         // With this section we have covered all links of the original polyline.
         // The last vertex we pushed thus just gets connected to the inital vertex.
 
-        std::cout << "Polygon simplification done. Reduced from " << polygon.size() << " vertices to " << result.size()
-                  << " vertices.\n";
         return {Polygon2D(result.begin(), result.end()), chosen_points};
       }
 
@@ -623,8 +617,6 @@ namespace HexMesher
 
       section_normals.clear();
       section_normals.push_back(reference_normal);
-
-      status("[SimplifyByNormal]: " + std::to_string(section_end) + " / " + std::to_string(starting_vertex));
     }
 
     return {Polygon2D(), std::vector<std::size_t>()};
@@ -678,7 +670,6 @@ namespace HexMesher
     }
 
     // Merge additional feature planes into union
-    std::cout << "Potentially checking an additional " << outside_vertices.size() << " feature planes.\n";
 
     // Sort vertices by distance to sampler origin.
     // For radial sampler this should save some time,
@@ -687,8 +678,6 @@ namespace HexMesher
     std::sort(outside_vertices.begin(), outside_vertices.end(), [&](Point& a, Point& b) {
       return Vector(sampler.origin(), a).squared_length() > Vector(sampler.origin(), b).squared_length();
     });
-
-    std::cout << "Done sorting\n";
 
     int feature_planes_checked = 0;
     for(Point& vertex : outside_vertices)
@@ -701,16 +690,8 @@ namespace HexMesher
         union_components = merge(union_components);
       }
       feature_planes_checked++;
-      status("Checked " + std::to_string(feature_planes_checked + 1) + " of " + std::to_string(outside_vertices.size())
-    + " feature planes");
     }
-
-    std::cout << "Checked " << feature_planes_checked << " of " << outside_vertices.size() << " potential feature
-    planes.\n";
     */
-
-    std::cout << "Done!\n";
-    std::cout << "Found union of cross sections with " << union_components.size() << " components.\n";
 
     return union_components;
   }
@@ -882,12 +863,21 @@ namespace HexMesher
         slice_bb.min.z = z_slices[slice].coord;
         slice_bb.max.z = z_slices[slice + 1].coord;
 
-        std::vector<std::pair<HexMesher::Point, double>> slice_gaps = gaps(mesh, slice_bb);
+        std::vector<Gap> slice_gaps;
+
+        for(const Gap& gap : gaps(mesh))
+        {
+          const double z = face_center(mesh, FaceIndex(gap.face)).z();
+          if(gap.confidence > 0.95 && slice_bb.min.z <= z && z <= slice_bb.max.z)
+          {
+            slice_gaps.push_back(gap);
+          }
+        }
 
         double slice_min_gap = std::numeric_limits<double>::max();
         for(auto gap : slice_gaps)
         {
-          slice_min_gap = std::min(gap.second, slice_min_gap);
+          slice_min_gap = std::min(gap.diameter, slice_min_gap);
         }
 
         double max_edge_length = std::max({slice_bb.max.z - slice_bb.min.z, max_x_edge, max_y_edge});
@@ -921,13 +911,6 @@ namespace HexMesher
         const Slice& right_slice = unbuffered_slices[slice + 1];
         const std::uint64_t level_left = left_slice.subdivision_level;
         const std::uint64_t level_right = right_slice.subdivision_level;
-
-        /*
-        std::cout << "Slice: " << unsigned(slice) << "\n";
-        std::cout << "[" << left_slice.coord << ", " << right_slice.coord << "]\n";
-        std::cout << "Level left: " << unsigned(level_left) << "\n";
-        std::cout << "Level right: " << unsigned(level_right) << "\n";
-        */
 
         if(level_left == level_right)
         {
@@ -995,9 +978,9 @@ namespace HexMesher
   {
     BoundingBox bb = bounding_box(mesh);
     const double mesh_size = std::max({bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z});
-    std::vector<std::pair<HexMesher::Point, double>> gap_vec = gaps(mesh);
+    std::vector<Gap> gap_vec = gaps(mesh);
     std::vector<std::pair<HexMesher::Point2D, double>> depths = z_depths(mesh, aabb_tree);
-    MinGap mg = min_gap(mesh);
+    Gap mg = min_gap(mesh);
 
     // Partition the mesh into areas that need the _same_ amount of refinements to hit the min-gap.
     // Because we are creating a coarse mesh, we do not want to create any cells smaller than the min-gap.
@@ -1015,30 +998,31 @@ namespace HexMesher
       }
     };
 
-    const auto num_buckets_x = std::size_t(std::ceil((bb.max.x - bb.min.x) / mg.gap));
-    const auto num_buckets_y = std::size_t(std::ceil((bb.max.y - bb.min.y) / mg.gap));
-    const auto num_buckets_z = std::size_t(std::ceil((bb.max.z - bb.min.z) / mg.gap));
+    const auto num_buckets_x = std::size_t(std::ceil((bb.max.x - bb.min.x) / mg.diameter));
+    const auto num_buckets_y = std::size_t(std::ceil((bb.max.y - bb.min.y) / mg.diameter));
+    const auto num_buckets_z = std::size_t(std::ceil((bb.max.z - bb.min.z) / mg.diameter));
 
     std::vector<std::optional<double>> buckets_x(num_buckets_x);
     std::vector<std::optional<double>> buckets_y(num_buckets_y);
     std::vector<std::optional<double>> buckets_z(num_buckets_z);
 
-    for(const std::pair<HexMesher::Point, double>& gap : gap_vec)
+    for(const Gap& gap : gap_vec)
     {
-      const std::size_t idx_z = std::clamp(std::size_t(std::floor((gap.first.z - bb.min.z) / mg.gap)), std::size_t(0), num_buckets_z - 1);
+      const Point3D& gap_origin = face_center(mesh, FaceIndex(gap.face));
+      const std::size_t idx_z = std::clamp(std::size_t(std::floor((gap_origin.z() - bb.min.z) / mg.diameter)), std::size_t(0), num_buckets_z - 1);
 
       std::optional<double>& bucket_z = buckets_z.at(idx_z);
 
-      update_bucket(bucket_z, gap.second, [](auto a, auto b) { return std::min(a, b); });
+      update_bucket(bucket_z, gap.diameter, [](auto a, auto b) { return std::min(a, b); });
 
-      const std::size_t idx_x = std::clamp(std::size_t(std::floor((gap.first.x - bb.min.x) / mg.gap)), std::size_t(0), num_buckets_x - 1);
-      const std::size_t idx_y = std::clamp(std::size_t(std::floor((gap.first.y - bb.min.y) / mg.gap)), std::size_t(0), num_buckets_y - 1);
+      const std::size_t idx_x = std::clamp(std::size_t(std::floor((gap_origin.x() - bb.min.x) / mg.diameter)), std::size_t(0), num_buckets_x - 1);
+      const std::size_t idx_y = std::clamp(std::size_t(std::floor((gap_origin.y() - bb.min.y) / mg.diameter)), std::size_t(0), num_buckets_y - 1);
 
       std::optional<double>& bucket_x = buckets_x.at(idx_x);
       std::optional<double>& bucket_y = buckets_y.at(idx_y);
 
-      update_bucket(bucket_x, gap.second, [](auto a, auto b) { return std::min(a, b); });
-      update_bucket(bucket_y, gap.second, [](auto a, auto b) { return std::min(a, b); });
+      update_bucket(bucket_x, gap.diameter, [](auto a, auto b) { return std::min(a, b); });
+      update_bucket(bucket_y, gap.diameter, [](auto a, auto b) { return std::min(a, b); });
     }
 
     // We can then partition those buckets into intervals, such that each interval needs a consistent
@@ -1229,7 +1213,7 @@ namespace HexMesher
 
         auto size = std::distance(interval.begin, interval.end);
 
-        if(static_cast<double>(size) * mg.gap < 0.01 * mesh_size || size < 3)
+        if(static_cast<double>(size) * mg.diameter < 0.01 * mesh_size || size < 3)
         {
           // Too small. Merge into smaller of adjacent intervals
           auto prev = std::prev(iter);
@@ -1282,19 +1266,19 @@ namespace HexMesher
     VolumeMeshBuilder builder;
     for(const Interval& interval : intervals_x)
     {
-      builder.add_slice(Axis::X, bb.min.x + (mg.gap * static_cast<double>(std::distance(buckets_x.cbegin(), interval.begin))));
+      builder.add_slice(Axis::X, bb.min.x + (mg.diameter * static_cast<double>(std::distance(buckets_x.cbegin(), interval.begin))));
     }
     builder.add_slice(Axis::X, bb.max.x);
 
     for(const Interval& interval : intervals_y)
     {
-      builder.add_slice(Axis::Y, bb.min.y + (mg.gap * static_cast<double>(std::distance(buckets_y.cbegin(), interval.begin))));
+      builder.add_slice(Axis::Y, bb.min.y + (mg.diameter * static_cast<double>(std::distance(buckets_y.cbegin(), interval.begin))));
     }
     builder.add_slice(Axis::Y, bb.max.y);
 
     for(const Interval& interval : intervals_z)
     {
-      builder.add_slice(Axis::Z, bb.min.z + (mg.gap * static_cast<double>(std::distance(buckets_z.cbegin(), interval.begin))));
+      builder.add_slice(Axis::Z, bb.min.z + (mg.diameter * static_cast<double>(std::distance(buckets_z.cbegin(), interval.begin))));
     }
     builder.add_slice(Axis::Z, bb.max.z);
 

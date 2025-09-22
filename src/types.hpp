@@ -7,17 +7,6 @@
 
 namespace HexMesher
 {
-  struct MinGap
-  {
-    /// Face at which the gap originates
-    std::uint32_t origin = 0;
-    /// Face which limits the gap
-    std::uint32_t limiting = 0;
-
-    /// Size of the gap
-    double gap = 0.0;
-  };
-
   struct Point
   {
     double x;
@@ -31,21 +20,58 @@ namespace HexMesher
     Point max;
   };
 
+  struct Gap
+  {
+    /// Starting face of gap
+    std::size_t face;
+
+    /// Face on opposite side of gap
+    std::size_t opposite_face;
+
+    /// Diameter of this gap
+    double diameter;
+
+    /// Score of this gap
+    double confidence;
+
+    Gap(std::size_t f, std::size_t of, double d, double c) :
+      face(f),
+      opposite_face(of),
+      diameter(d),
+      confidence(c)
+    {
+    }
+  };
+
+  /**
+  * \brief Description of one slice of a structured mesh
+  */
   struct Slice
   {
+    /// Starting coordinate
     double coord = 0.0;
+
+    /// Subdivision level for this slice
     std::uint64_t subdivision_level = 0;
 
+    /// Constructor
     Slice() = default;
 
+    /// Constructor
     Slice(double c, std::uint64_t lvl) : coord(c), subdivision_level(lvl)
     {
     }
   };
 
+  /**
+   * \brief A structured volume mesh
+   *
+   * Intended to represent non-fitted meshes for the fictitious-boundary-method.
+   */
   class VolumeMesh
   {
   public:
+
     using Iterator = std::vector<Slice>::iterator;
     using ConstIterator = std::vector<Slice>::const_iterator;
 
@@ -55,23 +81,33 @@ namespace HexMesher
     std::vector<Slice> _ys;
     std::vector<Slice> _zs;
 
-    std::array<std::size_t, 3> _num_slices;
-    std::array<std::size_t, 4> _num_elements;
-
   public:
+    /**
+     * \brief Constructor
+     *
+     * \param[in] nx Number of elements along x-axis
+     * \param[in] ny Number of elements along y-axis
+     * \param[in] nz Number of elements along z-axis
+     */
     VolumeMesh(std::size_t nx, std::size_t ny, std::size_t nz) :
       _xs(nx),
       _ys(ny),
-      _zs(nz),
-      _num_slices({nx - 1, ny - 1, nz - 1}),
-      _num_elements()
+      _zs(nz)
     {
-      _num_elements[0] = nx * ny * nz;
-      _num_elements[1] = (nx - 1) * ny * nz + nx * (ny - 1) * nz + nx * ny * (nz - 1);
-      _num_elements[2] = (nx - 1) * (ny - 1) * nz + nx * (ny - 1) * (nz - 1) + (nx - 1) * ny * (nz - 1);
-      _num_elements[3] = (nx - 1) * (ny - 1) * (nz - 1);
     }
 
+    /**
+     * \brief Constructor
+     *
+     * \tparam SliceIter Iterator over slices
+     *
+     * \param[in] x_begin Begin of x-slices
+     * \param[in] x_end   End of x-slices
+     * \param[in] y_begin Begin of y-slices
+     * \param[in] y_end   End of y-slices
+     * \param[in] z_begin Begin of z-slices
+     * \param[in] z_end   End of z-slices
+     */
     template<typename SliceIter>
     VolumeMesh(
       SliceIter x_begin,
@@ -82,82 +118,79 @@ namespace HexMesher
       SliceIter z_end) :
       _xs(x_begin, x_end),
       _ys(y_begin, y_end),
-      _zs(z_begin, z_end),
-      _num_slices({_xs.size() - 1, _ys.size() - 1, _zs.size() - 1}),
-      _num_elements()
+      _zs(z_begin, z_end)
     {
-      std::size_t nx = _xs.size();
-      std::size_t ny = _ys.size();
-      std::size_t nz = _zs.size();
-
-      _num_elements[0] = nx * ny * nz;
-      _num_elements[1] = (nx - 1) * ny * nz + nx * (ny - 1) * nz + nx * ny * (nz - 1);
-      _num_elements[2] = (nx - 1) * (ny - 1) * nz + nx * (ny - 1) * (nz - 1) + (nx - 1) * ny * (nz - 1);
-      _num_elements[3] = (nx - 1) * (ny - 1) * (nz - 1);
     }
 
-    const std::size_t* num_slices() const
-    {
-      return _num_slices.data();
-    }
-
-    const std::size_t* num_elements() const
-    {
-      return _num_elements.data();
-    }
-
+    /// Range-begin for x-slices
     Iterator xs_begin()
     {
       return _xs.begin();
     }
 
+    /// Range-end for x-slices
     Iterator xs_end()
     {
       return _xs.end();
     }
 
+    /// Range-begin for y-slices
     Iterator ys_begin()
     {
       return _ys.begin();
     }
 
+    /// Range-end for y-slices
     Iterator ys_end()
     {
       return _ys.end();
     }
 
+    /// Range-begin for z-slices
     Iterator zs_begin()
     {
       return _zs.begin();
     }
 
+    /// Range-end for z-slices
     Iterator zs_end()
     {
       return _zs.end();
     }
 
+    /// Returns number of vertices of mesh
     std::size_t num_vertices() const
     {
       return _xs.size() * _ys.size() * _zs.size();
     }
 
+    /// Returns number of edges of mesh
     std::size_t num_edges() const
     {
       return ((_xs.size() - 1) * _ys.size() * _zs.size()) + ((_ys.size() - 1) * _xs.size() * _zs.size()) +
              ((_zs.size() - 1) * _xs.size() * _ys.size());
     }
 
+    /// Returns number of faces of mesh
     std::size_t num_faces() const
     {
       return (_xs.size() * (_ys.size() - 1) * (_zs.size() - 1)) + (_ys.size() * (_xs.size() - 1) * (_zs.size() - 1)) +
              (_zs.size() * (_xs.size() - 1) * (_ys.size() - 1));
     }
 
+    /// Returns number of cells of mesh
     std::size_t num_cells() const
     {
       return (_xs.size() - 1) * (_ys.size() - 1) * (_zs.size() - 1);
     }
 
+    /**
+     * \brief Get vertex coordinates
+     *
+     * \param[in] idx Index of vertex
+     *
+     * \returns The vertex coordinates of the vertex
+     */
     HexMesher::Point vertex(std::size_t idx) const
     {
       std::size_t idx_z = idx / (_xs.size() * _ys.size());
@@ -167,6 +200,14 @@ namespace HexMesher
       return HexMesher::Point{_xs[idx_x].coord, _ys[idx_y].coord, _zs[idx_z].coord};
     }
 
+    /**
+     * \brief Vertex at edge adjacencies
+     *
+     * \param[in] i Edge index
+     * \param[in] j Vertex index (0 or 1)
+     *
+     * \returns The index of the j-th vertex of the i-th edge
+     */
     std::size_t edge(std::size_t i, std::size_t j) const
     {
       // NOTE(mmuegge): Copied from FEAT3 (kernel/geometry/intern/struct_index_mapping.hpp)
@@ -203,6 +244,14 @@ namespace HexMesher
       }
     }
 
+    /**
+     * \brief Vertex at face adjacencies
+     *
+     * \param[in] i Face index
+     * \param[in] j Vertex index (0, 1, 2, 3)
+     *
+     * \returns The index of the j-th vertex of the i-th face
+     */
     std::size_t face(std::size_t i, std::size_t j) const
     {
       // NOTE(mmuegge): Copied from FEAT3 (kernel/geometry/intern/struct_index_mapping.hpp)
@@ -235,6 +284,14 @@ namespace HexMesher
       }
     }
 
+    /**
+     * \brief Vertex at cell adjacencies
+     *
+     * \param[in] idx  Cell index
+     * \param[in] vert Vertex index (0, 1, 2, 3, 4, 5, 6, 7)
+     *
+     * \returns The index of the j-th vertex of the i-th cell
+     */
     std::size_t cell(std::size_t idx, std::size_t vert) const
     {
       const std::size_t z_layer = idx / ((_xs.size() - 1) * (_ys.size() - 1));
@@ -267,13 +324,20 @@ namespace HexMesher
       }
     }
 
+    /**
+     * \brief Refinement steps for additional adaptive refinement
+     *
+     * \param[in] idx Vertex index
+     *
+     * \returns The recommended refinement level for the given vertex
+     */
     std::uint64_t subdivision_level(std::size_t idx)
     {
       Point vtx = vertex(idx);
 
       std::uint64_t level = 0;
 
-      for(std::size_t slice(0); slice < _num_slices[2]; slice++)
+      for(std::size_t slice(0); slice < _zs.size() - 1; slice++)
       {
         if(_zs[slice].coord <= vtx.z && vtx.z <= _zs[slice + 1].coord)
         {
@@ -284,6 +348,14 @@ namespace HexMesher
       return level;
     }
 
+    /**
+     * \brief Write mesh in the FEAT3 XML mesh file format
+     *
+     * \param[in] stream Outputstream to write to
+     *
+     * Writes this mesh in the FEAT3 XML mesh file format to the given output stream.
+     * No refinements are applied to the mesh prior to writing.
+     */
     void write_feat_xml(std::ostream& stream) const
     {
       stream << "<FeatMeshFile version=\"1\" mesh=\"conformal:hypercube:3:3\">\n";
@@ -338,6 +410,7 @@ namespace HexMesher
     }
   };
 
+  /// Warning about intersecting triangles
   struct SelfIntersectionWarning
   {
     static constexpr std::string_view name = "self-intersection";
@@ -350,6 +423,7 @@ namespace HexMesher
     }
   };
 
+  /// Warning about triangle with zero area
   struct DegenerateTriangleWarning
   {
     static constexpr std::string_view name = "degenerate-triangle";
@@ -361,6 +435,7 @@ namespace HexMesher
     }
   };
 
+  /// Warning about triangle with large aspect ratio
   struct AnisotropicTriangleWarning
   {
     static constexpr std::string_view name = "anisotropic-triangle";
@@ -372,6 +447,7 @@ namespace HexMesher
     }
   };
 
+  /// Collection of mesh warnings
   struct MeshWarnings
   {
     std::vector<SelfIntersectionWarning> self_intersections;
