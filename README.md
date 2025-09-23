@@ -28,6 +28,18 @@ cmake --build . --target meshhexer-cli
 ```
 to build the corresponding command-line application. Or just run ``cmake --build .``.
 
+The following options are supported by the build system (defaults):
+- `MESHHEXER_ALLOW_EXTERNAL_DOWNLOAD`: Enable automatic download of missing thirdparty libraries (ON)
+- `MESHHEXER_BUILD_APPLICATIONS`: Enable building of applications (ON)
+- `MESHHEXER_DOCUMENTATION`: Enable docs target (ON)
+- `MESHHEXER_DOCUMENTATION_INTERNAL`: Add internal headers to documentation (OFF)
+- `MESHHEXER_HAVE_OMP`: Enable OMP support (ON)
+- `MESHHEXER_INSTALL`: Enable installation support (ON)
+- `MESHHEXER_PREFER_EXTERNAL_TPL`: Prefer installed thirdparty libraries over downloading missing libraries (ON)
+- `MESHHEXER_SHARED_LIB`: Build as a shared library (OFF)
+- `MESHHEXER_TESTING`: Enable unit tests (ON)
+- `MESHHEXER_TPL_CACHE_DIRECTORY`: Set cache directory for downloaded thirdparty libraries (None)
+
 ## Installing
 
 To install the library (and its dependencies, if they were built during the configure step) run
@@ -36,8 +48,39 @@ cmake --install . --prefix=path/to/install/dir
 ```
 
 MeshHexer will be installed as a CMake package and can be found via ``find_package(MeshHexer)`` if the install directory is seen by CMake.
-After finding MeshHexer a MeshHexer::MeshHexer target is available to link against.
-See src/meshhexer.hpp for the public API.
+
+## Documentation
+
+MeshHexer is documented using Doxygen. To build the documentation run
+```
+cmake --build . --target doc
+```
+in a configured build directory.
+
+By default only documentation for the public API of MeshHexer is build.
+You can build the documentation for internal code by settings the `MESHHEXER_DOCUMENTATION_INTERNAL` CMake variable to `ON`.
+
+## Tests
+
+MeshHexer has a unit tests. To run the tests either build the whole project using
+```
+cmake --build .
+```
+or just the tests using
+```
+cmake --build . --target tests
+```
+
+Then run `ctest` to run the test suite.
+
+## Using MeshHexer
+
+MeshHexer installs itself as a proper CMake package. After installation it can be found via a ``find_package(MeshHexer)`` call, if it has been installed to the usual system directories or some path in the ``CMAKE_PREFIX_PATH``. 
+After the ``find_package`` call you can link against the ``HexMesher::HexMesher`` CMake target.
+
+If you have included MeshHexer as part of your build tree, for example by vendoring the library or via CMake's FetchContent mechanism, the ``HexMesher::HexMesher`` target will be available as well.
+
+Build the documentation or see ``src/meshhexer.hpp`` for documentation on the public API.
 
 ## meshhexer-cli
 
@@ -45,11 +88,12 @@ See src/meshhexer.hpp for the public API.
 
 Call as
 ```
-meshhexer-cli [-h|--help] <mesh> <command> [<args>]
+meshhexer-cli [-h|--help] [<global args>] <command> <mesh> [<args>]
 ```
 Running ``meshhexer-cli --help`` gives more detailed information.
 
 The possible commands are
+- ``fbm-mesh``: Produce a non-fitted base mesh for a mesh-hierarchy suitable for a multigrid solver.
 
 - ``min-gap``: Heuristically try to find the smallest "real" gap between opposite faces of a surface mesh. Tries to discard gaps caused by local geometry, such as in that sharp edges of the mesh, and gaps caused by badly meshes surfaces.
 
