@@ -9,7 +9,7 @@
 #include <CGAL/Polygon_mesh_slicer.h>
 #include <CGAL/Polyline_simplification_2/simplify.h>
 
-namespace HexMesher
+namespace MeshHexer
 {
   namespace PS = CGAL::Polyline_simplification_2;
 
@@ -158,7 +158,7 @@ namespace HexMesher
       std::size_t unhandled_polygons = num_polygons - handled_polygons;
       if(unhandled_polygons > 0)
       {
-        std::cerr << "Warning: " << unhandled_polygons << " unhandled polygons in HexMesher::make_polygon!";
+        std::cerr << "Warning: " << unhandled_polygons << " unhandled polygons in MeshHexer::make_polygon!";
       }
 
       return result;
@@ -979,7 +979,7 @@ namespace HexMesher
     BoundingBox bb = bounding_box(mesh);
     const double mesh_size = std::max({bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z});
     std::vector<Gap> gap_vec = gaps(mesh);
-    std::vector<std::pair<HexMesher::Point2D, double>> depths = z_depths(mesh, aabb_tree);
+    std::vector<std::pair<MeshHexer::Point2D, double>> depths = z_depths(mesh, aabb_tree);
     Gap mg = min_gap(mesh);
 
     // Partition the mesh into areas that need the _same_ amount of refinements to hit the min-gap.
@@ -1284,4 +1284,4 @@ namespace HexMesher
 
     return builder.build(mesh, levels);
   }
-} // namespace HexMesher
+} // namespace MeshHexer

@@ -1,30 +1,31 @@
 cmake_minimum_required(VERSION 3.28.0)
 
 if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "HexMesherV2 build type")
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "MeshHexer build type")
 endif()
 
 ################
 # Setup project
 ################
-option(HEXMESHER_BUILD_APPLICATIONS "should targets for applications be added?" ON)
-option(HEXMESHER_INSTALL "should installation of HexMesher be set up?" ON)
-option(HEXMESHER_TESTING "should testing be enabled?" ON)
-option(HEXMESHER_PREFER_EXTERNAL_TPL "try to find external libraries before fetching" ON)
-option(HEXMESHER_ALLOW_EXTERNAL_DOWNLOAD "enable download of TPLs" ON)
-option(HEXMESHER_TPL_CACHE_DIRECTORY "directory for caching thirdparty dependencies" "")
-option(HEXMESHER_SHARED_LIB "build as shared library" OFF)
-option(HEXMESHER_DOCUMENTATION "add doc target for building documentation" ON)
-option(HEXMESHER_DOCUMENTATION_INTERNAL "also document internal headers in documentation" OFF)
+option(MESHHEXER_ALLOW_EXTERNAL_DOWNLOAD "enable download of TPLs" ON)
+option(MESHHEXER_BUILD_APPLICATIONS "should targets for applications be added?" ON)
+option(MESHHEXER_DOCUMENTATION "add doc target for building documentation" ON)
+option(MESHHEXER_DOCUMENTATION_INTERNAL "also document internal headers in documentation" OFF)
+option(MESHHEXER_HAVE_OMP "Build MeshHexer with OpenMP" ON)
+option(MESHHEXER_INSTALL "should installation of MeshHexer be set up?" ON)
+option(MESHHEXER_PREFER_EXTERNAL_TPL "try to find external libraries before fetching" ON)
+option(MESHHEXER_SHARED_LIB "build as shared library" OFF)
+option(MESHHEXER_TESTING "should testing be enabled?" ON)
+option(MESHHEXER_TPL_CACHE_DIRECTORY "directory for caching thirdparty dependencies" "")
 
 project(
-  HexMesherV2
+  MeshHexer
   VERSION 0.1
   DESCRIPTION "Meshing tool for hexahedral meshes"
   LANGUAGES CXX
 )
 
-if(HEXMESHER_TESTING)
+if(MESHHEXER_TESTING)
   enable_testing()
 endif()
 
@@ -40,13 +41,13 @@ include(Thirdparty)
 ###################
 
 # Add library for common compiler options
-add_library(hexmesher-settings INTERFACE EXCLUDE_FROM_ALL)
+add_library(meshhexer-settings INTERFACE EXCLUDE_FROM_ALL)
 
-set_target_properties(hexmesher-settings PROPERTIES
+set_target_properties(meshhexer-settings PROPERTIES
   CXX_STANDARD 17
 )
 
-target_compile_options(hexmesher-settings INTERFACE
+target_compile_options(meshhexer-settings INTERFACE
   -Wall
   -Wextra
   -Wundef
@@ -79,17 +80,16 @@ target_compile_options(hexmesher-settings INTERFACE
 # OpenMP
 #########
 
-option(HEXMESHER_HAVE_OMP "Build HexMesherV2 with OpenMP" ON)
-if(HEXMESHER_HAVE_OMP)
+if(MESHHEXER_HAVE_OMP)
   find_package(OpenMP REQUIRED)
-  target_link_libraries(hexmesher-settings INTERFACE OpenMP::OpenMP_CXX)
+  target_link_libraries(meshhexer-settings INTERFACE OpenMP::OpenMP_CXX)
 endif()
 
 ##########
 # Testing
 ##########
 
-if(HEXMESHER_TESTING)
+if(MESHHEXER_TESTING)
   # Add Catch2 scripts to module path if integrated via FetchContent
   if(NOT Catch2_FOUND)
     message(STATUS "Adding ${catch2_SOURCE_DIR}/extras to module path")
@@ -104,7 +104,7 @@ endif()
 #####################
 add_subdirectory(src)
 
-if(HEXMESHER_BUILD_APPLICATIONS)
+if(MESHHEXER_BUILD_APPLICATIONS)
   add_subdirectory(applications)
 endif()
 
@@ -112,49 +112,49 @@ endif()
 # Config file
 ##############
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/hexmesher_config.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/hexmesher_config.hpp)
-target_sources(HexMesher
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/meshhexer_config.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/meshhexer_config.hpp)
+target_sources(MeshHexer
   PRIVATE FILE_SET private_headers
   TYPE HEADERS
   BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}
-  FILES ${CMAKE_CURRENT_BINARY_DIR}/hexmesher_config.hpp)
+  FILES ${CMAKE_CURRENT_BINARY_DIR}/meshhexer_config.hpp)
 
 ############
 # Packaging
 ############
 
 # Setup alias for inclusion via FetchContent
-add_library(HexMesher::HexMesher ALIAS HexMesher)
+add_library(MeshHexer::MeshHexer ALIAS MeshHexer)
 
 # Setup install
-if(HEXMESHER_INSTALL)
+if(MESHHEXER_INSTALL)
   include(GNUInstallDirs)
   include(CMakePackageConfigHelpers)
 
   # Create package version file
   write_basic_package_version_file(
-    ${CMAKE_CURRENT_BINARY_DIR}/hexmesherv2-config-version.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/meshhexer-config-version.cmake
     COMPATIBILITY AnyNewerVersion
   )
 
   # Install package version file and package config file
   install(FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/hexmesherv2-config-version.cmake
-    ${CMAKE_CURRENT_SOURCE_DIR}/hexmesherv2-config.cmake
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/hexmesherv2
+    ${CMAKE_CURRENT_BINARY_DIR}/meshhexer-config-version.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/meshhexer-config.cmake
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/meshhexer
   )
 
   # Add target to export
   install(
-    TARGETS HexMesher hexmesher-settings
-    EXPORT hexmesherv2Targets
+    TARGETS MeshHexer meshhexer-settings
+    EXPORT meshhexerTargets
     FILE_SET public_headers
   )
 
-  # Generate hexmesherTargets.cmake
+  # Generate meshhexerTargets.cmake
   install(
-    EXPORT hexmesherv2Targets
-    NAMESPACE HexMesher::
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/hexmesherv2
+    EXPORT meshhexerTargets
+    NAMESPACE MeshHexer::
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/meshhexer
   )
 endif()

@@ -6,7 +6,7 @@
 #include <optional>
 #include <variant>
 
-namespace HexMesher
+namespace MeshHexer
 {
   /**
    * \brief Tagged union for error-handling. Contains either a success value of type T or an error value of type E
@@ -336,7 +336,7 @@ namespace HexMesher
    * Contains a triangulated surface and can be used to either calculate properties of the surface mesh
    * or create volume meshes from the surface (non-aligned meshes only, for now).
    *
-   * To create a SurfaceMesh instance, load a triangle mesh from disk using the HexMesher::load_from_file() method.
+   * To create a SurfaceMesh instance, load a triangle mesh from disk using the MeshHexer::load_from_file() method.
    */
   class SurfaceMesh
   {
@@ -547,4 +547,4 @@ namespace HexMesher
   Result<SurfaceMesh, std::string>
   load_from_file(const std::string& filename, bool triangulate = false);
 
-} // namespace HexMesher
+} // namespace MeshHexer

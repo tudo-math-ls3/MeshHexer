@@ -1,12 +1,12 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include <hexmesher.hpp>
+#include <meshhexer.hpp>
 #include <io.hpp>
 #include <types.hpp>
 
 #include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
 
-using namespace HexMesher;
+using namespace MeshHexer;
 
 TEST_CASE("Write FEAT mesh format", "[IO]")
 {

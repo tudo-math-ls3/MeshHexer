@@ -3,7 +3,7 @@
 #include <cgal_types.hpp>
 #include <types.hpp>
 
-namespace HexMesher
+namespace MeshHexer
 {
   void write_geo_compound_2d(const std::string& filename, const Polygon2D& poly);
   void write_geo(const std::string& filename, const Polygon2D& poly);
@@ -14,4 +14,4 @@ namespace HexMesher
   void write_polylines(const std::string& filename, const Polylines2D& polylines);
 
   void write_feat_xml(std::ostream& stream, const VolumeMesh& vmesh);
-} // namespace HexMesher
+} // namespace MeshHexer

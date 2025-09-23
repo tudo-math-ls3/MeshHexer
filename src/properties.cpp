@@ -18,7 +18,7 @@
 
 #include <omp.h>
 
-namespace HexMesher
+namespace MeshHexer
 {
   namespace PMP = CGAL::Polygon_mesh_processing;
 
@@ -224,7 +224,7 @@ namespace HexMesher
     Mesh::Property_map<FaceIndex, double> dihedral_angles =
       mesh.add_property_map<FaceIndex, double>("f:dihedral_angle", 0).first;
 
-    HEXMESHER_PRAGMA_OMP(parallel for)
+    MESHHEXER_PRAGMA_OMP(parallel for)
     for(FaceIndex current : mesh.faces())
     {
       double max_angle = 0;
@@ -320,7 +320,7 @@ namespace HexMesher
 
     const Real normal_direction = PMP::is_outward_oriented(mesh) ? Real(-1.0) : Real(1.0);
 
-    HEXMESHER_PRAGMA_OMP(parallel for)
+    MESHHEXER_PRAGMA_OMP(parallel for)
     for(FaceIndex face_index : mesh.faces())
     {
       // Determine centroid of face
@@ -519,7 +519,7 @@ namespace HexMesher
       edge_lengths.push_back(std::sqrt((a - b).squared_length()));
     }
 
-    HEXMESHER_PRAGMA_OMP(parallel for schedule(dynamic))
+    MESHHEXER_PRAGMA_OMP(parallel for schedule(dynamic))
     for(FaceIndex f : mesh.faces())
     {
       topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, max_distance);
@@ -557,7 +557,7 @@ namespace HexMesher
       edge_lengths.push_back(std::sqrt((a - b).squared_length()));
     }
 
-    HEXMESHER_PRAGMA_OMP(parallel for schedule(dynamic))
+    MESHHEXER_PRAGMA_OMP(parallel for schedule(dynamic))
     for(FaceIndex f : mesh.faces())
     {
       topo_distance[f] = topological_distance(f, FaceIndex(targets[f]), mesh, edge_lengths, max_distances[f]);
@@ -566,23 +566,23 @@ namespace HexMesher
 
   void score_gaps(Mesh& mesh)
   {
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameters =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter").value();
+    MeshHexer::Mesh::Property_map<MeshHexer::FaceIndex, double> diameters =
+      mesh.property_map<MeshHexer::FaceIndex, double>("f:MIS_diameter").value();
 
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> topo_dists =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:topological_distance").value();
+    MeshHexer::Mesh::Property_map<MeshHexer::FaceIndex, double> topo_dists =
+      mesh.property_map<MeshHexer::FaceIndex, double>("f:topological_distance").value();
 
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> similarity_of_normals =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:similarity_of_normals").value();
+    MeshHexer::Mesh::Property_map<MeshHexer::FaceIndex, double> similarity_of_normals =
+      mesh.property_map<MeshHexer::FaceIndex, double>("f:similarity_of_normals").value();
 
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> dihedral_angles =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:dihedral_angle").value();
+    MeshHexer::Mesh::Property_map<MeshHexer::FaceIndex, double> dihedral_angles =
+      mesh.property_map<MeshHexer::FaceIndex, double>("f:dihedral_angle").value();
 
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
-      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id").value();
+    MeshHexer::Mesh::Property_map<MeshHexer::FaceIndex, std::uint32_t> ids =
+      mesh.property_map<MeshHexer::FaceIndex, std::uint32_t>("f:MIS_id").value();
 
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> max_search_distances =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:max_search_distance").value();
+    MeshHexer::Mesh::Property_map<MeshHexer::FaceIndex, double> max_search_distances =
+      mesh.property_map<MeshHexer::FaceIndex, double>("f:max_search_distance").value();
 
     auto topo_dist_score = [&](FaceIndex f)
     {
@@ -650,7 +650,7 @@ namespace HexMesher
       return result;
     };
 
-    std::vector<std::pair<HexMesher::FaceIndex, HexMesher::FaceIndex>> self_intersections;
+    std::vector<std::pair<MeshHexer::FaceIndex, MeshHexer::FaceIndex>> self_intersections;
     CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(self_intersections));
 
     Mesh::Property_map<FaceIndex, double> gap_score = mesh.add_property_map<FaceIndex, double>("f:gap_score", 0).first;
@@ -732,14 +732,14 @@ namespace HexMesher
 
   Gap min_gap(Mesh& mesh)
   {
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> diameters =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:MIS_diameter").value();
+    MeshHexer::Mesh::Property_map<MeshHexer::FaceIndex, double> diameters =
+      mesh.property_map<MeshHexer::FaceIndex, double>("f:MIS_diameter").value();
 
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, double> scores =
-      mesh.property_map<HexMesher::FaceIndex, double>("f:gap_score").value();
+    MeshHexer::Mesh::Property_map<MeshHexer::FaceIndex, double> scores =
+      mesh.property_map<MeshHexer::FaceIndex, double>("f:gap_score").value();
 
-    HexMesher::Mesh::Property_map<HexMesher::FaceIndex, std::uint32_t> ids =
-      mesh.property_map<HexMesher::FaceIndex, std::uint32_t>("f:MIS_id").value();
+    MeshHexer::Mesh::Property_map<MeshHexer::FaceIndex, std::uint32_t> ids =
+      mesh.property_map<MeshHexer::FaceIndex, std::uint32_t>("f:MIS_id").value();
 
     double threshold = 0.95;
 
@@ -851,4 +851,4 @@ namespace HexMesher
 
     return result;
   }
-} // namespace HexMesher
+} // namespace MeshHexer

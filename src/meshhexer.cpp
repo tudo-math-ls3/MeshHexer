@@ -1,4 +1,4 @@
-#include <hexmesher.hpp>
+#include <meshhexer.hpp>
 
 #include <cgal_types.hpp>
 #include <macros.hpp>
@@ -21,7 +21,7 @@
 #include <CGAL/Polygon_mesh_processing/self_intersections.h>
 #include <CGAL/Polygon_mesh_processing/triangulate_faces.h>
 
-namespace HexMesher
+namespace MeshHexer
 {
   namespace PMP = CGAL::Polygon_mesh_processing;
 
@@ -154,13 +154,13 @@ namespace HexMesher
   Gap SurfaceMesh::SurfaceMeshImpl::min_gap()
   {
     prepare_for_min_gap();
-    return HexMesher::min_gap(_mesh);
+    return MeshHexer::min_gap(_mesh);
   }
 
   VolumeMesh SurfaceMesh::SurfaceMeshImpl::fbm_mesh(std::uint64_t levels)
   {
     prepare_for_min_gap();
-    return HexMesher::fbm_mesh(_mesh, aabb_tree(), levels);
+    return MeshHexer::fbm_mesh(_mesh, aabb_tree(), levels);
   }
 
   Result<void, std::string> SurfaceMesh::SurfaceMeshImpl::write_to_file(const std::string& filename)
@@ -189,7 +189,7 @@ namespace HexMesher
 
   BoundingBox SurfaceMesh::SurfaceMeshImpl::bounding_box() const
   {
-    return HexMesher::bounding_box(_mesh);
+    return MeshHexer::bounding_box(_mesh);
   }
 
   std::uint32_t SurfaceMesh::SurfaceMeshImpl::num_vertices() const
@@ -214,7 +214,7 @@ namespace HexMesher
 
   bool SurfaceMesh::SurfaceMeshImpl::is_wound_consistently() const
   {
-    return HexMesher::is_wound_consistently(_mesh);
+    return MeshHexer::is_wound_consistently(_mesh);
   }
 
   bool SurfaceMesh::SurfaceMeshImpl::is_outward_oriented() const
@@ -227,7 +227,7 @@ namespace HexMesher
   double SurfaceMesh::SurfaceMeshImpl::minimal_aspect_ratio() const
   {
     double min_aspect_ratio = std::numeric_limits<double>::max();
-    for(HexMesher::FaceIndex f : _mesh.faces())
+    for(MeshHexer::FaceIndex f : _mesh.faces())
     {
       double ratio = CGAL::Polygon_mesh_processing::face_aspect_ratio(f, _mesh);
       min_aspect_ratio = std::min(min_aspect_ratio, ratio);
@@ -239,7 +239,7 @@ namespace HexMesher
   double SurfaceMesh::SurfaceMeshImpl::maximal_aspect_ratio() const
   {
     double max_aspect_ratio = 0;
-    for(HexMesher::FaceIndex f : _mesh.faces())
+    for(MeshHexer::FaceIndex f : _mesh.faces())
     {
       double ratio = CGAL::Polygon_mesh_processing::face_aspect_ratio(f, _mesh);
       max_aspect_ratio = std::max(max_aspect_ratio, ratio);
@@ -332,7 +332,7 @@ namespace HexMesher
   {
     using ResultType = Result<SurfaceMesh, std::string>;
 
-    HexMesher::Mesh mesh;
+    MeshHexer::Mesh mesh;
     if(ends_with(filename, ".ply"))
     {
       std::ifstream mesh_file(filename);
@@ -367,4 +367,4 @@ namespace HexMesher
 
     return ResultType::ok(std::move(smesh));
   }
-} // namespace HexMesher
+} // namespace MeshHexer

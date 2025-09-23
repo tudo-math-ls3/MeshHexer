@@ -2,16 +2,16 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <hexmesher_config.hpp>
+#include <meshhexer_config.hpp>
 
-namespace HexMesher
+namespace MeshHexer
 {
-#ifndef HEXMESHER_PRAGMA_OMP
-#ifdef HEXMESHER_HAVE_OMP
-#define HEXMESHER_PRAGMA_OMP_HELPER(x) _Pragma(#x)
-#define HEXMESHER_PRAGMA_OMP(x) HEXMESHER_PRAGMA_OMP_HELPER(omp x)
+#ifndef MESHHEXER_PRAGMA_OMP
+#ifdef MESHHEXER_HAVE_OMP
+#define MESHHEXER_PRAGMA_OMP_HELPER(x) _Pragma(#x)
+#define MESHHEXER_PRAGMA_OMP(x) MESHHEXER_PRAGMA_OMP_HELPER(omp x)
 #else
-#define HEXMESHER_PRAGMA_OMP(x)
+#define MESHHEXER_PRAGMA_OMP(x)
 #endif
 #endif
 
@@ -112,8 +112,8 @@ namespace HexMesher
    * Use the XASSERTM macro if you want to use the assertion in both debug and non-debug modes.
    */
 #if defined(DEBUG)
-#  define ASSERT(expr) HexMesher::assertion(expr, #expr, __func__, __FILE__, __LINE__)
-#  define ASSERTM(expr, msg) HexMesher::assertion(expr, #expr, __func__, __FILE__, __LINE__, msg)
+#  define ASSERT(expr) MeshHexer::assertion(expr, #expr, __func__, __FILE__, __LINE__)
+#  define ASSERTM(expr, msg) MeshHexer::assertion(expr, #expr, __func__, __FILE__, __LINE__, msg)
 #else
 #  define ASSERT(expr) void(0)
 #  define ASSERTM(expr, msg) void(0)
@@ -148,6 +148,6 @@ namespace HexMesher
    * This macro will be compiled in both debug and non-debug mode builds.
    * Use the ASSERTM macro if you want to use the assertion ony in debug builds.
    */
-#define XASSERT(expr) HexMesher::assertion(expr, #expr, __func__, __FILE__, __LINE__)
-#define XASSERTM(expr, msg) HexMesher::assertion(expr, #expr, __func__, __FILE__, __LINE__, msg)
+#define XASSERT(expr) MeshHexer::assertion(expr, #expr, __func__, __FILE__, __LINE__)
+#define XASSERTM(expr, msg) MeshHexer::assertion(expr, #expr, __func__, __FILE__, __LINE__, msg)
 }

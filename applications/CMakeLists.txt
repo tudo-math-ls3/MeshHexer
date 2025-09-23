@@ -1,1 +1,1 @@
-add_subdirectory(hexmesher-cli)
+add_subdirectory(meshhexer-cli)

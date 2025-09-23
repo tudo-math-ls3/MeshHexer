@@ -5,40 +5,40 @@ if(NOT TARGET pmp::pmp)
   file(GLOB pmp-headers ${pmp_SOURCE_DIR}/src/pmp/*.h ${pmp_SOURCE_DIR}/src/pmp/algorithms/*.h ${pmp_SOURCE_DIR}/src/pmp/io/*.h)
   file(GLOB_RECURSE eigen-headers ${pmp_SOURCE_DIR}/external/eigen-3.4.0/Eigen/*)
 
-  if(HEXMESHER_SHARED_LIB)
-    add_library(hexmesher-extern-pmp SHARED)
+  if(MESHHEXER_SHARED_LIB)
+    add_library(meshhexer-extern-pmp SHARED)
   else()
-    add_library(hexmesher-extern-pmp STATIC)
+    add_library(meshhexer-extern-pmp STATIC)
   endif()
 
-  target_sources(hexmesher-extern-pmp PRIVATE ${pmp-sources})
+  target_sources(meshhexer-extern-pmp PRIVATE ${pmp-sources})
 
   # NOTE(mmuegge): pmp includes the Eigen 3.4.0 headers, but does not link
   # against Eigen. This is intended.  pmp uses the type definitions of eigen to
   # support converting from Eigen vectors/matrices to pmp vectors/matrices, but
   # does not use the implementation of eigen in any way.
-  target_sources(hexmesher-extern-pmp
+  target_sources(meshhexer-extern-pmp
     PUBLIC FILE_SET pmp_headers
     TYPE HEADERS
     BASE_DIRS ${pmp_SOURCE_DIR}/src/ ${pmp_SOURCE_DIR}/external/eigen-3.4.0/
     FILES ${pmp-headers} ${eigen-headers})
 
 
-  target_compile_features(hexmesher-extern-pmp PRIVATE cxx_std_20)
-  target_compile_options(hexmesher-extern-pmp PRIVATE -w)
+  target_compile_features(meshhexer-extern-pmp PRIVATE cxx_std_20)
+  target_compile_options(meshhexer-extern-pmp PRIVATE -w)
 
-  if(HEXMESHER_HAVE_OMP)
+  if(MESHHEXER_HAVE_OMP)
     find_package(OpenMP REQUIRED)
     if(OpenMP_CXX_FOUND)
-      target_link_libraries(hexmesher-extern-pmp PUBLIC OpenMP::OpenMP_CXX)
+      target_link_libraries(meshhexer-extern-pmp PUBLIC OpenMP::OpenMP_CXX)
     endif()
   endif()
 
-  add_library(pmp::pmp ALIAS hexmesher-extern-pmp)
+  add_library(pmp::pmp ALIAS meshhexer-extern-pmp)
 
   install(
-    TARGETS hexmesher-extern-pmp
-    EXPORT hexmesherv2Targets
+    TARGETS meshhexer-extern-pmp
+    EXPORT meshhexerTargets
     FILE_SET pmp_headers
   )
 endif()

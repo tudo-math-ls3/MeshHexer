@@ -6,7 +6,7 @@
 #include <CGAL/Polygon_mesh_processing/measure.h>
 #include <CGAL/Polygon_mesh_processing/self_intersections.h>
 
-namespace HexMesher
+namespace MeshHexer
 {
   template<typename OutputIterator>
   void self_intersection_warnings(const Mesh& mesh, OutputIterator output)
@@ -57,4 +57,4 @@ namespace HexMesher
     degenerate_triangles_warnings(mesh, std::back_inserter(warnings.degenerate_triangles));
     anisotropic_triangle_warnings(mesh, std::back_inserter(warnings.anisotropic_triangles));
   }
-} // namespace HexMesher
+} // namespace MeshHexer

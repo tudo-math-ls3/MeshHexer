@@ -5,7 +5,7 @@
 #include <iostream>
 #include <vector>
 
-namespace HexMesher
+namespace MeshHexer
 {
   struct Point
   {
@@ -191,13 +191,13 @@ namespace HexMesher
      *
      * \returns The vertex coordinates of the vertex
      */
-    HexMesher::Point vertex(std::size_t idx) const
+    MeshHexer::Point vertex(std::size_t idx) const
     {
       std::size_t idx_z = idx / (_xs.size() * _ys.size());
       std::size_t idx_y = idx % (_xs.size() * _ys.size()) / _xs.size();
       std::size_t idx_x = idx % (_xs.size() * _ys.size()) % _xs.size();
 
-      return HexMesher::Point{_xs[idx_x].coord, _ys[idx_y].coord, _zs[idx_z].coord};
+      return MeshHexer::Point{_xs[idx_x].coord, _ys[idx_y].coord, _zs[idx_z].coord};
     }
 
     /**
@@ -454,4 +454,4 @@ namespace HexMesher
     std::vector<DegenerateTriangleWarning> degenerate_triangles;
     std::vector<AnisotropicTriangleWarning> anisotropic_triangles;
   };
-} // namespace HexMesher
+} // namespace MeshHexer

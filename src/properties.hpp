@@ -3,7 +3,7 @@
 #include <cgal_types.hpp>
 #include <types.hpp>
 
-namespace HexMesher
+namespace MeshHexer
 {
   /**
    * \brief Compute the diameter of the maximal inscribed sphere at each face of the mesh.
@@ -65,4 +65,4 @@ namespace HexMesher
   Gap min_gap(Mesh& mesh);
 
   std::vector<std::pair<Point2D, double>> z_depths(Mesh& mesh, AABBTree& aabb_tree);
-} // namespace HexMesher
+} // namespace MeshHexer

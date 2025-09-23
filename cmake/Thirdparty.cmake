@@ -51,7 +51,7 @@ get_tpl(
   CONFIG
 )
 
-if(HEXMESHER_TESTING)
+if(MESHHEXER_TESTING)
   get_tpl(
     PACKAGE_NAME Catch2
     VERSION 3.8.1

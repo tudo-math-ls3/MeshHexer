@@ -1,4 +1,4 @@
-# Helper function for adding a thirdparty library (TPL) to HexMesher.
+# Helper function for adding a thirdparty library (TPL) to MeshHexer.
 #
 # Signature:
 # get_tpl(
@@ -28,7 +28,7 @@
 #
 # get_tpl can either use libraries installed on the system or download dependencies itself, if required.
 #
-# If HEXMESHER_PREFER_EXTERNAL_TPL is true or <name>_DIR is defined
+# If MESHHEXER_PREFER_EXTERNAL_TPL is true or <name>_DIR is defined
 # feat_define_tpl first tries to find the requested TPL using find_package.
 # Parameters <name> and <version> are forwarded to the find_package call
 #
@@ -51,14 +51,14 @@ function(get_tpl)
   message(STATUS "- Getting TPL: ${TPL_PACKAGE_NAME} (Version: ${TPL_VERSION})")
   message(STATUS "------------------------------------------------------")
 
-  if(HEXMESHER_PREFER_EXTERNAL_TPL OR ${TPL_PACKAGE_NAME}_DIR)
+  if(MESHHEXER_PREFER_EXTERNAL_TPL OR ${TPL_PACKAGE_NAME}_DIR)
     list(APPEND FIND_PACKAGE_ARGS ${TPL_PACKAGE_NAME} ${TPL_VERSION})
 
     if(TPL_CONFIG)
         list(APPEND FIND_PACKAGE_ARGS CONFIG)
     endif()
 
-    if(NOT HEXMESHER_ALLOW_EXTERNAL_DOWNLOAD)
+    if(NOT MESHHEXER_ALLOW_EXTERNAL_DOWNLOAD)
         list(APPEND FIND_PACKAGE_ARGS REQUIRED)
     endif()
 
@@ -83,11 +83,11 @@ function(get_tpl)
     # [1]: https://cmake.org/cmake/help/latest/module/ExternalProject.html#directory-options
     # [2]: https://cmake.org/cmake/help/latest/module/ExternalProject.html#url
     # [3]: https://cmake.org/cmake/help/latest/policy/CMP0168.html
-    if(HEXMESHER_TPL_CACHE_DIRECTORY)
-      message(STATUS "Checking cache at ${HEXMESHER_TPL_CACHE_DIRECTORY}")
+    if(MESHHEXER_TPL_CACHE_DIRECTORY)
+      message(STATUS "Checking cache at ${MESHHEXER_TPL_CACHE_DIRECTORY}")
       cmake_path(GET TPL_URL FILENAME ARCHIVE_NAME)
       set(ARCHIVE_NAME ${TPL_PACKAGE_NAME}-${ARCHIVE_NAME})
-      set(ARCHIVE_PATH ${HEXMESHER_TPL_CACHE_DIRECTORY}/${ARCHIVE_NAME})
+      set(ARCHIVE_PATH ${MESHHEXER_TPL_CACHE_DIRECTORY}/${ARCHIVE_NAME})
 
       if(NOT EXISTS ${ARCHIVE_PATH})
         message(STATUS "Archive ${ARCHIVE_NAME} not in cache. Downloading...")

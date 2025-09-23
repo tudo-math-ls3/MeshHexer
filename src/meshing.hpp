@@ -3,7 +3,7 @@
 #include <cgal_types.hpp>
 #include <types.hpp>
 
-namespace HexMesher
+namespace MeshHexer
 {
   struct CuttingPlane
   {
@@ -113,4 +113,4 @@ namespace HexMesher
   std::vector<PolygonWithHoles2D> union_of_cross_sections(const Mesh& mesh, const CrossSectionSampler& sampler);
 
   VolumeMesh fbm_mesh(Mesh& mesh, AABBTree& aabb_tree, std::uint64_t levels);
-} // namespace HexMesher
+} // namespace MeshHexer

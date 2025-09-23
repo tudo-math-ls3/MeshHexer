@@ -13,7 +13,7 @@
 
 // #include <CGAL/Polygon_mesh_processing/interpolated_corrected_curvatures.h>
 
-namespace HexMesher
+namespace MeshHexer
 {
   // Exact types
   using ExactKernel = CGAL::Exact_predicates_exact_constructions_kernel;
@@ -57,4 +57,4 @@ namespace HexMesher
 
   // Intersection types
   using RayIntersection = AABBTree::Intersection_and_primitive_id<Ray3D>::Type;
-} // namespace HexMesher
+} // namespace MeshHexer

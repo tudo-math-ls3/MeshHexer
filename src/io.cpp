@@ -1,6 +1,6 @@
 #include <io.hpp>
 
-namespace HexMesher
+namespace MeshHexer
 {
   void write_geo_compound_2d(const std::string& filename, const Polygon2D& poly)
   {
@@ -436,4 +436,4 @@ namespace HexMesher
       std::cerr << "Failed to write polyline to " << filename << "!\n";
     }
   }
-} // namespace HexMesher
+} // namespace MeshHexer

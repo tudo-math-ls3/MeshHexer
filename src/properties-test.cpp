@@ -8,7 +8,7 @@
 
 #include <vector>
 
-using namespace HexMesher;
+using namespace MeshHexer;
 
 TEST_CASE( "Maximal inscribed spheres", "[properties]") {
   Mesh mesh;
