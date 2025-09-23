@@ -1,13 +1,11 @@
-#include <algorithm>
-#include <array>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <functional>
 #include <iostream>
 #include <string>
 
 #include <meshhexer.hpp>
+#include <string_view>
 
 namespace MeshHexerCLI::Markdown
 {
@@ -33,13 +31,9 @@ namespace MeshHexerCLI
   {
     void print_min_gap(const MeshHexer::Gap& min_gap)
     {
-      std::cout << "Min-gap of " << min_gap.diameter << " between faces " << min_gap.face << " and "
-                << min_gap.opposite_face << "\n";
-      std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.face << ", 0, " << min_gap.opposite_face
-                << "], FieldType='CELL')` to select the chosen triangles in ParaView\n";
+      std::cout << min_gap.diameter << "\n";
     }
 
-    // NOTE(mmuegge): This really belongs in the io header. Maybe introduce a public io header?
     template<typename Iter>
     void write_range_as_mtx(std::ostream& stream, Iter begin, Iter end)
     {
@@ -59,85 +53,208 @@ namespace MeshHexerCLI
     }
   } // namespace
 
-  const char* usage = "meshhexer-cli: Commandline tool for the MeshHexer library\n"
-                      "\n"
-                      "Usage:\n"
-                      "meshhexer-cli [-h|--help] <mesh> <command> [<args>]\n"
-                      "\n"
-                      "Options:\n"
-                      "\t-h, --help\n"
-                      "\t\t Produce this help text\n"
-                      "\n"
-                      "Commands:\n"
-                      "\tfbm-mesh\n"
-                      "\t\tGenerate a non-fitting volume mesh from the surface mesh.\n"
-                      "\t\tThe mesh is output as fbm_mesh.xml in FEAT3's mesh file format.\n"
-                      "\t\tA separate fbm_mesh.mtx file is created with recommended adaptive\n"
-                      "\t\trefinement levels for all vertices.\n"
-                      "\t\tThe output mesh is constructed such that all cells are about the same\n"
-                      "\t\tsize as their local min-gaps.\n"
-                      "\n"
-                      "\t\tOptions:\n"
-                      "\t\t--levels: Set size of multigrid-hierarchy. If passed, the mesh will be constructed\n"
-                      "\t\tsuch that the finest level of the hierarchy matches the min-gaps.\n"
-                      "\n"
-                      "\tmin-gap\n"
-                      "\t\tCalculate smallest inside gap between opposite faces of the mesh\n"
-                      "\n"
-                      "\treport\n"
-                      "\t\tPrint information about the mesh\n"
-                      "\n"
-                      "\twarnings\n"
-                      "\t\tPrint warnings about the mesh. Warns about self-intersections,\n"
-                      "\t\tdegenerate triangles, and anisotropic triangles.\n"
-                      "\n"
-                      "\t\tOptions:\n"
-                      "\n"
-                      "\t\t--summarize: Summarize warnings\n";
+  const static char* const usage =
+    "meshhexer-cli: Commandline tool for the MeshHexer library\n"
+    "\n"
+    "Usage:\n"
+    "meshhexer-cli [<global args>] <command> <mesh> [<args>]\n"
+    "\n"
+    "Global options:\n"
+    "\t-h, --help\n"
+    "\t\tProduce this help text\n"
+    "\t--checkpoint-path\n"
+    "\t\tWrite checkpoint file with intermediary values. File extension must be.ply\n"
+    "\n"
+    "Commands:\n"
+    "\tfbm-mesh\n"
+    "\t\tGenerate a non-fitting volume mesh from the surface mesh.\n"
+    "\t\tThe mesh is output as fbm_mesh.xml in FEAT3's mesh file format.\n"
+    "\t\tA separate fbm_mesh.mtx file is created with recommended adaptive\n"
+    "\t\trefinement levels for all vertices.\n"
+    "\t\tThe output mesh is constructed such that all cells are about the same\n"
+    "\t\tsize as their local min-gaps.\n"
+    "\n"
+    "\t\tOptions:\n"
+    "\t\t--levels: Set size of multigrid-hierarchy. If passed, the mesh will be constructed\n"
+    "\t\tsuch that the finest level of the hierarchy matches the min-gaps.\n"
+    "\n"
+    "\tmin-gap\n"
+    "\t\tCalculate smallest inside gap between opposite faces of the mesh\n"
+    "\n"
+    "\treport\n"
+    "\t\tPrint information about the mesh\n"
+    "\n"
+    "\twarnings\n"
+    "\t\tPrint warnings about the mesh. Warns about self-intersections,\n"
+    "\t\tdegenerate triangles, and anisotropic triangles.\n"
+    "\n"
+    "\t\tOptions:\n"
+    "\n"
+    "\t\t--summarize: Summarize warnings\n";
+
+  struct GlobalParameters
+  {
+    /// If true, show help text and end program
+    bool show_help = false;
+
+    /// Checkpoint file location. Checkpoint file is written if path is not empty.
+    std::filesystem::path checkpoint_path;
+  };
+
+
+  static bool cmp_argument(const char* parameter, char* arg)
+  {
+    std::size_t n = std::min(std::strlen(parameter), std::strlen(arg));
+    return std::strncmp(parameter, arg, n) == 0;
+  }
+
+  static char* parse_argument(const char* parameter, int& argc, char*** argv)
+  {
+    char* arg = (*argv)[0];
+
+    while((*arg != 0) && *arg != '=')
+    {
+      arg++;
+    }
+
+    if(*arg == 0)
+    {
+      // --param arg case
+
+      if(argc < 2)
+      {
+        std::cerr << "Error parsing parameter " << parameter << ". Expected additional argument\n";
+        std::cerr << usage;
+        std::exit(1);
+      }
+
+      argc--;
+      (*argv)++;
+
+      char* result = (*argv)[0];
+
+      argc--;
+      (*argv)++;
+
+      return result;
+    }
+    else
+    {
+      // --param=arg case
+
+      // We used up one argument
+      argc--;
+      (*argv)++;
+
+      return (arg + 1);
+    }
+  }
+
+  static void handle_flag(bool& b, int& argc, char*** argv)
+  {
+    b = true;
+    argc--;
+    (*argv)++;
+  }
+
+  /**
+   * \brief Parse global parameters
+   */
+  static GlobalParameters parse_args(int& argc, char*** argv)
+  {
+    GlobalParameters result;
+
+    // Skip first parameter
+    argc--;
+    *argv = &(*argv)[1];
+
+    while(argc > 0)
+    {
+      char* cmd = (*argv)[0];
+
+      if(cmp_argument("--help", cmd) || cmp_argument("-h", cmd))
+      {
+        handle_flag(result.show_help, argc, argv);
+      }
+      else if(cmp_argument("--checkpoint-path", cmd))
+      {
+        char* path = parse_argument("--checkpoint-path", argc, argv);
+        result.checkpoint_path = path;
+      }
+      else
+      {
+        // Unknown argument
+        break;
+      }
+    }
+
+    return result;
+  }
 
   int main(int argc, char* argv[])
   {
-    if(argc < 2)
-    {
-      std::cout << "Invalid number of arguments\n";
-      std::cout << usage;
-      return 1;
-    }
+    int orig_argc = argc;
+    char** orig_argv = argv;
 
-    if(strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)
+    GlobalParameters params = parse_args(argc, &argv);
+
+    if(params.show_help)
     {
       std::cout << usage;
       return 0;
     }
 
-    if(argc < 3)
+    // Handle positional arguments
+    std::string command;
+    if(argc > 0)
     {
-      std::cout << "Invalid number of arguments\n";
-      std::cout << usage;
-      return 1;
+      command = argv[0];
+      if(command != "fbm-mesh" && command != "min-gap" && command != "report" && command != "warnings")
+      {
+        std::cerr << "Unknown command " << command << "\n\n";
+        std::cerr << usage;
+        exit(1);
+      }
+      argc--;
+      argv++;
+    }
+    else
+    {
+      std::cerr << "Expected <command> argument\n\n";
+      std::cerr << usage;
+      exit(1);
     }
 
-    const std::string filename(argv[1]);
-    const std::string mode(argv[2]);
+    std::string filename;
+    if(argc > 0)
+    {
+      filename = argv[0];
+      argc--;
+      argv++;
+    }
+    else
+    {
+      std::cerr << "Expected <mesh> argument\n\n";
+      std::cerr << usage;
+      exit(1);
+    }
 
     MeshHexer::Result<MeshHexer::SurfaceMesh, std::string> result = MeshHexer::load_from_file(filename, true);
-
     if(result.is_err())
     {
       std::cout << "Reading mesh failed with error: " << result.err_ref() << "\n";
       exit(1);
     }
-
     MeshHexer::SurfaceMesh mesh = std::move(result).take_ok();
 
-    if(mode == "fbm-mesh")
+    if(command == "fbm-mesh")
     {
       std::uint64_t levels = 0;
-      if(argc > 3)
+      if(argc > 1)
       {
-        if(strcmp(argv[3], "--levels") == 0)
+        if(strcmp(argv[0], "--levels") == 0)
         {
-          levels = std::strtoull(argv[3], nullptr, 10);
+          levels = std::strtoull(argv[1], nullptr, 10);
         }
       }
       MeshHexer::VolumeMesh vmesh = mesh.fbm_mesh(levels);
@@ -169,20 +286,23 @@ namespace MeshHexerCLI
       write_range_as_mtx(mtx_file, sdls.begin(), sdls.end());
     }
 
-    if(mode == "min-gap")
+    if(command == "min-gap")
     {
       MeshHexer::Gap min_gap = mesh.min_gap();
       print_min_gap(min_gap);
 
-      MeshHexer::Result<void, std::string> result = mesh.write_to_file("thickness.ply");
-
-      if(result.is_err())
+      if(!params.checkpoint_path.empty())
       {
-        std::cout << "Writing mesh failed with error: " << result.err_ref() << "\n";
+        MeshHexer::Result<void, std::string> result = mesh.write_to_file(params.checkpoint_path);
+
+        if(result.is_err())
+        {
+          std::cout << "Writing checkpoint failed with error: " << result.err_ref() << "\n";
+        }
       }
     }
 
-    if(mode == "report")
+    if(command == "report")
     {
       std::filesystem::path absolute_path = std::filesystem::canonical(filename);
 
@@ -236,14 +356,14 @@ namespace MeshHexerCLI
       std::cout << "\n";
     }
 
-    if(mode == "warnings")
+    if(command == "warnings")
     {
       MeshHexer::MeshWarnings warnings = mesh.warnings();
 
       bool summarize = false;
-      if(argc > 3)
+      if(argc > 0)
       {
-        if(strcmp(argv[3], "--summarize") == 0)
+        if(strcmp(argv[0], "--summarize") == 0)
         {
           summarize = true;
         }
