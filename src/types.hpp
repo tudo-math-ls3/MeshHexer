@@ -7,19 +7,35 @@
 
 namespace MeshHexer
 {
+  /**
+   * \brief 3D Point class
+   */
   struct Point
   {
+    /// x component
     double x;
+    /// y component
     double y;
+    /// z component
     double z;
   };
 
+  /**
+   * \brief Axis aligned bounding box
+   *
+   * Consist of two points, describing the lexicographically smallest and largest points of the bounding box.
+   */
   struct BoundingBox
   {
+    /// Lower point
     Point min;
+    /// Upper point
     Point max;
   };
 
+  /**
+   * \brief Possible interior diameter of a surface mesh
+   */
   struct Gap
   {
     /// Starting face of gap
@@ -34,6 +50,7 @@ namespace MeshHexer
     /// Score of this gap
     double confidence;
 
+    /// Constructor
     Gap(std::size_t f, std::size_t of, double d, double c) :
       face(f),
       opposite_face(of),
@@ -72,7 +89,10 @@ namespace MeshHexer
   {
   public:
 
+    /// Slice iterator type
     using Iterator = std::vector<Slice>::iterator;
+
+    /// Const slice iterator type
     using ConstIterator = std::vector<Slice>::const_iterator;
 
   private:
@@ -413,11 +433,16 @@ namespace MeshHexer
   /// Warning about intersecting triangles
   struct SelfIntersectionWarning
   {
+    /// Name of this warning
     static constexpr std::string_view name = "self-intersection";
 
+    /// First involved triangle
     std::uint32_t tri_a;
+
+    /// Second involved triangle
     std::uint32_t tri_b;
 
+    /// Constructor
     SelfIntersectionWarning(std::uint32_t a, std::uint32_t b) : tri_a(a), tri_b(b)
     {
     }
@@ -426,10 +451,13 @@ namespace MeshHexer
   /// Warning about triangle with zero area
   struct DegenerateTriangleWarning
   {
+    /// Name of this warning
     static constexpr std::string_view name = "degenerate-triangle";
 
+    /// Index of degenerate triangle
     std::uint32_t idx;
 
+    /// Constructor
     explicit DegenerateTriangleWarning(std::uint32_t i) : idx(i)
     {
     }
@@ -438,10 +466,13 @@ namespace MeshHexer
   /// Warning about triangle with large aspect ratio
   struct AnisotropicTriangleWarning
   {
+    /// Name of this warning
     static constexpr std::string_view name = "anisotropic-triangle";
 
+    /// Index of anisotropic triangle
     std::uint32_t idx;
 
+    /// Constructor
     explicit AnisotropicTriangleWarning(std::uint32_t i) : idx(i)
     {
     }
@@ -450,8 +481,13 @@ namespace MeshHexer
   /// Collection of mesh warnings
   struct MeshWarnings
   {
+    /// Collection of self-intersection warnings
     std::vector<SelfIntersectionWarning> self_intersections;
+
+    /// Collection of degenerate-triangle warnings
     std::vector<DegenerateTriangleWarning> degenerate_triangles;
+
+    /// Collection of anisotropic-triangle warnings
     std::vector<AnisotropicTriangleWarning> anisotropic_triangles;
   };
 } // namespace MeshHexer
