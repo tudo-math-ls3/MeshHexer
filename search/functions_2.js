@@ -1,7 +1,4 @@
 var searchData=
 [
-  ['edge_0',['edge',['../classMeshHexer_1_1VolumeMesh.html#a854ff534ebc958236795886e74747811',1,'MeshHexer::VolumeMesh']]],
-  ['err_1',['err',['../classMeshHexer_1_1Result.html#a618dccfcdb38f3209a94cdbd3eeba497',1,'MeshHexer::Result::err(const E &amp;value)'],['../classMeshHexer_1_1Result.html#ac02b550eef4756f0cf7e7c88d4b2746e',1,'MeshHexer::Result::err(E &amp;&amp;value)'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#a9f6e1ed50ad67f50f7afc269bc8942bd',1,'MeshHexer::Result&lt; void, E &gt;::err(const E &amp;value)'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#a7d09867f91b1a4eefa993e9e79040d75',1,'MeshHexer::Result&lt; void, E &gt;::err(E &amp;&amp;value)']]],
-  ['err_5fref_2',['err_ref',['../classMeshHexer_1_1Result.html#a2351c03156d8dc3c97789a286715d729',1,'MeshHexer::Result::err_ref()'],['../classMeshHexer_1_1Result.html#ab2f3c818043b48a0511bf3d0a8a992da',1,'MeshHexer::Result::err_ref() const'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#ad9cf70a2429b8f3f1bf8d58f5eba8e6e',1,'MeshHexer::Result&lt; void, E &gt;::err_ref()'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#affbeaffc41a28ec5b38ec68e48f493c9',1,'MeshHexer::Result&lt; void, E &gt;::err_ref() const']]],
-  ['err_5fvalue_3',['err_value',['../classMeshHexer_1_1Result.html#af4f4d2ac9d67f0cad665dd2a8f9dee29',1,'MeshHexer::Result::err_value()'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#aacb227762f836a02a9ded5a5d0748f01',1,'MeshHexer::Result&lt; void, E &gt;::err_value()']]]
+  ['cell_0',['cell',['../classMeshHexer_1_1VolumeMesh.html#accaadb83cee6d839a1f74869a17b8a72',1,'MeshHexer::VolumeMesh']]]
 ];

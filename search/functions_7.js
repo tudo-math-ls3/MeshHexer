@@ -1,7 +1,8 @@
 var searchData=
 [
-  ['num_5fcells_0',['num_cells',['../classMeshHexer_1_1VolumeMesh.html#a0281856f8d69452a0b42492dd8d5867b',1,'MeshHexer::VolumeMesh']]],
-  ['num_5fedges_1',['num_edges',['../classMeshHexer_1_1SurfaceMesh.html#a875991bccc27a8470a410b068b25e5b4',1,'MeshHexer::SurfaceMesh::num_edges()'],['../classMeshHexer_1_1VolumeMesh.html#ae29bb4e20b40ec8428565024674ec19d',1,'MeshHexer::VolumeMesh::num_edges()']]],
-  ['num_5ffaces_2',['num_faces',['../classMeshHexer_1_1SurfaceMesh.html#ab6305da57a08a6554895f7b90404403d',1,'MeshHexer::SurfaceMesh::num_faces()'],['../classMeshHexer_1_1VolumeMesh.html#a5fce33837e256d6d43822b89c300904a',1,'MeshHexer::VolumeMesh::num_faces()']]],
-  ['num_5fvertices_3',['num_vertices',['../classMeshHexer_1_1SurfaceMesh.html#ae394d799a1ba346a2feb37d430862397',1,'MeshHexer::SurfaceMesh::num_vertices()'],['../classMeshHexer_1_1VolumeMesh.html#adea992fc90daac58466dac1f3c6f37da',1,'MeshHexer::VolumeMesh::num_vertices()']]]
+  ['is_5fclosed_0',['is_closed',['../classMeshHexer_1_1SurfaceMesh.html#ae397e5dcc71101bf3e659b137b402391',1,'MeshHexer::SurfaceMesh']]],
+  ['is_5ferr_1',['is_err',['../classMeshHexer_1_1Result.html#aa717133f8295dd5caad68c9e1532ae9e',1,'MeshHexer::Result::is_err()'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#a6ebbfa9ee311ebecee032ddd354baa62',1,'MeshHexer::Result&lt; void, E &gt;::is_err()']]],
+  ['is_5fok_2',['is_ok',['../classMeshHexer_1_1Result.html#a7f3c6eabf4a849c157258430416c33d0',1,'MeshHexer::Result::is_ok()'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#a0b4ae8437184772c6b25668a6a07a973',1,'MeshHexer::Result&lt; void, E &gt;::is_ok()']]],
+  ['is_5foutward_5foriented_3',['is_outward_oriented',['../classMeshHexer_1_1SurfaceMesh.html#a70f0e732d9e29c57f11de43f7aff1c7b',1,'MeshHexer::SurfaceMesh']]],
+  ['is_5fwound_5fconsistently_4',['is_wound_consistently',['../classMeshHexer_1_1SurfaceMesh.html#a79c153e5973b1205608c450615894834',1,'MeshHexer::SurfaceMesh']]]
 ];

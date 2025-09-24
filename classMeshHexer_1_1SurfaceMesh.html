@@ -166,10 +166,10 @@ std::uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>num_faces</b
 <tr class="memdesc:acef6379c61b78d97e3f9e9974ec6fa90"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compute the largest aspect ratio of any face of the surface mesh.  <br /></td></tr>
 <tr class="separator:acef6379c61b78d97e3f9e9974ec6fa90"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6feaca6ee9fc384afe3a71d597580d38" id="r_a6feaca6ee9fc384afe3a71d597580d38"><td class="memItemLeft" align="right" valign="top">std::vector&lt; <a class="el" href="structMeshHexer_1_1Gap.html">Gap</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a6feaca6ee9fc384afe3a71d597580d38">gaps</a> ()</td></tr>
-<tr class="memdesc:a6feaca6ee9fc384afe3a71d597580d38"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compute <a class="el" href="structMeshHexer_1_1Gap.html">Gap</a> candidates of the surface mesh.  <br /></td></tr>
+<tr class="memdesc:a6feaca6ee9fc384afe3a71d597580d38"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compute <a class="el" href="structMeshHexer_1_1Gap.html" title="Possible interior diameter of a surface mesh.">Gap</a> candidates of the surface mesh.  <br /></td></tr>
 <tr class="separator:a6feaca6ee9fc384afe3a71d597580d38"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a21900d33c96ef8392057e91bb8bfae93" id="r_a21900d33c96ef8392057e91bb8bfae93"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structMeshHexer_1_1Gap.html">Gap</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a21900d33c96ef8392057e91bb8bfae93">min_gap</a> ()</td></tr>
-<tr class="memdesc:a21900d33c96ef8392057e91bb8bfae93"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compute the smallest <a class="el" href="structMeshHexer_1_1Gap.html">Gap</a> of the surface mesh.  <br /></td></tr>
+<tr class="memdesc:a21900d33c96ef8392057e91bb8bfae93"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compute the smallest <a class="el" href="structMeshHexer_1_1Gap.html" title="Possible interior diameter of a surface mesh.">Gap</a> of the surface mesh.  <br /></td></tr>
 <tr class="separator:a21900d33c96ef8392057e91bb8bfae93"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a836366bb246c4df2f57420c9494978a3" id="r_a836366bb246c4df2f57420c9494978a3"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classMeshHexer_1_1VolumeMesh.html">VolumeMesh</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a836366bb246c4df2f57420c9494978a3">fbm_mesh</a> (std::uint64_t levels)</td></tr>
 <tr class="memdesc:a836366bb246c4df2f57420c9494978a3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a non-fitted volume mesh for this surface mesh.  <br /></td></tr>
@@ -248,7 +248,7 @@ std::uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>num_faces</b
       </table>
 </div><div class="memdoc">
 
-<p>Compute <a class="el" href="structMeshHexer_1_1Gap.html">Gap</a> candidates of the surface mesh. </p>
+<p>Compute <a class="el" href="structMeshHexer_1_1Gap.html" title="Possible interior diameter of a surface mesh.">Gap</a> candidates of the surface mesh. </p>
 <p>Gaps try to capture the diameter of the volume described by the surface mesh. The diameter is measured from the barycentric centers of all faces of the surface mesh. For each face of the surface mesh the largest sphere that just touches the center of the face and one other point of the surface mesh is computed. We call this sphere the maximal inscribed sphere (MIS) and use the diameter of that sphere as the diameter at that face.</p>
 <pre class="fragment">* │                 │
 * │     ∙∙∙∙∙∙∙     │
@@ -384,7 +384,7 @@ The surface mesh is wound consistently, call <a class="el" href="#a79c153e5973b1
       </table>
 </div><div class="memdoc">
 
-<p>Compute the smallest <a class="el" href="structMeshHexer_1_1Gap.html">Gap</a> of the surface mesh. </p>
+<p>Compute the smallest <a class="el" href="structMeshHexer_1_1Gap.html" title="Possible interior diameter of a surface mesh.">Gap</a> of the surface mesh. </p>
 <p>See <a class="el" href="#a6feaca6ee9fc384afe3a71d597580d38" title="Compute Gap candidates of the surface mesh.">SurfaceMesh::gaps()</a> for details on how gaps area measured and scored.</p>
 <dl class="section return"><dt>Returns</dt><dd>The smallest gap, by diameter, of all gaps with a score above 0.95, or the smallest gap among the top 10 percent of all gaps, if no such gaps exist. </dd></dl>
 

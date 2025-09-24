@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['opposite_5fface_0',['opposite_face',['../structMeshHexer_1_1Gap.html#a798dd308681549a92a642b0f01784f72',1,'MeshHexer::Gap']]]
+  ['face_0',['face',['../structMeshHexer_1_1Gap.html#a92758f0f7694ddc88aa1f298cf9c7930',1,'MeshHexer::Gap']]]
 ];

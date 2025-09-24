@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['cell_0',['cell',['../classMeshHexer_1_1VolumeMesh.html#accaadb83cee6d839a1f74869a17b8a72',1,'MeshHexer::VolumeMesh']]]
+  ['bounding_5fbox_0',['bounding_box',['../classMeshHexer_1_1SurfaceMesh.html#a6f4854cbd791971299824961fbc9bf06',1,'MeshHexer::SurfaceMesh']]]
 ];

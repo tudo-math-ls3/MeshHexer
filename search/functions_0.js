@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['bounding_5fbox_0',['bounding_box',['../classMeshHexer_1_1SurfaceMesh.html#a6f4854cbd791971299824961fbc9bf06',1,'MeshHexer::SurfaceMesh']]]
+  ['anisotropictrianglewarning_0',['AnisotropicTriangleWarning',['../structMeshHexer_1_1AnisotropicTriangleWarning.html#a02a680d22673ef561539240ab5a0d4f1',1,'MeshHexer::AnisotropicTriangleWarning']]]
 ];

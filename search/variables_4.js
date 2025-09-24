@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['subdivision_5flevel_0',['subdivision_level',['../structMeshHexer_1_1Slice.html#a5eff0565846c41b47289a2e50439e1c7',1,'MeshHexer::Slice']]]
+  ['idx_0',['idx',['../structMeshHexer_1_1DegenerateTriangleWarning.html#abf6a61a62b3761eedeacf60fcdbc98f1',1,'MeshHexer::DegenerateTriangleWarning::idx'],['../structMeshHexer_1_1AnisotropicTriangleWarning.html#a52954468fa9b38c6b3d59ec685981d83',1,'MeshHexer::AnisotropicTriangleWarning::idx']]]
 ];

@@ -1,7 +1,6 @@
 var searchData=
 [
-  ['ok_0',['ok',['../classMeshHexer_1_1Result.html#a58cedfa19f854e025556206cc05ef23c',1,'MeshHexer::Result::ok(const T &amp;value)'],['../classMeshHexer_1_1Result.html#a514a71bbb3e98901ac444db0b20c91b4',1,'MeshHexer::Result::ok(T &amp;&amp;value)'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#ad4a05b042edeb0a2289f088a1f5088e7',1,'MeshHexer::Result&lt; void, E &gt;::ok()']]],
-  ['ok_5fref_1',['ok_ref',['../classMeshHexer_1_1Result.html#abeeac3975432f841db8ff9952c123018',1,'MeshHexer::Result::ok_ref()'],['../classMeshHexer_1_1Result.html#a6f6e06fa39f38e46ad388c4f5debf4a4',1,'MeshHexer::Result::ok_ref() const']]],
-  ['ok_5fvalue_2',['ok_value',['../classMeshHexer_1_1Result.html#a659b6e0b165ba57f7340ae8a58e26690',1,'MeshHexer::Result']]],
-  ['operator_3d_3',['operator=',['../classMeshHexer_1_1Result.html#aa1e7421011b574a90b162faa2981a70b',1,'MeshHexer::Result::operator=(const Result &amp;)=delete'],['../classMeshHexer_1_1Result.html#a367bb62c22513dfd451b05b03acac276',1,'MeshHexer::Result::operator=(Result &amp;&amp;)=default'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#ae871d2cefab0a8876775672b1c732676',1,'MeshHexer::Result&lt; void, E &gt;::operator=(const Result &amp;)=delete'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#a4520fb50a167a74cf04382778d7bbc51',1,'MeshHexer::Result&lt; void, E &gt;::operator=(Result &amp;&amp;)=default'],['../classMeshHexer_1_1SurfaceMesh.html#a2f4bfda569a5eb6eb7f53d1ac8102cc5',1,'MeshHexer::SurfaceMesh::operator=(SurfaceMesh &amp;&amp;) noexcept'],['../classMeshHexer_1_1SurfaceMesh.html#a8e8b61bd4ba7e5c691d488e2d05de19e',1,'MeshHexer::SurfaceMesh::operator=(const SurfaceMesh &amp;)=delete']]]
+  ['maximal_5faspect_5fratio_0',['maximal_aspect_ratio',['../classMeshHexer_1_1SurfaceMesh.html#acef6379c61b78d97e3f9e9974ec6fa90',1,'MeshHexer::SurfaceMesh']]],
+  ['min_5fgap_1',['min_gap',['../classMeshHexer_1_1SurfaceMesh.html#a21900d33c96ef8392057e91bb8bfae93',1,'MeshHexer::SurfaceMesh']]],
+  ['minimal_5faspect_5fratio_2',['minimal_aspect_ratio',['../classMeshHexer_1_1SurfaceMesh.html#a419aa808cbfc07cb147f122aec2255e5',1,'MeshHexer::SurfaceMesh']]]
 ];
