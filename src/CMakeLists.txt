@@ -30,7 +30,7 @@ target_sources(MeshHexer
   TYPE HEADERS
   FILES ${MESHHEXER_PRIVATE_HEADERS})
 
-find_package(CGAL 6.0.1)
+find_package(CGAL 6.0.1 CONFIG)
 find_package(Eigen3 3.4.0)
 
 target_link_libraries(MeshHexer PRIVATE CGAL::CGAL Eigen3::Eigen)
