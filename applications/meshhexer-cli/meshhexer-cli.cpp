@@ -1,4 +1,5 @@
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -29,9 +30,18 @@ namespace MeshHexerCLI
 {
   namespace
   {
-    void print_min_gap(const MeshHexer::Gap& min_gap)
+    void print_min_gap(const MeshHexer::Gap& min_gap, bool verbose)
     {
-      std::cout << min_gap.diameter << "\n";
+      if(verbose)
+      {
+        std::cout << "Min-gap of " << min_gap.diameter << " between faces " << min_gap.face << " and " << min_gap.opposite_face << "\n";
+        std::cout << "Use `SelectIDs(IDs=[0, " << min_gap.face << ", 0, " << min_gap.opposite_face
+              << "], FieldType='CELL')` to select the chosen triangles in ParaView\n";
+      }
+      else
+      {
+        std::cout << min_gap.diameter << "\n";
+      }
     }
 
     template<typename Iter>
@@ -53,11 +63,16 @@ namespace MeshHexerCLI
     }
   } // namespace
 
+
+  //////////////////
+  // Usage strings
+  //////////////////
+
   const static char* const usage =
     "meshhexer-cli: Commandline tool for the MeshHexer library\n"
     "\n"
     "Usage:\n"
-    "meshhexer-cli [<global args>] <command> <mesh> [<args>]\n"
+    "meshhexer-cli [<global args>] <command>\n"
     "\n"
     "Global options:\n"
     "\t-h, --help\n"
@@ -74,10 +89,6 @@ namespace MeshHexerCLI
     "\t\tThe output mesh is constructed such that all cells are about the same\n"
     "\t\tsize as their local min-gaps.\n"
     "\n"
-    "\t\tOptions:\n"
-    "\t\t--levels: Set size of multigrid-hierarchy. If passed, the mesh will be constructed\n"
-    "\t\tsuch that the finest level of the hierarchy matches the min-gaps.\n"
-    "\n"
     "\tmin-gap\n"
     "\t\tCalculate smallest inside gap between opposite faces of the mesh\n"
     "\n"
@@ -88,9 +99,54 @@ namespace MeshHexerCLI
     "\t\tPrint warnings about the mesh. Warns about self-intersections,\n"
     "\t\tdegenerate triangles, and anisotropic triangles.\n"
     "\n"
-    "\t\tOptions:\n"
+    "See meshhexer-cli <command> --help for more details on the commands.\n";
+
+  const static char* const mingap_usage =
+    "Usage: meshhexer-cli min-gap [<args>] <mesh>\n"
     "\n"
-    "\t\t--summarize: Summarize warnings\n";
+    "Compute the smallest inside gap between opposite faces of the mesh.\n"
+    "\n"
+    "Options:\n"
+    "\t-h, --help\n"
+    "\t\tProduce this help text\n"
+    "\t--verbose\n"
+    "\t\tPrint involved faces and score alongside the min-gap\n";
+
+  const static char* const fbm_usage =
+    "Usage: meshhexer-cli fbm-mesh [<args>] <mesh>\n"
+    "\n"
+    "Generate a non-fitting volume mesh from the surface mesh.\n"
+    "The mesh is output as fbm_mesh.xml in FEAT3's mesh file format.\n"
+    "A separate fbm_mesh.mtx file is created with recommended adaptive\n"
+    "refinement levels for all vertices.\n"
+    "The output mesh is constructed such that all cells are about the same\n"
+    "size as their local min-gaps.\n"
+    "\n"
+    "Options:\n"
+    "\t-h, --help\n"
+    "\t\tProduce this help text\n"
+    "\t--levels\n"
+    "\t\tSet size of multigrid-hierarchy. If passed, the mesh will be constructed\n"
+    "\t\tsuch that the finest level of the hierarchy matches the min-gaps.\n";
+
+  const static char* const report_usage =
+    "Usage: meshhexer-cli report <mesh>\n"
+    "\n"
+    "Print information about the mesh\n";
+
+  const static char* const warnings_usage =
+    "Usage: meshhexer-cli warnings [<args>] <mesh>\n"
+    "\n"
+    "Print warnings about the mesh. Warns about self-intersections,\n"
+    "degenerate triangles, and anisotropic triangles.\n"
+    "\n"
+    "Options:\n"
+    "\t--summarize\n"
+    "\t\tSummarize warnings\n";
+
+  /////////////////////
+  // Parameter structs
+  /////////////////////
 
   struct GlobalParameters
   {
@@ -99,8 +155,59 @@ namespace MeshHexerCLI
 
     /// Checkpoint file location. Checkpoint file is written if path is not empty.
     std::filesystem::path checkpoint_path;
+
+    /// Command to run
+    std::string command;
   };
 
+  struct MinGapParameters
+  {
+    /// If true, show help text and end program
+    bool show_help = false;
+
+    /// If true, output involved faces, score, and paraview script along with min-gap
+    bool verbose = false;
+
+    /// Mesh file to calculate mingap of
+    std::filesystem::path mesh_file;
+  };
+
+  struct FbmMeshParameters
+  {
+    /// If true, show help text and end program
+    bool show_help = false;
+
+    /// Number of levels of intended multigrid-hierarchy
+    std::size_t levels = 0;
+
+    /// Mesh file to create base mesh for
+    std::filesystem::path mesh_file;
+  };
+
+  struct ReportParameters
+  {
+    /// If true, show help text and end program
+    bool show_help = false;
+
+    /// Mesh file path
+    std::filesystem::path mesh_file;
+  };
+
+  struct WarningsParameters
+  {
+    /// If true, show help text and end program
+    bool show_help = false;
+
+    /// Summarize warnings
+    bool summarize = false;
+
+    /// Mesh file path
+    std::filesystem::path mesh_file;
+  };
+
+  ////////////////
+  // Arg parsing
+  ////////////////
 
   static bool cmp_argument(const char* parameter, char* arg)
   {
@@ -108,6 +215,14 @@ namespace MeshHexerCLI
     return std::strncmp(parameter, arg, n) == 0;
   }
 
+  /// Decrement argc and move argv to next argument
+  static void consume_arg(int& argc, char*** argv)
+  {
+    argc--;
+    (*argv)++;
+  }
+
+  /// Extract argument. Consumes args as required.
   static char* parse_argument(const char* parameter, int& argc, char*** argv)
   {
     char* arg = (*argv)[0];
@@ -128,13 +243,9 @@ namespace MeshHexerCLI
         std::exit(1);
       }
 
-      argc--;
-      (*argv)++;
-
+      consume_arg(argc, argv);
       char* result = (*argv)[0];
-
-      argc--;
-      (*argv)++;
+      consume_arg(argc, argv);
 
       return result;
     }
@@ -143,30 +254,20 @@ namespace MeshHexerCLI
       // --param=arg case
 
       // We used up one argument
-      argc--;
-      (*argv)++;
+      consume_arg(argc, argv);
 
       return (arg + 1);
     }
   }
 
-  static void handle_flag(bool& b, int& argc, char*** argv)
-  {
-    b = true;
-    argc--;
-    (*argv)++;
-  }
-
   /**
    * \brief Parse global parameters
    */
-  static GlobalParameters parse_args(int& argc, char*** argv)
+  static MeshHexer::Result<GlobalParameters, std::string> parse_global_args(int& argc, char*** argv)
   {
-    GlobalParameters result;
+    using Result = MeshHexer::Result<GlobalParameters, std::string>;
 
-    // Skip first parameter
-    argc--;
-    *argv = &(*argv)[1];
+    GlobalParameters result;
 
     while(argc > 0)
     {
@@ -174,7 +275,8 @@ namespace MeshHexerCLI
 
       if(cmp_argument("--help", cmd) || cmp_argument("-h", cmd))
       {
-        handle_flag(result.show_help, argc, argv);
+        consume_arg(argc, argv);
+        result.show_help = true;
       }
       else if(cmp_argument("--checkpoint-path", cmd))
       {
@@ -188,7 +290,198 @@ namespace MeshHexerCLI
       }
     }
 
-    return result;
+    if(argc > 0)
+    {
+      result.command = (*argv[0]);
+      consume_arg(argc, argv);
+
+      if(
+        result.command != "fbm-mesh" && result.command != "min-gap" && result.command != "report" &&
+        result.command != "warnings")
+      {
+        return Result::err("Invalid command " + result.command);
+      }
+    }
+    else if(!result.show_help)
+    {
+      return Result::err("Expected command!");
+    }
+
+    return Result::ok(result);
+  }
+
+  /**
+   * \brief Parse mingap parameters
+   */
+  static MeshHexer::Result<MinGapParameters, std::string> parse_mingap_args(int& argc, char*** argv)
+  {
+    using Result = MeshHexer::Result<MinGapParameters, std::string>;
+
+    MinGapParameters result;
+
+    while(argc > 0)
+    {
+      char* cmd = (*argv)[0];
+
+      if(cmp_argument("--help", cmd) || cmp_argument("-h", cmd))
+      {
+        consume_arg(argc, argv);
+        result.show_help = true;
+      }
+      else if(cmp_argument("--verbose", cmd))
+      {
+        consume_arg(argc, argv);
+        result.verbose = true;
+      }
+      else
+      {
+        // Unknown argument
+        break;
+      }
+    }
+
+    if(argc > 0)
+    {
+      result.mesh_file = (*argv[0]);
+      consume_arg(argc, argv);
+    }
+    else if(!result.show_help)
+    {
+      return Result::err("Expected mesh file!");
+    }
+
+    return Result::ok(result);
+  }
+
+  /**
+   * \brief Parse fbm parameters
+   */
+  static MeshHexer::Result<FbmMeshParameters, std::string> parse_fbm_args(int& argc, char*** argv)
+  {
+    using Result = MeshHexer::Result<FbmMeshParameters, std::string>;
+
+    FbmMeshParameters result;
+
+    while(argc > 0)
+    {
+      char* cmd = (*argv)[0];
+
+      if(cmp_argument("--help", cmd) || cmp_argument("-h", cmd))
+      {
+        consume_arg(argc, argv);
+        result.show_help = true;
+      }
+      else if(cmp_argument("--level", cmd))
+      {
+        std::string level(parse_argument("--level", argc, argv));
+        try
+        {
+          result.levels = std::stoull(level);
+        }
+        catch(const std::exception& e)
+        {
+          return Result::err(e.what());
+        }
+      }
+      else
+      {
+        // Unknown argument
+        break;
+      }
+    }
+
+    if(argc > 0)
+    {
+      result.mesh_file = (*argv[0]);
+      consume_arg(argc, argv);
+    }
+    else if(!result.show_help)
+    {
+      return Result::err("Expected mesh file!");
+    }
+
+    return Result::ok(result);
+  }
+
+  /**
+   * \brief Parse report parameters
+   */
+  static MeshHexer::Result<ReportParameters, std::string> parse_report_args(int& argc, char*** argv)
+  {
+    using Result = MeshHexer::Result<ReportParameters, std::string>;
+
+    ReportParameters result;
+
+    while(argc > 0)
+    {
+      char* cmd = (*argv)[0];
+
+      if(cmp_argument("--help", cmd) || cmp_argument("-h", cmd))
+      {
+        consume_arg(argc, argv);
+        result.show_help = true;
+      }
+      else
+      {
+        // Unknown argument
+        break;
+      }
+    }
+
+    if(argc > 0)
+    {
+      result.mesh_file = (*argv[0]);
+      consume_arg(argc, argv);
+    }
+    else if(!result.show_help)
+    {
+      return Result::err("Expected mesh file!");
+    }
+
+    return Result::ok(result);
+  }
+
+  /**
+   * \brief Parse report parameters
+   */
+  static MeshHexer::Result<WarningsParameters, std::string> parse_warnings_args(int& argc, char*** argv)
+  {
+    using Result = MeshHexer::Result<WarningsParameters, std::string>;
+
+    WarningsParameters result;
+
+    while(argc > 0)
+    {
+      char* cmd = (*argv)[0];
+
+      if(cmp_argument("--help", cmd) || cmp_argument("-h", cmd))
+      {
+        consume_arg(argc, argv);
+        result.show_help = true;
+      }
+      if(cmp_argument("--summarize", cmd))
+      {
+        consume_arg(argc, argv);
+        result.summarize = true;
+      }
+      else
+      {
+        // Unknown argument
+        break;
+      }
+    }
+
+    if(argc > 0)
+    {
+      result.mesh_file = (*argv[0]);
+      consume_arg(argc, argv);
+    }
+    else if(!result.show_help)
+    {
+      return Result::err("Expected mesh file!");
+    }
+
+    return Result::ok(result);
   }
 
   int main(int argc, char* argv[])
@@ -196,68 +489,52 @@ namespace MeshHexerCLI
     int orig_argc = argc;
     char** orig_argv = argv;
 
-    GlobalParameters params = parse_args(argc, &argv);
+    // Skip binary name
+    consume_arg(argc, &argv);
 
-    if(params.show_help)
+    MeshHexer::Result<GlobalParameters, std::string> global_parse_result = parse_global_args(argc, &argv);
+
+    if(global_parse_result.is_err())
+    {
+      std::cerr << "Parameter parsing failed with: " << global_parse_result.err_ref() << "\n";
+      exit(1);
+    }
+
+    GlobalParameters gparams = global_parse_result.ok_value();
+
+    if(gparams.show_help)
     {
       std::cout << usage;
       return 0;
     }
 
-    // Handle positional arguments
-    std::string command;
-    if(argc > 0)
+    if(gparams.command == "fbm-mesh")
     {
-      command = argv[0];
-      if(command != "fbm-mesh" && command != "min-gap" && command != "report" && command != "warnings")
+      MeshHexer::Result<FbmMeshParameters, std::string> parse_result = parse_fbm_args(argc, &argv);
+
+      if(parse_result.is_err())
       {
-        std::cerr << "Unknown command " << command << "\n\n";
-        std::cerr << usage;
+        std::cerr << "Parameter parsing for command 'fbm-mesh' failed with: " << parse_result.err_ref() << "\n";
         exit(1);
       }
-      argc--;
-      argv++;
-    }
-    else
-    {
-      std::cerr << "Expected <command> argument\n\n";
-      std::cerr << usage;
-      exit(1);
-    }
 
-    std::string filename;
-    if(argc > 0)
-    {
-      filename = argv[0];
-      argc--;
-      argv++;
-    }
-    else
-    {
-      std::cerr << "Expected <mesh> argument\n\n";
-      std::cerr << usage;
-      exit(1);
-    }
+      FbmMeshParameters params = parse_result.ok_value();
 
-    MeshHexer::Result<MeshHexer::SurfaceMesh, std::string> result = MeshHexer::load_from_file(filename, true);
-    if(result.is_err())
-    {
-      std::cout << "Reading mesh failed with error: " << result.err_ref() << "\n";
-      exit(1);
-    }
-    MeshHexer::SurfaceMesh mesh = std::move(result).take_ok();
-
-    if(command == "fbm-mesh")
-    {
-      std::uint64_t levels = 0;
-      if(argc > 1)
+      if(params.show_help)
       {
-        if(strcmp(argv[0], "--levels") == 0)
-        {
-          levels = std::strtoull(argv[1], nullptr, 10);
-        }
+        std::cout << fbm_usage;
+        exit(0);
       }
-      MeshHexer::VolumeMesh vmesh = mesh.fbm_mesh(levels);
+
+      MeshHexer::Result<MeshHexer::SurfaceMesh, std::string> result = MeshHexer::load_from_file(params.mesh_file, true);
+      if(result.is_err())
+      {
+        std::cout << "Reading mesh failed with error: " << result.err_ref() << "\n";
+        exit(1);
+      }
+
+      MeshHexer::SurfaceMesh mesh = std::move(result).take_ok();
+      MeshHexer::VolumeMesh vmesh = mesh.fbm_mesh(params.levels);
 
       std::ofstream mesh_file("fbm_mesh.xml");
 
@@ -286,14 +563,39 @@ namespace MeshHexerCLI
       write_range_as_mtx(mtx_file, sdls.begin(), sdls.end());
     }
 
-    if(command == "min-gap")
+    if(gparams.command == "min-gap")
     {
-      MeshHexer::Gap min_gap = mesh.min_gap();
-      print_min_gap(min_gap);
+      MeshHexer::Result<MinGapParameters, std::string> parse_result = parse_mingap_args(argc, &argv);
 
-      if(!params.checkpoint_path.empty())
+      if(parse_result.is_err())
       {
-        MeshHexer::Result<void, std::string> result = mesh.write_to_file(params.checkpoint_path);
+        std::cerr << "Parameter parsing for command 'min-gap' failed with: " << parse_result.err_ref() << "\n";
+        exit(1);
+      }
+
+      MinGapParameters params = parse_result.ok_value();
+
+      if(params.show_help)
+      {
+        std::cout << mingap_usage;
+        exit(0);
+      }
+
+      MeshHexer::Result<MeshHexer::SurfaceMesh, std::string> result = MeshHexer::load_from_file(params.mesh_file, true);
+      if(result.is_err())
+      {
+        std::cout << "Reading mesh failed with error: " << result.err_ref() << "\n";
+        exit(1);
+      }
+
+      MeshHexer::SurfaceMesh mesh = std::move(result).take_ok();
+
+      MeshHexer::Gap min_gap = mesh.min_gap();
+      print_min_gap(min_gap, params.verbose);
+
+      if(!gparams.checkpoint_path.empty())
+      {
+        MeshHexer::Result<void, std::string> result = mesh.write_to_file(gparams.checkpoint_path);
 
         if(result.is_err())
         {
@@ -302,9 +604,34 @@ namespace MeshHexerCLI
       }
     }
 
-    if(command == "report")
+    if(gparams.command == "report")
     {
-      std::filesystem::path absolute_path = std::filesystem::canonical(filename);
+      MeshHexer::Result<ReportParameters, std::string> parse_result = parse_report_args(argc, &argv);
+
+      if(parse_result.is_err())
+      {
+        std::cerr << "Parameter parsing for command 'report' failed with: " << parse_result.err_ref() << "\n";
+        exit(1);
+      }
+
+      ReportParameters params = parse_result.ok_value();
+
+      if(params.show_help)
+      {
+        std::cout << report_usage;
+        exit(0);
+      }
+
+      MeshHexer::Result<MeshHexer::SurfaceMesh, std::string> result = MeshHexer::load_from_file(params.mesh_file, true);
+      if(result.is_err())
+      {
+        std::cout << "Reading mesh failed with error: " << result.err_ref() << "\n";
+        exit(1);
+      }
+
+      MeshHexer::SurfaceMesh mesh = std::move(result).take_ok();
+
+      std::filesystem::path absolute_path = std::filesystem::canonical(params.mesh_file);
 
       MeshHexer::MeshWarnings warnings = mesh.warnings();
 
@@ -356,20 +683,35 @@ namespace MeshHexerCLI
       std::cout << "\n";
     }
 
-    if(command == "warnings")
+    if(gparams.command == "warnings")
     {
-      MeshHexer::MeshWarnings warnings = mesh.warnings();
+      MeshHexer::Result<WarningsParameters, std::string> parse_result = parse_warnings_args(argc, &argv);
 
-      bool summarize = false;
-      if(argc > 0)
+      if(parse_result.is_err())
       {
-        if(strcmp(argv[0], "--summarize") == 0)
-        {
-          summarize = true;
-        }
+        std::cerr << "Parameter parsing for command 'warnings' failed with: " << parse_result.err_ref() << "\n";
+        exit(1);
       }
 
-      if(summarize)
+      WarningsParameters params = parse_result.ok_value();
+
+      if(params.show_help)
+      {
+        std::cout << warnings_usage;
+        exit(0);
+      }
+
+      MeshHexer::Result<MeshHexer::SurfaceMesh, std::string> result = MeshHexer::load_from_file(params.mesh_file, true);
+      if(result.is_err())
+      {
+        std::cout << "Reading mesh failed with error: " << result.err_ref() << "\n";
+        exit(1);
+      }
+
+      MeshHexer::SurfaceMesh mesh = std::move(result).take_ok();
+      MeshHexer::MeshWarnings warnings = mesh.warnings();
+
+      if(params.summarize)
       {
         std::cout << std::to_string(warnings.self_intersections.size()) << " x Self-intersection of mesh ["
                   << MeshHexer::SelfIntersectionWarning::name << "]\n";
@@ -384,7 +726,7 @@ namespace MeshHexerCLI
         }
       }
 
-      if(summarize)
+      if(params.summarize)
       {
         std::cout << std::to_string(warnings.degenerate_triangles.size()) << " x Triangle with colinear coordinates ["
                   << MeshHexer::DegenerateTriangleWarning::name << "]\n";
@@ -398,7 +740,7 @@ namespace MeshHexerCLI
         }
       }
 
-      if(summarize)
+      if(params.summarize)
       {
         std::cout << std::to_string(warnings.anisotropic_triangles.size())
                   << " x Triangle with aspect ratio greater than 15 [" << MeshHexer::DegenerateTriangleWarning::name
