@@ -76,9 +76,9 @@ Then run `ctest` to run the test suite.
 ## Using MeshHexer
 
 MeshHexer installs itself as a proper CMake package. After installation it can be found via a ``find_package(MeshHexer)`` call, if it has been installed to the usual system directories or some path in the ``CMAKE_PREFIX_PATH``. 
-After the ``find_package`` call you can link against the ``HexMesher::HexMesher`` CMake target.
+After the ``find_package`` call you can link against the ``MeshHexer::MeshHexer`` CMake target.
 
-If you have included MeshHexer as part of your build tree, for example by vendoring the library or via CMake's FetchContent mechanism, the ``HexMesher::HexMesher`` target will be available as well.
+If you have included MeshHexer as part of your build tree, for example by vendoring the library or via CMake's FetchContent mechanism, the ``MeshHexer::MeshHexer`` target will be available as well.
 
 Build the documentation or see ``src/meshhexer.hpp`` for documentation on the public API.
 
