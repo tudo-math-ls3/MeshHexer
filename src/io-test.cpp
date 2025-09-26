@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include <meshhexer.hpp>
+#include <meshhexer/meshhexer.hpp>
 #include <io.hpp>
-#include <types.hpp>
+#include <meshhexer/types.hpp>
 
 #include <CGAL/Polygon_mesh_processing/IO/polygon_mesh_io.h>
 

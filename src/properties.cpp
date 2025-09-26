@@ -2,7 +2,7 @@
 #include <limits>
 #include <macros.hpp>
 #include <properties.hpp>
-#include <types.hpp>
+#include <meshhexer/types.hpp>
 
 #include <queue>
 
@@ -713,7 +713,7 @@ namespace MeshHexer
     Mesh::Property_map<FaceIndex, std::uint32_t> ids =
       mesh.property_map<FaceIndex, std::uint32_t>("f:MIS_id").value();
 
-    Mesh::Property_map<FaceIndex, double> gaps = 
+    Mesh::Property_map<FaceIndex, double> gaps =
       mesh.property_map<FaceIndex, double>("f:MIS_diameter").value();
 
     for(const FaceIndex f : mesh.faces())

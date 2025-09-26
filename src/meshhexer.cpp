@@ -1,10 +1,10 @@
-#include <meshhexer.hpp>
+#include <meshhexer/meshhexer.hpp>
 
 #include <cgal_types.hpp>
 #include <macros.hpp>
 #include <meshing.hpp>
 #include <properties.hpp>
-#include <types.hpp>
+#include <meshhexer/types.hpp>
 #include <warnings.hpp>
 
 #include <algorithm>
@@ -258,7 +258,7 @@ namespace MeshHexer
   SurfaceMesh::SurfaceMesh(std::unique_ptr<SurfaceMesh::SurfaceMeshImpl> ptr) : impl(std::move(ptr))
   {
   }
-  
+
   SurfaceMesh::SurfaceMesh(SurfaceMesh&&) noexcept = default;
   SurfaceMesh& SurfaceMesh::operator=(SurfaceMesh&&) noexcept = default;
   SurfaceMesh::~SurfaceMesh() = default;

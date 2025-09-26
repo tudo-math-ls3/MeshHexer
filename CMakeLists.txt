@@ -114,6 +114,8 @@ if(MESHHEXER_BUILD_APPLICATIONS)
   add_subdirectory(applications)
 endif()
 
+add_subdirectory("include")
+
 ##############
 # Config file
 ##############
@@ -147,20 +149,21 @@ if(MESHHEXER_INSTALL)
   install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/meshhexer-config-version.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/meshhexer-config.cmake
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/meshhexer
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/meshhexer
   )
 
   # Add target to export
   install(
     TARGETS MeshHexer meshhexer-settings
     EXPORT meshhexerTargets
-    FILE_SET public_headers
+    # DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/meshhexer
+    FILE_SET public_headers DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   )
 
   # Generate meshhexerTargets.cmake
   install(
     EXPORT meshhexerTargets
     NAMESPACE MeshHexer::
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/meshhexer
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/meshhexer
   )
 endif()

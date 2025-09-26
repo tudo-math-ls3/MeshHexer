@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 
-#include <meshhexer.hpp>
+#include <meshhexer/meshhexer.hpp>
 #include <string_view>
 
 namespace MeshHexerCLI::Markdown

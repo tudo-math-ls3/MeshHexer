@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cgal_types.hpp>
-#include <types.hpp>
+#include <meshhexer/types.hpp>
 
 namespace MeshHexer
 {

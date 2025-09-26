@@ -1,6 +1,6 @@
 #pragma once
 
-#include <types.hpp>
+#include <meshhexer/types.hpp>
 
 #include <memory>
 #include <optional>
@@ -206,6 +206,16 @@ namespace MeshHexer
     {
       return std::get<1>(std::move(content));
     };
+
+    /**
+     * \brief Operator bool overload
+     *
+     * \returns True if parsing was succesful
+     */
+    explicit operator bool() const
+    {
+      return is_ok();
+    }
   };
 
   /**
@@ -327,6 +337,16 @@ namespace MeshHexer
     {
       return std::move(error).value();
     };
+
+    /**
+     * \brief Operator bool overload
+     *
+     * \returns True if parsing was succesful
+     */
+    explicit operator bool() const
+    {
+      return is_ok();
+    }
   };
 
   /**
@@ -367,6 +387,9 @@ namespace MeshHexer
 
     /// Copy-assign operator
     SurfaceMesh& operator=(const SurfaceMesh&) = delete;
+
+    /// standard ctor
+    SurfaceMesh() = default;
 
 
     /**

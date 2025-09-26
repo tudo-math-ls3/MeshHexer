@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cgal_types.hpp>
-#include <types.hpp>
+#include <meshhexer/types.hpp>
 
 #include <CGAL/Polygon_mesh_processing/measure.h>
 #include <CGAL/Polygon_mesh_processing/self_intersections.h>

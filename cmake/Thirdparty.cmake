@@ -48,16 +48,6 @@ if(NOT CGAL_FOUND)
   set(CGAL_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/cgal-build)
 endif()
 
-get_tpl(
-  PACKAGE_NAME pmp
-  VERSION 3.0.0
-  URL https://github.com/pmp-library/pmp-library/archive/refs/tags/3.0.0.zip
-  URL_HASH MD5=7b7f9ce07a7a687c9d78a6583cf64a2c
-  SOURCE_SUBDIR Non-Existing # Use non-existing source dir to disable add_subdirectory call of MakeAvailable
-  CONFIG
-  PUBLIC
-)
-
 if(MESHHEXER_TESTING)
   get_tpl(
     PACKAGE_NAME Catch2
