@@ -31,26 +31,13 @@ var NAVTREE =
     [ "Documentation", "index.html#autotoc_md4", null ],
     [ "Tests", "index.html#autotoc_md5", null ],
     [ "Using MeshHexer", "index.html#autotoc_md6", null ],
-    [ "meshhexer-cli", "index.html#autotoc_md7", null ],
-    [ "Classes", "annotated.html", [
-      [ "Class List", "annotated.html", "annotated_dup" ],
-      [ "Class Index", "classes.html", null ],
-      [ "Class Members", "functions.html", [
-        [ "All", "functions.html", null ],
-        [ "Functions", "functions_func.html", null ],
-        [ "Variables", "functions_vars.html", null ],
-        [ "Typedefs", "functions_type.html", null ]
-      ] ]
-    ] ],
-    [ "Files", "files.html", [
-      [ "File List", "files.html", "files_dup" ]
-    ] ]
+    [ "meshhexer-cli", "index.html#autotoc_md7", null ]
   ] ]
 ];
 
 var NAVTREEINDEX =
 [
-"annotated.html"
+"index.html"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';
