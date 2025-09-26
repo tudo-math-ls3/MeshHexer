@@ -23,30 +23,39 @@
 # - PATCH_COMMAND_LINUX, patch command to run for linux builds
 # - CONFIG, if set dependencies will be searched for in config mode
 # - EXCLUDE_FROM_ALL, if set targets defined by the TPL will not be added to the all target
+# - PUBLIC, if set indicates that the dependency appears in the public link requirements of an exported target
+# - PRIVATE, if set indicates that the dependency does not appear in the public link requirements of an exported target
 #
 # Behavior
 #
 # get_tpl can either use libraries installed on the system or download dependencies itself, if required.
 #
 # If MESHHEXER_PREFER_EXTERNAL_TPL is true or <name>_DIR is defined
-# feat_define_tpl first tries to find the requested TPL using find_package.
+# get_tpl first tries to find the requested TPL using find_package.
 # Parameters <name> and <version> are forwarded to the find_package call
 #
 # If no find_package call is to be done or the find_package call failed,
-# feat_define_tpl will declare the dependency using FetchContent_declare.
+# get_tpl will declare the dependency using FetchContent_declare.
 #
-# If a system library was found feat_define_tpl will set <name>_FOUND in the parent scope.
-# If a dependency was declared using FetchContent_declare feat_define_tpl will add it to
+# If a system library was found get_tpl will set <name>_FOUND in the parent scope.
+# If a dependency was declared using FetchContent_declare get_tpl will add it to
 # a list called MAKE_AVAIL_LIST and update that list in the parent scope.
+# If a public dependency was declared using FetchContent_declare get_tpl will also
+# add it to the FETCHED_PUBLIC_DEPENDENCIES list and update that list in the parent scope
 function(get_tpl)
 
   cmake_parse_arguments(
     PARSE_ARGV 0
     TPL
-    "CONFIG;EXLUDE_FROM_ALL" # Options
+    "CONFIG;EXLUDE_FROM_ALL;PUBLIC;PRIVATE" # Options
     "PACKAGE_NAME;VERSION;URL;URL_HASH;SOURCE_SUBDIR" # Single value keywords
     "PATCH_COMMAND_WINDOWS;PATCH_COMMAND_LINUX" # Multi value keywords
   )
+
+  if(TPL_PUBLIC AND TPL_PRIVATE)
+    message(FATAL_ERROR "TPL ${TPL_PACKAGE_NAME} can not be both a private and public dependency")
+  endif()
+
   message(STATUS "------------------------------------------------------")
   message(STATUS "- Getting TPL: ${TPL_PACKAGE_NAME} (Version: ${TPL_VERSION})")
   message(STATUS "------------------------------------------------------")
@@ -69,6 +78,9 @@ function(get_tpl)
   if(${TPL_PACKAGE_NAME}_FOUND)
     print_package_info(${TPL_PACKAGE_NAME})
   else()
+    if(TPL_PUBLIC)
+      list(APPEND FETCHED_PUBLIC_DEPENDENCIES ${TPL_PACKAGE_NAME})
+    endif()
 
     # NOTE(mmuegge): Implementing caching logic ourselves, because its simpler.
     # In CMake versions <= 3.29 ExternalProject_Add (which is internally used by the FetchContent module)
@@ -137,5 +149,5 @@ function(get_tpl)
     find_package_override_helper(${TPL_PACKAGE_NAME} ${TPL_VERSION} AnyNewerVersion)
   endif()
 
-  return(PROPAGATE ${TPL_PACKAGE_NAME}_FOUND MAKE_AVAIL_LIST)
+  return(PROPAGATE ${TPL_PACKAGE_NAME}_FOUND MAKE_AVAIL_LIST FETCHED_PUBLIC_DEPENDENCIES)
 endfunction()

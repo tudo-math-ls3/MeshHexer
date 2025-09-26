@@ -25,16 +25,22 @@ project(
   LANGUAGES CXX
 )
 
-if(MESHHEXER_TESTING)
-  enable_testing()
-endif()
-
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
-
 
 # Setup thirdparty dependencies.
 # Ensures targets Boost::boost and CGAL::CGAL are available to link against
 include(Thirdparty)
+
+if(FETCHED_PUBLIC_DEPENDENCIES)
+  if(MESHHEXER_INSTALL)
+    message(WARNING "Public dependencies ${FETCHED_PUBLIC_DEPENDENCIES} were automatically downloaded. Installation of MeshHexer is disabled because installation of dependencies is not supported!")
+  endif()
+  set(MESHHEXER_INSTALL OFF CACHE BOOL "should installation of MeshHexer be set up?" FORCE)
+endif()
+
+if(MESHHEXER_TESTING)
+  enable_testing()
+endif()
 
 ###################
 # Compiler options

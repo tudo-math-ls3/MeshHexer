@@ -7,12 +7,16 @@ include(GetTPL)
 set(MAKE_AVAIL_LIST)
 mark_as_advanced(MAKE_AVAIL_LIST)
 
+set(FETCHED_PUBLIC_DEPENDENCIES)
+mark_as_advanced(FETCHED_PUBLIC_DEPENDENCIES)
+
 get_tpl(
   PACKAGE_NAME Eigen3
   VERSION 3.4.0
   URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
   URL_HASH MD5=4c527a9171d71a72a9d4186e65bea559
   CONFIG
+  PUBLIC
 )
 
 get_tpl(
@@ -20,6 +24,7 @@ get_tpl(
   VERSION 1.81
   URL https://github.com/boostorg/boost/releases/download/boost-1.88.0/boost-1.88.0-cmake.zip
   URL_HASH MD5=419f6a9273cb90d4f3f65ca0ae02cd00
+  PUBLIC
 )
 
 if(NOT Boost_FOUND)
@@ -35,6 +40,7 @@ get_tpl(
   URL https://github.com/CGAL/cgal/releases/download/v6.0.1/CGAL-6.0.1.tar.xz
   URL_HASH MD5=944c789615bff14a56d78b398ec2cc49
   SOURCE_SUBDIR Non-Existing
+  PUBLIC
 )
 
 if(NOT CGAL_FOUND)
@@ -49,6 +55,7 @@ get_tpl(
   URL_HASH MD5=7b7f9ce07a7a687c9d78a6583cf64a2c
   SOURCE_SUBDIR Non-Existing # Use non-existing source dir to disable add_subdirectory call of MakeAvailable
   CONFIG
+  PUBLIC
 )
 
 if(MESHHEXER_TESTING)
@@ -58,6 +65,7 @@ if(MESHHEXER_TESTING)
     URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.8.1.zip
     URL_HASH MD5=78dc279759d847f79a6ecd0735e75c58
     CONFIG
+    PRIVATE
   )
 
 endif()
