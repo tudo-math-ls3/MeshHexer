@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdint>
 #include <iostream>
+#include <optional>
+#include <variant>
 #include <vector>
 
 namespace MeshHexer
@@ -489,5 +491,326 @@ namespace MeshHexer
 
     /// Collection of anisotropic-triangle warnings
     std::vector<AnisotropicTriangleWarning> anisotropic_triangles;
+  };
+
+  /**
+   * \brief Tagged union for error-handling. Contains either a success value of type T or an error value of type E
+   */
+  template<typename T, typename E>
+  class Result
+  {
+    /**
+     * \brief Type-tag for constructing a success-result.
+     */
+    struct TagOK
+    {
+    };
+
+    /**
+     * \brief Type-tag for constructing an error-result.
+     */
+    struct TagErr
+    {
+    };
+
+    /// Result content
+    std::variant<T, E> content;
+
+
+    /// Ccopy constructor for success-results
+    Result(TagOK /*tag*/, const T& value) : content(std::in_place_index<0>, value)
+    {
+    }
+
+    /// Move constructor for success-results
+    Result(TagOK /*tag*/, T&& value) : content(std::in_place_index<0>, std::move(value))
+    {
+    }
+
+    /// Copy constructor for error-results
+    Result(TagErr /*tag*/, const E& value) : content(std::in_place_index<1>, value)
+    {
+    }
+
+    /// Move constructor for error-results
+    Result(TagErr /*tag*/, E&& value) :
+      content(std::in_place_index<1>, std::move(value))
+    {
+    }
+
+  public:
+
+    // Rule of five
+    Result() = delete;
+
+    /// Deleted copy constructor
+    Result(const Result&) = delete;
+
+    /// Deleted copy assignment
+    Result& operator=(const Result&) = delete;
+
+    /// Move constructor
+    Result(Result&&) = default;
+
+    /// Move-assignment
+    Result& operator=(Result&&) = default;
+
+    /// Destructor
+    ~Result() = default;
+
+    // Static factory methods
+
+    /**
+     * \brief Create a success-result from the given value
+     *
+     * \param[in] value Value of success
+     */
+    static Result ok(const T& value)
+    {
+      return Result(TagOK{}, value);
+    }
+
+    /**
+     * \brief Create a success-result from the given value
+     *
+     * \param[in] value Value of success
+     */
+    static Result ok(T&& value)
+    {
+      return Result(TagOK{}, std::move(value));
+    }
+
+    /**
+     * \brief Create a error-result from the given value
+     *
+     * \param[in] value Value of error
+     */
+    static Result err(const E& value)
+    {
+      return Result(TagErr{}, value);
+    }
+
+    /**
+     * \brief Create a error-result from the given value
+     *
+     * \param[in] value Value of error
+     */
+    static Result err(E&& value)
+    {
+      return Result(TagErr{}, std::move(value));
+    }
+
+    /// Returns true if this is a success-result
+    bool is_ok() const
+    {
+      return content.index() == 0;
+    }
+
+    /// Returns true if this is an error-result
+    bool is_err() const
+    {
+      return content.index() == 1;
+    }
+
+    /**
+     * \brief Success value accessor
+     *
+     * \returns A copy of the stored value. Errors if this is not a success-result.
+     */
+    T ok_value() const
+    {
+      return std::get<0>(content);
+    }
+
+    /**
+     * \brief Error value accessor
+     *
+     * \returns A copy of the stored value. Errors if this is not an error-result.
+     */
+    E err_value() const
+    {
+      return std::get<1>(content);
+    }
+
+    /**
+     * \brief Success reference accessor
+     *
+     * \returns A reference to the stored value. Errors if this is not a success-result.
+     */
+    T& ok_ref()
+    {
+      return std::get<0>(content);
+    }
+
+    /**
+     * \brief Error reference accessor
+     *
+     * \returns A reference to the stored value. Errors if this is not an error-result.
+     */
+    E& err_ref()
+    {
+      return std::get<1>(content);
+    }
+
+    /**
+     * \brief Success reference accessor
+     *
+     * \returns A reference to the stored value. Errors if this is not a success-result.
+     */
+    const T& ok_ref() const
+    {
+      return std::get<0>(content);
+    }
+
+    /**
+     * \brief Error reference accessor
+     *
+     * \returns A reference to the stored value. Errors if this is not an error-result.
+     */
+    const E& err_ref() const
+    {
+      return std::get<1>(content);
+    }
+
+    /**
+     * \brief Success move accessor
+     *
+     * \returns A rvalue-reference to the stored value. Errors if this is not a success-result.
+     */
+    T&& take_ok() &&
+    {
+      return std::get<0>(std::move(content));
+    };
+
+    /**
+     * \brief Error move accessor
+     *
+     * \returns A rvalue-reference to the stored value. Errors if this is not an error-result.
+     */
+    E&& take_err() &&
+    {
+      return std::get<1>(std::move(content));
+    };
+  };
+
+  /**
+   * \brief Tagged union for error-handling. Contains either a success value of type T or an error value of type E
+   *
+   * This is a specialization for results containing either nothing or an error.
+   */
+  template<typename E>
+  class Result<void, E>
+  {
+    /// Optional error value
+    std::optional<E> error;
+
+  public:
+    // Rule of five
+    Result() : error(std::nullopt)
+    {
+    }
+
+    /// Constructor
+    explicit Result(const E& value) : error(value)
+    {
+    }
+
+    /// Constructor
+    explicit Result(E&& value) : error(std::move(value))
+    {
+    }
+
+    /// Copy constructor
+    Result(const Result&) = delete;
+
+    /// Copy-assignment
+    Result& operator=(const Result&) = delete;
+
+    /// Move-constructor
+    Result(Result&&) = default;
+
+    /// Move-assignment
+    Result& operator=(Result&&) = default;
+
+    /// Destructor
+    ~Result() = default;
+
+    // Static factory methods
+
+    /**
+     * \brief Create a success-result
+     */
+    static Result ok()
+    {
+      return Result();
+    }
+
+    /**
+     * \brief Create an error-result from the given value
+     */
+    static Result err(const E& value)
+    {
+      return Result(value);
+    }
+
+    /**
+     * \brief Create an error-result by moving the given value
+     */
+    static Result err(E&& value)
+    {
+      return Result(std::move(value));
+    }
+
+    /// Returns true if this is a success-result
+    bool is_ok() const
+    {
+      return !error.has_value();
+    }
+
+    /// Returns true if this is an error-result
+    bool is_err() const
+    {
+      return error.has_value();
+    }
+
+    /**
+     * \brief Error value accessor
+     *
+     * \returns A copy of the stored value. Errors if this is not an error-result.
+     */
+    E err_value() const
+    {
+      return error.value();
+    }
+
+    /**
+     * \brief Error reference accessor
+     *
+     * \returns A reference to the stored value. Errors if this is not an error-result.
+     */
+    E& err_ref()
+    {
+      return error.value();
+    }
+
+    /**
+     * \brief Error reference accessor
+     *
+     * \returns A reference to the stored value. Errors if this is not an error-result.
+     */
+    const E& err_ref() const
+    {
+      return error.value();
+    }
+
+    /**
+     * \brief Error move accessor
+     *
+     * \returns A rvalue-reference to the stored value. Errors if this is not an error-result.
+     */
+    E&& take_err() &&
+    {
+      return std::move(error).value();
+    };
   };
 } // namespace MeshHexer

@@ -78,7 +78,7 @@ namespace MeshHexerCLI
     "\t-h, --help\n"
     "\t\tProduce this help text\n"
     "\t--checkpoint-path\n"
-    "\t\tWrite checkpoint file with intermediary values. File extension must be.ply\n"
+    "\t\tWrite checkpoint file with intermediary values. File extension must be .ply or .vtu\n"
     "\n"
     "Commands:\n"
     "\tfbm-mesh\n"

@@ -1,6 +1,7 @@
 #include <meshhexer/meshhexer.hpp>
 
 #include <cgal_types.hpp>
+#include <io.hpp>
 #include <macros.hpp>
 #include <meshing.hpp>
 #include <properties.hpp>
@@ -8,6 +9,7 @@
 #include <warnings.hpp>
 
 #include <algorithm>
+#include <fstream>
 #include <iostream>
 #include <optional>
 #include <unistd.h>
@@ -167,9 +169,9 @@ namespace MeshHexer
   {
     using ResultType = Result<void, std::string>;
 
-    if(!ends_with(filename, ".ply"))
+    if(!ends_with(filename, ".ply") && !ends_with(filename, ".vtu"))
     {
-      return ResultType::err("Can only write .ply files");
+      return ResultType::err("Can only write .ply or .vtu files");
     }
 
     std::ofstream output(filename);
@@ -179,12 +181,22 @@ namespace MeshHexer
       return ResultType::err("Failed to open file for writing");
     }
 
-    if(!CGAL::IO::write_PLY(output, _mesh))
+    if(ends_with(filename, ".ply") && !CGAL::IO::write_PLY(output, _mesh))
     {
       return ResultType::err("Failed to write mesh to opened file");
     }
 
-    return ResultType();
+    if(ends_with(filename, ".vtu"))
+    {
+      write_vtu(output, _mesh);
+
+      if(output.bad())
+      {
+        return ResultType::err("Failed to write mesh to opened file");
+      }
+    }
+
+    return {};
   }
 
   BoundingBox SurfaceMesh::SurfaceMeshImpl::bounding_box() const
@@ -341,6 +353,16 @@ namespace MeshHexer
       {
         return ResultType::err("Failed to read mesh " + filename);
       }
+    }
+    else if(ends_with(filename, ".vtu"))
+    {
+      std::ifstream mesh_file(filename);
+      Result<Mesh, std::string> read_result = read_vtu(mesh_file);
+      if(read_result.is_err())
+      {
+        return Result<SurfaceMesh, std::string>::err(std::move(read_result).take_err());
+      }
+      mesh = std::move(read_result).take_ok();
     }
     else if(!PMP::IO::read_polygon_mesh(filename, mesh))
     {
