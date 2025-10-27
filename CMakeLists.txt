@@ -105,6 +105,24 @@ if(MESHHEXER_TESTING)
   add_custom_target(tests)
 endif()
 
+################
+# Documentation
+################
+
+if(MESHHEXER_DOCUMENTATION)
+  find_package(Doxygen)
+  set(DOXYGEN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/doc)
+  set(DOXYGEN_EXTRACT_ALL YES)
+  set(DOXYGEN_USE_MDFILE_AS_MAINPAGE README.md)
+
+  if(MESHHEXER_DOCUMENTATION_INTERNAL)
+    doxygen_add_docs(doc README.md include/meshhexer src)
+  else()
+    doxygen_add_docs(doc README.md include/meshhexer)
+  endif()
+endif()
+
+
 #####################
 # Add subdirectories
 #####################
