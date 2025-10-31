@@ -83,6 +83,25 @@ namespace MeshHexer
   };
 
   /**
+   * \brief Configuration options for creating meshes for use with the finite-boundary-method.
+   */
+  struct FBMMeshSettings
+  {
+    /**
+     * \brief Bounding box for the fbm mesh
+     */
+    BoundingBox bounding_box;
+
+    /**
+     * \brief Number of levels in the intended mesh hierarchy
+     *
+     * The mesh generator uses this number to work out the adaptive refinement required,
+     * such that the finest mesh of the hierarchy hits all local min gaps.
+     */
+    std::uint64_t levels;
+  };
+
+  /**
    * \brief A structured volume mesh
    *
    * Intended to represent non-fitted meshes for the fictitious-boundary-method.
@@ -92,16 +111,18 @@ namespace MeshHexer
   public:
 
     /// Slice iterator type
-    using Iterator = std::vector<Slice>::iterator;
+    using Iterator = std::vector<double>::iterator;
 
     /// Const slice iterator type
-    using ConstIterator = std::vector<Slice>::const_iterator;
+    using ConstIterator = std::vector<double>::const_iterator;
 
   private:
     // Grid points, including start and end points.
-    std::vector<Slice> _xs;
-    std::vector<Slice> _ys;
-    std::vector<Slice> _zs;
+    std::vector<double> _xs;
+    std::vector<double> _ys;
+    std::vector<double> _zs;
+
+    std::vector<std::uint64_t> _subdivision_levels;
 
   public:
     /**
@@ -114,7 +135,8 @@ namespace MeshHexer
     VolumeMesh(std::size_t nx, std::size_t ny, std::size_t nz) :
       _xs(nx),
       _ys(ny),
-      _zs(nz)
+      _zs(nz),
+      _subdivision_levels(nx * ny * nz, 0)
     {
     }
 
@@ -130,17 +152,18 @@ namespace MeshHexer
      * \param[in] z_begin Begin of z-slices
      * \param[in] z_end   End of z-slices
      */
-    template<typename SliceIter>
+    template<typename DoubleIter>
     VolumeMesh(
-      SliceIter x_begin,
-      SliceIter x_end,
-      SliceIter y_begin,
-      SliceIter y_end,
-      SliceIter z_begin,
-      SliceIter z_end) :
+      DoubleIter x_begin,
+      DoubleIter x_end,
+      DoubleIter y_begin,
+      DoubleIter y_end,
+      DoubleIter z_begin,
+      DoubleIter z_end) :
       _xs(x_begin, x_end),
       _ys(y_begin, y_end),
-      _zs(z_begin, z_end)
+      _zs(z_begin, z_end),
+      _subdivision_levels(_xs.size() * _ys.size() * _zs.size(), 0)
     {
     }
 
@@ -219,7 +242,7 @@ namespace MeshHexer
       std::size_t idx_y = idx % (_xs.size() * _ys.size()) / _xs.size();
       std::size_t idx_x = idx % (_xs.size() * _ys.size()) % _xs.size();
 
-      return MeshHexer::Point{_xs[idx_x].coord, _ys[idx_y].coord, _zs[idx_z].coord};
+      return MeshHexer::Point{_xs[idx_x], _ys[idx_y], _zs[idx_z]};
     }
 
     /**
@@ -353,21 +376,21 @@ namespace MeshHexer
      *
      * \returns The recommended refinement level for the given vertex
      */
-    std::uint64_t subdivision_level(std::size_t idx)
+    std::uint64_t& subdivision_level(std::size_t idx)
     {
-      Point vtx = vertex(idx);
+      return _subdivision_levels[idx];
+    }
 
-      std::uint64_t level = 0;
-
-      for(std::size_t slice(0); slice < _zs.size() - 1; slice++)
-      {
-        if(_zs[slice].coord <= vtx.z && vtx.z <= _zs[slice + 1].coord)
-        {
-          level = std::max(_zs[slice].subdivision_level, level);
-        }
-      }
-
-      return level;
+    /**
+     * \brief Refinement steps for additional adaptive refinement
+     *
+     * \param[in] idx Vertex index
+     *
+     * \returns The recommended refinement level for the given vertex
+     */
+    const std::uint64_t& subdivision_level(std::size_t idx) const
+    {
+      return _subdivision_levels[idx];
     }
 
     /**

@@ -172,14 +172,15 @@ namespace MeshHexer
      * \brief Create a non-fitted volume mesh for this surface mesh.
      *
      * \param[in] levels Number of regular refinements in intended multi-grid hierarchy
+     * \param[in] settings Settings for the FBM mesh generator
      *
      * The volume mesh is created such that after the adaptive refinement prescribed
-     * by the volume mesh and after \c levels further global refinement steps,
+     * by the volume mesh and after \c settings.levels further global refinement steps,
      * the final volume mesh roughly hits the local min gap of the surface mesh.
      *
      * Assumes that adaptive refinements are 3-refinements and global refinements are 2-refinements.
      */
-    VolumeMesh fbm_mesh(std::uint64_t levels);
+    VolumeMesh fbm_mesh(const FBMMeshSettings& settings);
 
     /**
      * \brief Create warnings for this surface mesh

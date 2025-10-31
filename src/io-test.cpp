@@ -161,14 +161,14 @@ TEST_CASE("Write FEAT mesh format", "[IO]")
 {
   VolumeMesh vmesh(2, 2, 2);
 
-  vmesh.xs_begin()[0] = Slice(0.0, 0);
-  vmesh.xs_begin()[1] = Slice(1.0, 0);
+  vmesh.xs_begin()[0] = 0.0;
+  vmesh.xs_begin()[1] = 1.0;
 
-  vmesh.ys_begin()[0] = Slice(0.0, 0);
-  vmesh.ys_begin()[1] = Slice(1.0, 0);
+  vmesh.ys_begin()[0] = 0.0;
+  vmesh.ys_begin()[1] = 1.0;
 
-  vmesh.zs_begin()[0] = Slice(0.0, 0);
-  vmesh.zs_begin()[1] = Slice(1.0, 0);
+  vmesh.zs_begin()[0] = 0.0;
+  vmesh.zs_begin()[1] = 1.0;
 
   std::ostringstream output;
 

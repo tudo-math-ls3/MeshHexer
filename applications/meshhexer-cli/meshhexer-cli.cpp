@@ -6,7 +6,7 @@
 #include <string>
 
 #include <meshhexer/meshhexer.hpp>
-#include <string_view>
+#include <meshhexer/types.hpp>
 
 namespace MeshHexerCLI::Markdown
 {
@@ -116,8 +116,8 @@ namespace MeshHexerCLI
     "Usage: meshhexer-cli fbm-mesh [<args>] <mesh>\n"
     "\n"
     "Generate a non-fitting volume mesh from the surface mesh.\n"
-    "The mesh is output as fbm_mesh.xml in FEAT3's mesh file format.\n"
-    "A separate fbm_mesh.mtx file is created with recommended adaptive\n"
+    "The mesh is output in FEAT3's mesh file format."
+    "A separate .mtx file is created with recommended adaptive\n"
     "refinement levels for all vertices.\n"
     "The output mesh is constructed such that all cells are about the same\n"
     "size as their local min-gaps.\n"
@@ -127,7 +127,11 @@ namespace MeshHexerCLI
     "\t\tProduce this help text\n"
     "\t--levels\n"
     "\t\tSet size of multigrid-hierarchy. If passed, the mesh will be constructed\n"
-    "\t\tsuch that the finest level of the hierarchy matches the min-gaps.\n";
+    "\t\tsuch that the finest level of the hierarchy matches the min-gaps.\n"
+    "\t--bounding-box\n"
+    "\t\tSet a custom bounding box for the fbm mesh. If not set the bounding box of the surface mesh is used.\n"
+    "\t--output\n"
+    "\t\tSet filename for output files. Default is fbm_mesh.\n";
 
   const static char* const report_usage =
     "Usage: meshhexer-cli report <mesh>\n"
@@ -182,6 +186,12 @@ namespace MeshHexerCLI
 
     /// Mesh file to create base mesh for
     std::filesystem::path mesh_file;
+
+    /// Filename for output files
+    std::string output = "fbm_mesh";
+
+    /// Custom bounding box
+    std::optional<MeshHexer::BoundingBox> bounding_box;
   };
 
   struct ReportParameters
@@ -256,8 +266,55 @@ namespace MeshHexerCLI
       // We used up one argument
       consume_arg(argc, argv);
 
-      return (arg + 1);
+      return arg + 1;
     }
+  }
+
+  /// Extract arguments. Consumes args as required.
+  static std::vector<char*> parse_arguments(const char* parameter, int& argc, char*** argv, int length)
+  {
+    char* arg = (*argv)[0];
+
+    while((*arg != 0) && *arg != '=')
+    {
+      arg++;
+    }
+
+    if(*arg != 0)
+    {
+      std::cerr << "Error parsing parameter " << parameter << ". <param>=<args> syntax is not supported for parameters expecting multiple arguments\n";
+      std::cerr << usage;
+      std::exit(1);
+    }
+      // --param arg case
+
+    if(argc < length + 1)
+    {
+      std::cerr << "Error parsing parameter " << parameter << ". Not enough arguments given\n";
+      std::cerr << usage;
+      std::exit(1);
+    }
+
+    consume_arg(argc, argv);
+
+    std::vector<char*> result;
+
+    for(int i(0); i < length; i++)
+    {
+      char* next = (*argv)[0];
+
+      if(cmp_argument("--", next))
+      {
+        std::cerr << "Error parsing parameter " << parameter << ". Expected argument but found next parameter " << next << "\n";
+        std::cerr << usage;
+        std::exit(1);
+      }
+
+      result.push_back(next);
+      consume_arg(argc, argv);
+    }
+
+    return result;
   }
 
   /**
@@ -371,12 +428,37 @@ namespace MeshHexerCLI
         consume_arg(argc, argv);
         result.show_help = true;
       }
+      else if(cmp_argument("--output", cmd))
+      {
+        result.output = parse_argument("--output", argc, argv);
+      }
       else if(cmp_argument("--level", cmd))
       {
         std::string level(parse_argument("--level", argc, argv));
         try
         {
           result.levels = std::stoull(level);
+        }
+        catch(const std::exception& e)
+        {
+          return Result::err(e.what());
+        }
+      }
+      else if(cmp_argument("--bounding-box", cmd))
+      {
+        std::vector<char*> bb_args = parse_arguments("--bounding-box", argc, argv, 6);
+
+        try
+        {
+          MeshHexer::BoundingBox bb{};
+          bb.min.x = std::stod(bb_args[0]);
+          bb.min.y = std::stod(bb_args[1]);
+          bb.min.z = std::stod(bb_args[2]);
+          bb.max.x = std::stod(bb_args[3]);
+          bb.max.y = std::stod(bb_args[4]);
+          bb.max.z = std::stod(bb_args[5]);
+
+          result.bounding_box = bb;
         }
         catch(const std::exception& e)
         {
@@ -534,23 +616,29 @@ namespace MeshHexerCLI
       }
 
       MeshHexer::SurfaceMesh mesh = std::move(result).take_ok();
-      MeshHexer::VolumeMesh vmesh = mesh.fbm_mesh(params.levels);
 
-      std::ofstream mesh_file("fbm_mesh.xml");
+      MeshHexer::FBMMeshSettings settings;
+
+      settings.bounding_box = params.bounding_box.value_or(mesh.bounding_box());
+      settings.levels = params.levels;
+
+      MeshHexer::VolumeMesh vmesh = mesh.fbm_mesh(settings);
+
+      std::ofstream mesh_file(params.output + ".xml");
 
       if(mesh_file.fail())
       {
-        std::cerr << "Error opening fbm_mesh.xml for writing\n";
+        std::cerr << "Error opening " << params.output << ".xml for writing\n";
         return 1;
       }
 
       vmesh.write_feat_xml(mesh_file);
 
-      std::ofstream mtx_file("fbm_mesh.mtx");
+      std::ofstream mtx_file(params.output + ".mtx");
 
       if(mtx_file.fail())
       {
-        std::cerr << "Error opening fbm_mesh.mtx for writing\n";
+        std::cerr << "Error opening " << params.output << ".mtx for writing\n";
       }
 
       std::vector<std::uint64_t> sdls;
@@ -561,6 +649,16 @@ namespace MeshHexerCLI
       }
 
       write_range_as_mtx(mtx_file, sdls.begin(), sdls.end());
+
+      if(!gparams.checkpoint_path.empty())
+      {
+        MeshHexer::Result<void, std::string> result = mesh.write_to_file(gparams.checkpoint_path);
+
+        if(result.is_err())
+        {
+          std::cout << "Writing checkpoint failed with error: " << result.err_ref() << "\n";
+        }
+      }
     }
 
     if(gparams.command == "min-gap")

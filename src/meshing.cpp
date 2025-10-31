@@ -1,17 +1,29 @@
-#include "cgal_types.hpp"
-#include <CGAL/enum.h>
+#include <cgal_types.hpp>
+#include <meshhexer/types.hpp>
 #include <meshing.hpp>
 #include <properties.hpp>
 
+#include <cstdint>
 #include <limits>
 
 #include <CGAL/Boolean_set_operations_2.h>
+#include <CGAL/enum.h>
+#include <CGAL/Kernel/global_functions_3.h>
+#include <CGAL/Octree.h>
+#include <CGAL/Polygon_mesh_processing/compute_normal.h>
+#include <CGAL/Polygon_mesh_processing/self_intersections.h>
 #include <CGAL/Polygon_mesh_slicer.h>
 #include <CGAL/Polyline_simplification_2/simplify.h>
+#include <CGAL/property_map.h>
 
 namespace MeshHexer
 {
   namespace PS = CGAL::Polyline_simplification_2;
+
+  using Octree = CGAL::Octree<
+    Kernel,
+    std::vector<std::pair<Point3D, Point3D>>,
+    CGAL::First_of_pair_property_map<std::pair<Point3D, Point3D>>>;
 
   namespace
   {
@@ -22,8 +34,8 @@ namespace MeshHexer
     };
 
     /**
-    * \brief Compute left normal of line segment from a to b. Result has unit length.
-    */
+     * \brief Compute left normal of line segment from a to b. Result has unit length.
+     */
     Vector2D left_normal(const Point2D& a, const Point2D& b)
     {
       Vector2D delta = b - a;
@@ -32,8 +44,8 @@ namespace MeshHexer
     }
 
     /**
-    * \brief Compute right normal of line segment from a to b. Result has unit length.
-    */
+     * \brief Compute right normal of line segment from a to b. Result has unit length.
+     */
     Vector2D right_normal(const Point2D& a, const Point2D& b)
     {
       return -left_normal(a, b);
@@ -50,13 +62,14 @@ namespace MeshHexer
     }
 
     /**
-    * \brief Returns true if all vertices of \c b are contained in \c a.
-    */
+     * \brief Returns true if all vertices of \c b are contained in \c a.
+     */
     bool contains(const Polygon2D& a, const Polygon2D& b)
     {
-      return std::all_of(b.begin(), b.end(), [&a](const Point2D& p) {
-        return a.bounded_side(p) != CGAL::ON_UNBOUNDED_SIDE;
-      });
+      return std::all_of(
+        b.begin(),
+        b.end(),
+        [&a](const Point2D& p) { return a.bounded_side(p) != CGAL::ON_UNBOUNDED_SIDE; });
     }
 
     std::vector<PolygonWithHoles2D> make_polygon(Polylines2D& polylines)
@@ -67,7 +80,7 @@ namespace MeshHexer
       // of the polyline
       std::vector<Polygon2D> polygons;
 
-      for(auto & polyline : polylines)
+      for(auto& polyline : polylines)
       {
         Polygon2D poly(polyline.begin(), polyline.end() - 1);
         if(poly.is_clockwise_oriented())
@@ -205,7 +218,7 @@ namespace MeshHexer
         cross_sections.pop_back();
 
         bool progress = false;
-        do //NOLINT
+        do // NOLINT
         {
           progress = false;
           for(auto it = cross_sections.rbegin(); it != cross_sections.rend();)
@@ -300,109 +313,6 @@ namespace MeshHexer
       }
     }
 
-    template<typename PointType, typename PointIterator>
-    std::vector<PointType> k_means_clustering(PointIterator begin, PointIterator end, std::size_t num_clusters)
-    {
-      if(std::distance(begin, end) < num_clusters)
-      {
-        num_clusters = std::distance(begin, end);
-      }
-
-      std::vector<PointType> cluster_centers(num_clusters);
-      std::vector<std::vector<PointIterator>> clusters(num_clusters);
-
-      const auto distance = [](const PointType& a, const PointType& b) { return (a - b).squared_length(); };
-
-      PointIterator init = begin;
-      for(std::size_t i = 0; i < num_clusters; i++)
-      {
-        cluster_centers[i] = *init++;
-      }
-
-      bool converged = false;
-      while(!converged)
-      {
-        // Reset clusters
-        for(auto& cluster : clusters)
-        {
-          cluster.clear();
-        }
-
-        // Assign each gap to closest cluster
-        PointIterator next_point = begin;
-        while(next_point != end)
-        {
-          std::size_t closest = 0;
-          double closest_distance = std::numeric_limits<double>::max();
-
-          for(std::size_t j(0); j < num_clusters; j++)
-          {
-            double d = distance(*next_point, cluster_centers[j]);
-            if(d < closest_distance)
-            {
-              closest = j;
-              closest_distance = d;
-            }
-          }
-
-          clusters[closest].push_back(next_point);
-          next_point++;
-        }
-
-        // Determine new cluster centers
-        std::vector<PointType> new_centers;
-        for(std::size_t cluster(0); cluster < num_clusters; cluster++)
-        {
-          if(clusters[cluster].size() > 0)
-          {
-            PointType center{CGAL::NULL_VECTOR};
-            for(const auto& datum : clusters[cluster])
-            {
-              center += *datum;
-            }
-            center /= Real(clusters[cluster].size());
-
-            new_centers.push_back(center);
-          }
-          else
-          {
-            new_centers.push_back(*begin);
-          }
-        }
-
-        // Check for convergence
-        converged = true;
-        for(std::size_t cluster(0); cluster < num_clusters; cluster++)
-        {
-          if(distance(cluster_centers[cluster], new_centers[cluster]) > 0.01)
-          {
-            converged = false;
-          }
-        }
-
-        cluster_centers = new_centers;
-      }
-
-      return cluster_centers;
-    }
-
-    enum class Axis : std::uint8_t
-    {
-      X = 0,
-      Y = 1,
-      Z = 2,
-    };
-
-    std::array<Axis, 2> other_axes(Axis axis)
-    {
-      switch(axis)
-      {
-        case Axis::X: return {Axis::Y, Axis::Z};
-        case Axis::Y: return {Axis::X, Axis::Z};
-        default: return {Axis::X, Axis::Y};
-      }
-    }
-
     Point3D face_center(const Mesh& mesh, FaceIndex f)
     {
       Point3D centroid(0.0, 0.0, 0.0);
@@ -412,7 +322,29 @@ namespace MeshHexer
       }
       return centroid;
     }
-  }
+
+    std::size_t last_complete_depth(Octree& octree, Octree::Node_index index)
+    {
+      if(octree.is_leaf(index))
+      {
+        return 0;
+      }
+      else
+      {
+        std::size_t min = last_complete_depth(octree, octree.child(index, 0));
+        for(std::size_t i(1); i < 8; i++)
+        {
+          min = std::min(min, last_complete_depth(octree, octree.child(index, i)));
+        }
+        return 1 + min;
+      }
+    }
+
+    std::size_t last_complete_depth(Octree& octree)
+    {
+      return last_complete_depth(octree, octree.root());
+    }
+  } // namespace
 
   Point2D CuttingPlane::project(const Point3D& point) const
   {
@@ -696,592 +628,185 @@ namespace MeshHexer
     return union_components;
   }
 
-  class VolumeMeshBuilder
+  VolumeMesh fbm_mesh(Mesh& mesh, const FBMMeshSettings& settings)
   {
-  public:
-    using Iterator = std::vector<Slice>::iterator;
-    using ConstIterator = std::vector<Slice>::const_iterator;
+    const BoundingBox& bb = settings.bounding_box;
 
-  private:
-    // Grid points, including start and end points.
-    std::array<std::vector<Slice>, 3> slices_per_axis;
-
-  public:
-    VolumeMeshBuilder() = default;
-
-    void add_slice(Axis axis, double coord)
-    {
-      add_slice(axis, Slice(coord, 0));
-    }
-
-    VolumeMesh build(Mesh& mesh, std::uint64_t levels)
-    {
-      for(int i = 0; i < 6; i++)
-      {
-        fix_aspect_ratios(Axis::X);
-        fix_aspect_ratios(Axis::Y);
-        fix_aspect_ratios(Axis::Z);
-      }
-
-      /*
-      while(slices_per_axis[0].size() > 3 && slices_per_axis[1].size() > 3 && slices_per_axis[2].size() > 3 && num_cells() > target_cells)
-      {
-        coarsen(Axis::X);
-        coarsen(Axis::Y);
-        coarsen(Axis::Z);
-      }
-      */
-
-      choose_subdivision_levels(mesh, levels);
-
-      return {
-        slices_per_axis[0].begin(),
-        slices_per_axis[0].end(),
-        slices_per_axis[1].begin(),
-        slices_per_axis[1].end(),
-        slices_per_axis[2].begin(),
-        slices_per_axis[2].end()};
-    }
-
-  private:
-    void add_slice(Axis axis, Slice slice)
-    {
-      std::vector<Slice>& slices = slices_per_axis.at(int(axis));
-
-      slices.insert(
-        std::upper_bound(
-          slices.begin(),
-          slices.end(),
-          slice,
-          [](const Slice& a, const Slice& b) { return a.coord < b.coord; }),
-        slice);
-    }
-
-    std::size_t num_cells() const
-    {
-      return (slices_per_axis[0].size() - 1) * (slices_per_axis[1].size() - 1) * (slices_per_axis[2].size() - 1);
-    }
-
-    std::pair<double, double> slice_extrema(Axis axis)
-    {
-      double max = 0;
-      double min = std::numeric_limits<double>::max();
-
-      const auto& slices = slices_per_axis.at(int(axis));
-      for(std::size_t slice(0); slice < slices.size() - 1; slice++)
-      {
-        const double diff = slices[slice + 1].coord - slices[slice].coord;
-        min = std::min(min, diff);
-        max = std::max(max, diff);
-      }
-      return std::make_pair(min, max);
-    }
-
-    BoundingBox bounding_box()
-    {
-      BoundingBox result{};
-
-      result.min.x = slices_per_axis[0].front().coord;
-      result.min.y = slices_per_axis[1].front().coord;
-      result.min.z = slices_per_axis[2].front().coord;
-
-      result.max.x = slices_per_axis[0].back().coord;
-      result.max.y = slices_per_axis[1].back().coord;
-      result.max.z = slices_per_axis[2].back().coord;
-
-      return result;
-    }
-
-    /// \brief Insert extra slices to fix segments with too large aspect ratios in z-direction
-    void fix_aspect_ratios(Axis axis)
-    {
-      // Determine subdivision levels for all z-slices
-      std::vector<Slice>& slices = slices_per_axis.at(int(axis));
-
-      std::pair<double, double> x_extrema = slice_extrema(other_axes(axis)[0]);
-      std::pair<double, double> y_extrema = slice_extrema(other_axes(axis)[1]);
-
-      std::vector<double> new_slices;
-
-      for(std::size_t slice(0); slice < slices.size() - 1; slice++)
-      {
-        const double width = slices[slice + 1].coord - slices[slice].coord;
-
-        if(width < x_extrema.first && width < y_extrema.first)
-        {
-          continue;
-        }
-
-        const double aspect_ratio = std::max({
-          width / x_extrema.first,
-          x_extrema.first / width,
-          width / y_extrema.first,
-          y_extrema.first / width});
-        const auto new_segments = static_cast<std::size_t>(aspect_ratio / 1.5);
-        const double new_width = width / static_cast<double>(new_segments);
-
-        if(new_segments > 0)
-        {
-          for(std::size_t i(0); i < new_segments - 1; i++)
-          {
-            new_slices.push_back(slices[slice].coord + (static_cast<double>(i + 1) * new_width));
-          }
-        }
-      }
-
-      for(double slice : new_slices)
-      {
-        add_slice(axis, slice);
-      }
-    }
-
-    /// Delete every second slice
-    void coarsen(Axis axis)
-    {
-      std::vector<Slice>& slices = slices_per_axis.at(int(axis));
-      auto iter = slices.begin() + 2;
-
-      // Don't delete last slice. Keep bounding box the same
-      while(iter < slices.end() - 1)
-      {
-        iter = slices.erase(iter);
-      }
-    }
-
-    void choose_subdivision_levels(Mesh& mesh, std::uint64_t levels)
-    {
-      // Find largest x and y lengths of any cell
-      const double max_x_edge = slice_extrema(Axis::X).second;
-      const double max_y_edge = slice_extrema(Axis::Y).second;
-
-      // Determine subdivision levels for all z-slices
-      std::vector<Slice>& z_slices = slices_per_axis[int(Axis::Z)];
-
-      for(std::size_t slice(0); slice < z_slices.size() - 1; slice++)
-      {
-        BoundingBox slice_bb = bounding_box();
-        slice_bb.min.z = z_slices[slice].coord;
-        slice_bb.max.z = z_slices[slice + 1].coord;
-
-        std::vector<Gap> slice_gaps;
-
-        for(const Gap& gap : gaps(mesh))
-        {
-          const double z = face_center(mesh, FaceIndex(gap.face)).z();
-          if(gap.confidence > 0.95 && slice_bb.min.z <= z && z <= slice_bb.max.z)
-          {
-            slice_gaps.push_back(gap);
-          }
-        }
-
-        double slice_min_gap = std::numeric_limits<double>::max();
-        for(auto gap : slice_gaps)
-        {
-          slice_min_gap = std::min(gap.diameter, slice_min_gap);
-        }
-
-        double max_edge_length = std::max({slice_bb.max.z - slice_bb.min.z, max_x_edge, max_y_edge});
-
-        // Each intended refinement level with divide the maximum edge length in two
-        double max_refined_edge_length = max_edge_length / std::pow(2, levels);
-
-        // Each adaptive refinement will divide edge length by three
-        // max_edge_length * (1/3)^(levels + n) = slice_min_gap
-        // log_1/3()
-
-        std::uint64_t ref_level =
-          std::uint64_t(std::max(0.0, std::ceil(std::log(max_refined_edge_length / slice_min_gap) / log(3.0))));
-        ref_level = std::clamp<std::uint64_t>(ref_level, 0, 2);
-        z_slices[slice].subdivision_level = std::max(ref_level, z_slices[slice].subdivision_level);
-        z_slices[slice + 1].subdivision_level = ref_level;
-      }
-
-      // Insert buffer slices to keep transition elements contained
-
-      std::vector<Slice> unbuffered_slices(z_slices.begin(), z_slices.end());
-
-      // We want the transition elements to be as nice as possible, i.e.
-      // have an aspect ratio of 1.
-      // We thus match the buffer width to the x/y widths
-      const double buffer_width = std::max(max_x_edge, max_y_edge);
-
-      for(std::size_t slice(0); slice < unbuffered_slices.size() - 1; slice++)
-      {
-        const Slice& left_slice = unbuffered_slices[slice];
-        const Slice& right_slice = unbuffered_slices[slice + 1];
-        const std::uint64_t level_left = left_slice.subdivision_level;
-        const std::uint64_t level_right = right_slice.subdivision_level;
-
-        if(level_left == level_right)
-        {
-          // Same subdivision levels. No transition layer needed
-          continue;
-        }
-
-        const bool rising = level_left < level_right;
-        double start = rising ? right_slice.coord : left_slice.coord;
-        double dir = rising ? -1.0 : 1.0;
-        std::uint64_t start_level = rising ? level_right : level_left;
-
-        // Transition from lower to higher subdivision level in this segment
-        // Insert transition slices at end of segment
-
-        const std::uint64_t required_transition_slices = rising ? level_right - level_left : level_left - level_right;
-        const double available_width = (right_slice.coord - left_slice.coord);
-        const auto available_transition_slices = std::uint64_t(std::floor(available_width / buffer_width));
-
-        const std::uint64_t transition_slices = std::min(required_transition_slices, available_transition_slices);
-
-        for(std::uint64_t i(0); i < transition_slices; i++)
-        {
-          add_slice(Axis::Z, Slice(start + (dir * static_cast<double>(i + 1) * buffer_width), start_level - i - 1));
-        }
-      }
-
-      // We have now inserted all possible transition layers
-      // NOTE(mmuegge): This assumes that we can't move slices.
-      // That is a possible extension
-      // As a last step smooth out the subdivision levels
-
-      bool converged = false;
-
-      while(!converged)
-      {
-        converged = true;
-        for(std::size_t slice(0); slice < z_slices.size() - 1; slice++)
-        {
-          Slice& left_slice = z_slices[slice];
-          Slice& right_slice = z_slices[slice + 1];
-          const std::uint64_t level_left = left_slice.subdivision_level;
-          const std::uint64_t level_right = right_slice.subdivision_level;
-
-          const std::uint64_t diff = std::max(level_left, level_right) - std::min(level_left, level_right);
-
-          if(diff > 1)
-          {
-            converged = false;
-            if(level_left < level_right)
-            {
-              left_slice.subdivision_level = level_right - 1;
-            }
-            if(level_left > level_right)
-            {
-              right_slice.subdivision_level = level_left - 1;
-            }
-          }
-        }
-      }
-    }
-  };
-
-  VolumeMesh fbm_mesh(Mesh& mesh, AABBTree& aabb_tree, std::uint64_t levels)
-  {
-    BoundingBox bb = bounding_box(mesh);
-    const double mesh_size = std::max({bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z});
+    // Determine local gaps and local min gap
     std::vector<Gap> gap_vec = gaps(mesh);
-    std::vector<std::pair<MeshHexer::Point2D, double>> depths = z_depths(mesh, aabb_tree);
-    Gap mg = min_gap(mesh);
 
-    // Partition the mesh into areas that need the _same_ amount of refinements to hit the min-gap.
-    // Because we are creating a coarse mesh, we do not want to create any cells smaller than the min-gap.
-    // This allows us to discretize the gap information into global-min-gap sized buckets.
+    // Determine orientation corrected target cell sizes
+    // For each gap we can determine the target cell sizes in x, y, z direction
+    // at that point
 
-    const auto update_bucket = [](std::optional<double>& bucket, double value, const auto op)
+    std::vector<std::pair<FaceIndex, Point3D>> target_cell_sizes;
+    target_cell_sizes.reserve(gap_vec.size());
+
+    // Create masks to filter out gaps at self-intersecting faces
+    // TODO: Move this to gap-scoring. Not done yet because calculating
+    // gaps is slow and doing so would invalidate all current checkpoints.
+    std::vector<std::pair<FaceIndex, FaceIndex>> self_intersections;
+    CGAL::Polygon_mesh_processing::self_intersections(mesh, std::back_inserter(self_intersections));
+    std::vector<bool> self_intersection_mask(mesh.number_of_faces(), false);
+    for(auto& pair : self_intersections)
     {
-      if(!bucket.has_value())
-      {
-        bucket = value;
-      }
-      else
-      {
-        bucket = op(bucket.value(), value);
-      }
-    };
-
-    const auto num_buckets_x = std::size_t(std::ceil((bb.max.x - bb.min.x) / mg.diameter));
-    const auto num_buckets_y = std::size_t(std::ceil((bb.max.y - bb.min.y) / mg.diameter));
-    const auto num_buckets_z = std::size_t(std::ceil((bb.max.z - bb.min.z) / mg.diameter));
-
-    std::vector<std::optional<double>> buckets_x(num_buckets_x);
-    std::vector<std::optional<double>> buckets_y(num_buckets_y);
-    std::vector<std::optional<double>> buckets_z(num_buckets_z);
+      self_intersection_mask[static_cast<std::uint32_t>(pair.first)] = true;
+      self_intersection_mask[static_cast<std::uint32_t>(pair.second)] = true;
+    }
 
     for(const Gap& gap : gap_vec)
     {
-      const Point3D& gap_origin = face_center(mesh, FaceIndex(gap.face));
-      const std::size_t idx_z = std::clamp(std::size_t(std::floor((gap_origin.z() - bb.min.z) / mg.diameter)), std::size_t(0), num_buckets_z - 1);
+      if(
+        gap.confidence > 0.9 && !self_intersection_mask[static_cast<std::uint32_t>(gap.face)] &&
+        !self_intersection_mask[static_cast<std::uint32_t>(gap.opposite_face)])
+      {
+        const FaceIndex start_face(gap.face);
+        const FaceIndex end_face(gap.opposite_face);
 
-      std::optional<double>& bucket_z = buckets_z.at(idx_z);
+        const Vector3D gap_dir = CGAL::Polygon_mesh_processing::compute_face_normal(start_face, mesh);
 
-      update_bucket(bucket_z, gap.diameter, [](auto a, auto b) { return std::min(a, b); });
+        const double eps = 1e-4;
+        const double x_size = gap.diameter / (std::abs(gap_dir.x()) + eps);
+        const double y_size = gap.diameter / (std::abs(gap_dir.y()) + eps);
+        const double z_size = gap.diameter / (std::abs(gap_dir.z()) + eps);
 
-      const std::size_t idx_x = std::clamp(std::size_t(std::floor((gap_origin.x() - bb.min.x) / mg.diameter)), std::size_t(0), num_buckets_x - 1);
-      const std::size_t idx_y = std::clamp(std::size_t(std::floor((gap_origin.y() - bb.min.y) / mg.diameter)), std::size_t(0), num_buckets_y - 1);
+        const double base_x_size = x_size * std::pow(2, settings.levels);
+        const double base_y_size = y_size * std::pow(2, settings.levels);
+        const double base_z_size = z_size * std::pow(2, settings.levels);
 
-      std::optional<double>& bucket_x = buckets_x.at(idx_x);
-      std::optional<double>& bucket_y = buckets_y.at(idx_y);
+        Point3D target_cell_size{base_x_size, base_y_size, base_z_size};
 
-      update_bucket(bucket_x, gap.diameter, [](auto a, auto b) { return std::min(a, b); });
-      update_bucket(bucket_y, gap.diameter, [](auto a, auto b) { return std::min(a, b); });
+        target_cell_sizes.emplace_back(start_face, target_cell_size);
+      }
     }
 
-    // We can then partition those buckets into intervals, such that each interval needs a consistent
-    // amount of refinements to hit the min-gap in the final mesh hierarchy.
-    // The partitioning criterium is the ratio between the minimum and maximum min-gaps in the interval.
-    // The easy solution is to keep that factor below 2, which works in any case.
-    // A more complex solution considers regular and adaptive refinements, which divide the mesh size into 2 and 3 respectively.
-    // We can determine the required number of refinements for an interval from the length of the interval and the minimum min-gap of the interval.
-    // We also know how many regular refinements are intended.
-    // We could thus keep the partitioning criterium as < 2 until we have surpassed the number of regular refinements.
-    // From that point on we know that we adpatively refine at least once anyway and we can allow the minimum and maximum min-gap to differ by up to a factor of 3.
-    // There are bucket for which we have no reliable min-gap information. We can distribute these buckets between adjacent intervals as we see fit.
+    // Write target cell sizes to mesh properties
+    // TODO: Only do this if properties do not exist yet
+    auto x_prop = mesh.add_property_map<FaceIndex, double>("f:target_cell_size_x").first;
+    auto y_prop = mesh.add_property_map<FaceIndex, double>("f:target_cell_size_y").first;
+    auto z_prop = mesh.add_property_map<FaceIndex, double>("f:target_cell_size_z").first;
 
-    using BucketIterator = std::vector<std::optional<double>>::const_iterator;
-
-    struct Interval
+    for(const std::pair<FaceIndex, Point3D>& t : target_cell_sizes)
     {
-      /// @brief First bucket of interval
-      BucketIterator begin;
-      /// @brief One after last bucket of interval
-      BucketIterator end;
+      x_prop[t.first] = t.second.x();
+      y_prop[t.first] = t.second.y();
+      z_prop[t.first] = t.second.z();
+    }
 
-      std::optional<std::pair<double, double>> min_max = std::nullopt;
+    // Build size field, i.e. pairs of (Location, TargetSize)
+    std::vector<std::pair<Point3D, Point3D>> size_field;
+    size_field.reserve(target_cell_sizes.size());
+    for(const auto& t : target_cell_sizes)
+    {
+      size_field.emplace_back(face_center(mesh, t.first), t.second);
+    }
 
-      bool can_expand(const std::optional<double>& bucket)
+    // Create octree with custom splitting predicate.
+    // Split as long as any point of a cell requires a mesh-cell smaller then the current octree-cell
+
+    Octree octree(size_field, CGAL::First_of_pair_property_map<std::pair<Point3D, Point3D>>());
+    octree.refine(
+      [&](auto node, const auto& tree)
       {
-        if(!min_max.has_value() && !bucket.has_value())
-        {
-          // Can expand "empty" intervals with empty buckets
-          return true;
-        }
+        const std::size_t depth = tree.depth(node);
 
-        if(min_max.has_value() && bucket.has_value())
-        {
-          const double new_min = std::min(min_max.value().first, bucket.value());
-          const double new_max = std::max(min_max.value().second, bucket.value());
+        const double width_x = ((bb.max.x - bb.min.x) / std::pow(2, depth)) * 0.9;
+        const double width_y = ((bb.max.y - bb.min.y) / std::pow(2, depth)) * 0.9;
+        const double width_z = ((bb.max.z - bb.min.z) / std::pow(2, depth)) * 0.9;
 
-          if(new_max / new_min < 2.0)
+        for(const auto& data : tree.data(node))
+        {
+          const Point3D target_size = data.second;
+
+          if(target_size.x() < width_x)
           {
-            // Can expand with buckets that dont require more or less refinement
             return true;
           }
-        }
-
-        // Otherwise interval can't be expanded
-        return false;
-      }
-
-      bool can_merge(const Interval& other)
-      {
-        if(!min_max.has_value() && !other.min_max.has_value())
-        {
-          return true;
-        }
-
-        if(min_max.has_value() && other.min_max.has_value())
-        {
-          const double new_min = std::min(min_max.value().first, other.min_max.value().first);
-          const double new_max = std::max(min_max.value().second, other.min_max.value().second);
-
-          if(new_max / new_min < 2.0)
+          if(target_size.y() < width_y)
+          {
+            return true;
+          }
+          if(target_size.z() < width_z)
           {
             return true;
           }
         }
 
         return false;
-      }
+      });
 
-      BucketIterator expand(BucketIterator b, BucketIterator e)
-      {
-        auto next = b;
-        while(next != e && can_expand(*next))
-        {
-          end = next + 1;
-          if(min_max.has_value())
-          {
-            const double new_min = std::min(min_max.value().first, next->value());
-            const double new_max = std::max(min_max.value().second, next->value());
+    // Determine deepest complete level of octree
+    const std::size_t global_refinements = std::max(last_complete_depth(octree), 2UL);
 
-            min_max = std::make_pair(new_min, new_max);
-          }
-          next++;
-        }
+    // Create base mesh
+    const auto verts_per_axis = static_cast<std::size_t>(std::pow(2, global_refinements) + 1);
 
-        return next;
-      }
-    };
+    std::vector<double> slices_x(verts_per_axis);
+    std::vector<double> slices_y(verts_per_axis);
+    std::vector<double> slices_z(verts_per_axis);
 
-    const auto make_intervals = [&](const std::vector<std::optional<double>>& buckets)
+    const double delta_x = (bb.max.x - bb.min.x) / static_cast<double>(verts_per_axis - 1);
+    const double delta_y = (bb.max.y - bb.min.y) / static_cast<double>(verts_per_axis - 1);
+    const double delta_z = (bb.max.z - bb.min.z) / static_cast<double>(verts_per_axis - 1);
+
+    for(std::size_t i(0); i < verts_per_axis; i++)
     {
-      std::vector<Interval> intervals;
-
-      auto current = buckets.begin();
-
-      while(current != buckets.end())
-      {
-        Interval interval{current, current + 1};
-        if(current->has_value())
-        {
-          interval.min_max = std::make_pair(current->value(), current->value());
-        }
-
-        current = interval.expand(current + 1, buckets.end());
-
-        intervals.push_back(interval);
-      }
-
-      return intervals;
-    };
-
-    std::vector<Interval> intervals_x = make_intervals(buckets_x);
-    std::vector<Interval> intervals_y = make_intervals(buckets_y);
-    std::vector<Interval> intervals_z = make_intervals(buckets_z);
-
-
-    // Distribute "empty" intervals. Merge adjacent intervals across empty if compatible, assign to smaller adjacent interval otherwise
-
-    const auto merge_empty = [&](std::vector<Interval>& intervals)
-    {
-      auto iter = intervals.begin();
-
-      while(iter != intervals.end())
-      {
-        if(iter->min_max.has_value() && std::distance(iter->begin, iter->end) > 1)
-        {
-          // Valid interval. Keep it
-          iter++;
-        }
-        else
-        {
-          // "Empty" interval. Add to smaller of adjacent intervals
-          auto prev = std::prev(iter);
-          auto next = std::next(iter);
-
-          bool prev_valid = iter > intervals.begin();
-          bool next_valid = iter < std::prev(intervals.end());
-
-          if(prev_valid && next_valid)
-          {
-            if(prev->can_merge(*next))
-            {
-              prev->end = next->end;
-              intervals.erase(next);
-            }
-            else if(std::distance(prev->begin, prev->end) < std::distance(next->begin, next->end))
-            {
-              prev->end = iter->end;
-            }
-            else
-            {
-              next->begin = iter->begin;
-            }
-            iter = intervals.erase(iter);
-          }
-          else if(next_valid)
-          {
-            // Empty interval at start
-            next->begin = iter->begin;
-            iter = intervals.erase(iter);
-          }
-          else if(prev_valid)
-          {
-            // Empty interval at end
-            prev->end = iter->end;
-            iter = intervals.erase(iter);
-          }
-          else
-          {
-            // Empty interval is only interval. Keep it
-            iter++;
-          }
-        }
-      }
-    };
-
-    merge_empty(intervals_x);
-    merge_empty(intervals_y);
-    merge_empty(intervals_z);
-
-    const auto merge_too_small = [&](std::vector<Interval>& intervals)
-    {
-      auto iter = intervals.begin();
-
-      while(iter != intervals.end())
-      {
-        const Interval& interval = *iter;
-
-        auto size = std::distance(interval.begin, interval.end);
-
-        if(static_cast<double>(size) * mg.diameter < 0.01 * mesh_size || size < 3)
-        {
-          // Too small. Merge into smaller of adjacent intervals
-          auto prev = std::prev(iter);
-          auto next = std::next(iter);
-
-          bool prev_valid = iter > intervals.begin();
-          bool next_valid = iter < std::prev(intervals.end());
-
-          if(prev_valid && next_valid)
-          {
-            if(std::distance(prev->begin, prev->end) < std::distance(next->begin, next->end))
-            {
-              prev->end = iter->end;
-            }
-            else
-            {
-              next->begin = iter->begin;
-            }
-            iter = intervals.erase(iter);
-          }
-          else if(next_valid)
-          {
-            // Empty interval at start
-            next->begin = iter->begin;
-            iter = intervals.erase(iter);
-          }
-          else if(prev_valid)
-          {
-            // Empty interval at end
-            prev->end = iter->end;
-            iter = intervals.erase(iter);
-          }
-          else
-          {
-            // Empty interval is only interval. Keep it
-            iter++;
-          }
-        }
-        else
-        {
-          iter++;
-        }
-      }
-    };
-
-    merge_too_small(intervals_x);
-    merge_too_small(intervals_y);
-    merge_too_small(intervals_z);
-
-    VolumeMeshBuilder builder;
-    for(const Interval& interval : intervals_x)
-    {
-      builder.add_slice(Axis::X, bb.min.x + (mg.diameter * static_cast<double>(std::distance(buckets_x.cbegin(), interval.begin))));
+      slices_x[i] = bb.min.x + (static_cast<double>(i) * delta_x);
+      slices_y[i] = bb.min.y + (static_cast<double>(i) * delta_y);
+      slices_z[i] = bb.min.z + (static_cast<double>(i) * delta_z);
     }
-    builder.add_slice(Axis::X, bb.max.x);
 
-    for(const Interval& interval : intervals_y)
+    VolumeMesh
+      result{slices_x.begin(), slices_x.end(), slices_y.begin(), slices_y.end(), slices_z.begin(), slices_z.end()};
+
+
+    for(const std::pair<Point3D, Point3D>& p : size_field)
     {
-      builder.add_slice(Axis::Y, bb.min.y + (mg.diameter * static_cast<double>(std::distance(buckets_y.cbegin(), interval.begin))));
-    }
-    builder.add_slice(Axis::Y, bb.max.y);
+      auto node_index = octree.locate(p.first);
+      const std::size_t depth = octree.depth(node_index);
 
-    for(const Interval& interval : intervals_z)
-    {
-      builder.add_slice(Axis::Z, bb.min.z + (mg.diameter * static_cast<double>(std::distance(buckets_z.cbegin(), interval.begin))));
-    }
-    builder.add_slice(Axis::Z, bb.max.z);
+      if(depth <= global_refinements)
+      {
+      }
 
-    return builder.build(mesh, levels);
+      const auto adaptive_refinements = static_cast<std::size_t>(
+        std::ceil(static_cast<double>(depth - global_refinements) * std::log(2) / std::log(3)));
+
+      // Assign subdivision levels to closest vertex of cell containing the size_field point
+      for(std::size_t cell(0); cell < result.num_cells(); cell++)
+      {
+        Point min = result.vertex(result.cell(cell, 0));
+        Point max = result.vertex(result.cell(cell, 7));
+
+        if(
+          min.x <= p.first.x() && p.first.x() <= max.x && min.y <= p.first.y() && p.first.y() <= max.y &&
+          min.z <= p.first.z() && p.first.z() <= max.z)
+        {
+          std::size_t closest_idx = 0;
+          Point3D closest_point = Point3D(min.x, min.y, min.z);
+          double closest_distance = std::numeric_limits<double>::max();
+
+          for(int i(0); i < 8; i++)
+          {
+            std::size_t vertex = result.cell(cell, i);
+            Point vertex_point = result.vertex(vertex);
+            Point3D v(vertex_point.x, vertex_point.y, vertex_point.z);
+
+            double distance = (v - p.first).squared_length();
+
+            if(distance < closest_distance)
+            {
+              closest_idx = vertex;
+              closest_point = v;
+              closest_distance = distance;
+            }
+          }
+          std::uint64_t& current = result.subdivision_level(closest_idx);
+          current = std::max(current, adaptive_refinements);
+        }
+      }
+    }
+
+    return result;
   }
 } // namespace MeshHexer

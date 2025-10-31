@@ -88,7 +88,7 @@ namespace MeshHexer
     Gap min_gap();
 
     /// \copydoc SurfaceMesh::fbm_mesh()
-    VolumeMesh fbm_mesh(std::uint64_t levels);
+    VolumeMesh fbm_mesh(const FBMMeshSettings& settings);
 
     /// \copydoc SurfaceMesh::warnings()
     MeshWarnings warnings() const;
@@ -159,10 +159,10 @@ namespace MeshHexer
     return MeshHexer::min_gap(_mesh);
   }
 
-  VolumeMesh SurfaceMesh::SurfaceMeshImpl::fbm_mesh(std::uint64_t levels)
+  VolumeMesh SurfaceMesh::SurfaceMeshImpl::fbm_mesh(const FBMMeshSettings& settings)
   {
     prepare_for_min_gap();
-    return MeshHexer::fbm_mesh(_mesh, aabb_tree(), levels);
+    return MeshHexer::fbm_mesh(_mesh, settings);
   }
 
   Result<void, std::string> SurfaceMesh::SurfaceMeshImpl::write_to_file(const std::string& filename)
@@ -280,9 +280,9 @@ namespace MeshHexer
     return impl->min_gap();
   }
 
-  VolumeMesh SurfaceMesh::fbm_mesh(std::uint64_t levels)
+  VolumeMesh SurfaceMesh::fbm_mesh(const FBMMeshSettings& settings)
   {
-    return impl->fbm_mesh(levels);
+    return impl->fbm_mesh(settings);
   }
 
   Result<void, std::string> SurfaceMesh::write_to_file(const std::string& filename)
