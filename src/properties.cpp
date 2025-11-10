@@ -4,7 +4,8 @@
 #include <properties.hpp>
 #include <meshhexer/types.hpp>
 
-#include <queue>
+#include <boost/unordered/unordered_flat_map.hpp>
+#include <boost/heap/priority_queue.hpp>
 
 #include <CGAL/AABB_face_graph_triangle_primitive.h>
 #include <CGAL/AABB_traits_3.h>
@@ -70,7 +71,7 @@ namespace MeshHexer
     // Thus we sort in descending order.
     struct Comparator
     {
-      bool operator()(FrontierEntry a, FrontierEntry b)
+      bool operator()(FrontierEntry a, FrontierEntry b) const
       {
         return a.priority > b.priority;
       }
@@ -84,20 +85,10 @@ namespace MeshHexer
       double max_distance = 0.0)
     {
       // Allocate frontier
-      std::priority_queue<FrontierEntry, std::vector<FrontierEntry>, Comparator> frontier;
+      boost::heap::priority_queue<FrontierEntry, boost::heap::compare<Comparator>> frontier;
 
       // Allocate distances
-      std::unordered_map<VertexIndex, double> distances;
-
-      // Initialise starting points.
-      for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(a)))
-      {
-        // Add start point to frontier
-        frontier.push(FrontierEntry(v, 0));
-
-        // Start point has best known distance 0.0
-        distances[v] = 0.0;
-      }
+      boost::unordered_flat_map<VertexIndex, double> distances;
 
       // Determine end points
       std::vector<VertexIndex> goal_vertices;
@@ -108,18 +99,38 @@ namespace MeshHexer
         goal_points.push_back(mesh.point(v));
       }
 
+      // Minimum direct distance between any start and end point.
+      // If this distance is larger then the maximum search distance
+      // we do not have to start any path-finding, because the
+      // points can not be connected within the max distance
+      double minimum_distance(std::numeric_limits<double>::max());
+
+      // Iterate over starting points
+      for(VertexIndex v : mesh.vertices_around_face(mesh.halfedge(a)))
+      {
+        for(const Point3D& goal : goal_points)
+        {
+          minimum_distance = std::min(minimum_distance, (mesh.point(v) - goal).squared_length());
+        }
+
+        // Add start point to frontier
+        frontier.emplace(v, 0);
+
+        // Start point has best known distance 0.0
+        distances[v] = 0.0;
+      }
+
+      if(max_distance > 0.0 && std::sqrt(minimum_distance) > max_distance)
+      {
+        return -1.0;
+      }
+
       // Set up heuristic
       // Heuristic is shortest direct distance to any of the goal vertices
-      auto heuristic = [&](VertexIndex v)
+      const Point3D heuristic_target_point = goal_points.front();
+      const auto heuristic = [&](VertexIndex v)
       {
-        const Point3D& pa = mesh.point(v);
-        double result = std::numeric_limits<double>::max();
-        for(const Point3D& pb : goal_points)
-        {
-          double distance = Vector3D(pa, pb).squared_length();
-          result = std::min(result, distance);
-        }
-        return std::sqrt(result);
+        return std::sqrt((mesh.point(v) - heuristic_target_point).squared_length());
       };
 
       while(!frontier.empty())
@@ -148,18 +159,11 @@ namespace MeshHexer
             continue;
           }
 
-          auto it = distances.find(neighbor);
-          if(it == distances.end() || new_cost < it->second)
-          {
-            if(it != distances.end())
-            {
-              it->second = new_cost;
-            }
-            else
-            {
-              distances[neighbor] = new_cost;
-            }
+          auto [it, inserted] = distances.try_emplace(neighbor, std::numeric_limits<double>::max());
 
+          if(new_cost < it->second)
+          {
+            it->second = new_cost;
             double priority = new_cost + heuristic(neighbor);
             frontier.emplace(neighbor, priority);
           }
