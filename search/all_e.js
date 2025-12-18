@@ -1,8 +1,8 @@
 var searchData=
 [
-  ['take_5ferr_0',['take_err',['../classMeshHexer_1_1Result.html#aedc4ccf0dd784031d8efab7f4f389f08',1,'MeshHexer::Result::take_err()'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#a852e5dd62ea5119fd7ef01be64debe06',1,'MeshHexer::Result&lt; void, E &gt;::take_err()']]],
-  ['take_5fok_1',['take_ok',['../classMeshHexer_1_1Result.html#ad02b39ff115005354fe6f5b1bdfbe4e0',1,'MeshHexer::Result']]],
-  ['tests_2',['Tests',['../index.html#autotoc_md5',1,'']]],
-  ['tri_5fa_3',['tri_a',['../structMeshHexer_1_1SelfIntersectionWarning.html#a78a1237b8d77c581b3bb33b66a4d2e52',1,'MeshHexer::SelfIntersectionWarning']]],
-  ['tri_5fb_4',['tri_b',['../structMeshHexer_1_1SelfIntersectionWarning.html#acb404ab72706c69a5babe710bde598fb',1,'MeshHexer::SelfIntersectionWarning']]]
+  ['self_5fintersections_0',['self_intersections',['../structMeshHexer_1_1MeshWarnings.html#a1b6447993e4964d8fc97e47fe3053e0e',1,'MeshHexer::MeshWarnings']]],
+  ['selfintersectionwarning_1',['SelfIntersectionWarning',['../structMeshHexer_1_1SelfIntersectionWarning.html',1,'MeshHexer::SelfIntersectionWarning'],['../structMeshHexer_1_1SelfIntersectionWarning.html#a3b603906d27fc2129de108ea4cf39085',1,'MeshHexer::SelfIntersectionWarning::SelfIntersectionWarning()']]],
+  ['slice_2',['Slice',['../structMeshHexer_1_1Slice.html',1,'MeshHexer::Slice'],['../structMeshHexer_1_1Slice.html#a2684651fa32ac30e61d9f92aeb97d3eb',1,'MeshHexer::Slice::Slice()=default'],['../structMeshHexer_1_1Slice.html#a0bacc77d5acaee4524997a1b1fcdd104',1,'MeshHexer::Slice::Slice(double c, std::uint64_t lvl)']]],
+  ['subdivision_5flevel_3',['subdivision_level',['../structMeshHexer_1_1Slice.html#a5eff0565846c41b47289a2e50439e1c7',1,'MeshHexer::Slice::subdivision_level'],['../classMeshHexer_1_1VolumeMesh.html#aba8f7274b0a38659eb1371c723f56436',1,'MeshHexer::VolumeMesh::subdivision_level(std::size_t idx)'],['../classMeshHexer_1_1VolumeMesh.html#a587da074c3ecc185690d1e5cc703e726',1,'MeshHexer::VolumeMesh::subdivision_level(std::size_t idx) const']]],
+  ['surfacemesh_4',['SurfaceMesh',['../classMeshHexer_1_1SurfaceMesh.html',1,'MeshHexer::SurfaceMesh'],['../classMeshHexer_1_1SurfaceMesh.html#a184af8509bea58ac7387e89eef7f2535',1,'MeshHexer::SurfaceMesh::SurfaceMesh(std::unique_ptr&lt; SurfaceMeshImpl &gt; ptr)'],['../classMeshHexer_1_1SurfaceMesh.html#a882430402a5c48adb025d72af2759c8f',1,'MeshHexer::SurfaceMesh::SurfaceMesh(SurfaceMesh &amp;&amp;) noexcept'],['../classMeshHexer_1_1SurfaceMesh.html#aca8c267bd0666ba4c4881d7eca5eb7d4',1,'MeshHexer::SurfaceMesh::SurfaceMesh(const SurfaceMesh &amp;)=delete'],['../classMeshHexer_1_1SurfaceMesh.html#a555e27e4702555d35c304ba5ebe2e7df',1,'MeshHexer::SurfaceMesh::SurfaceMesh()=default']]]
 ];

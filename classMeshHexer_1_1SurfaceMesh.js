@@ -6,7 +6,7 @@ var classMeshHexer_1_1SurfaceMesh =
     [ "SurfaceMesh", "classMeshHexer_1_1SurfaceMesh.html#aca8c267bd0666ba4c4881d7eca5eb7d4", null ],
     [ "SurfaceMesh", "classMeshHexer_1_1SurfaceMesh.html#a555e27e4702555d35c304ba5ebe2e7df", null ],
     [ "bounding_box", "classMeshHexer_1_1SurfaceMesh.html#a6f4854cbd791971299824961fbc9bf06", null ],
-    [ "fbm_mesh", "classMeshHexer_1_1SurfaceMesh.html#a836366bb246c4df2f57420c9494978a3", null ],
+    [ "fbm_mesh", "classMeshHexer_1_1SurfaceMesh.html#a97eb0b62d88b2d54a2f7983f8f0460fe", null ],
     [ "gaps", "classMeshHexer_1_1SurfaceMesh.html#a6feaca6ee9fc384afe3a71d597580d38", null ],
     [ "is_closed", "classMeshHexer_1_1SurfaceMesh.html#ae397e5dcc71101bf3e659b137b402391", null ],
     [ "is_outward_oriented", "classMeshHexer_1_1SurfaceMesh.html#a70f0e732d9e29c57f11de43f7aff1c7b", null ],

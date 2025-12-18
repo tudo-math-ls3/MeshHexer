@@ -1,6 +1,5 @@
 var searchData=
 [
-  ['selfintersectionwarning_0',['SelfIntersectionWarning',['../structMeshHexer_1_1SelfIntersectionWarning.html',1,'MeshHexer']]],
-  ['slice_1',['Slice',['../structMeshHexer_1_1Slice.html',1,'MeshHexer']]],
-  ['surfacemesh_2',['SurfaceMesh',['../classMeshHexer_1_1SurfaceMesh.html',1,'MeshHexer']]]
+  ['result_0',['Result',['../classMeshHexer_1_1Result.html',1,'MeshHexer']]],
+  ['result_3c_20void_2c_20e_20_3e_1',['Result&lt; void, E &gt;',['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html',1,'MeshHexer']]]
 ];

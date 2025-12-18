@@ -1,8 +1,11 @@
 var searchData=
 [
-  ['name_0',['name',['../structMeshHexer_1_1SelfIntersectionWarning.html#aec9081401a991a31e10b3ff977cdb055',1,'MeshHexer::SelfIntersectionWarning::name'],['../structMeshHexer_1_1DegenerateTriangleWarning.html#acf278c11f8439faa26cd86081218bb36',1,'MeshHexer::DegenerateTriangleWarning::name'],['../structMeshHexer_1_1AnisotropicTriangleWarning.html#a68b232136ee2eccfaa10338b882d7746',1,'MeshHexer::AnisotropicTriangleWarning::name']]],
-  ['num_5fcells_1',['num_cells',['../classMeshHexer_1_1VolumeMesh.html#a0281856f8d69452a0b42492dd8d5867b',1,'MeshHexer::VolumeMesh']]],
-  ['num_5fedges_2',['num_edges',['../classMeshHexer_1_1SurfaceMesh.html#a875991bccc27a8470a410b068b25e5b4',1,'MeshHexer::SurfaceMesh::num_edges()'],['../classMeshHexer_1_1VolumeMesh.html#ae29bb4e20b40ec8428565024674ec19d',1,'MeshHexer::VolumeMesh::num_edges()']]],
-  ['num_5ffaces_3',['num_faces',['../classMeshHexer_1_1SurfaceMesh.html#ab6305da57a08a6554895f7b90404403d',1,'MeshHexer::SurfaceMesh::num_faces()'],['../classMeshHexer_1_1VolumeMesh.html#a5fce33837e256d6d43822b89c300904a',1,'MeshHexer::VolumeMesh::num_faces()']]],
-  ['num_5fvertices_4',['num_vertices',['../classMeshHexer_1_1SurfaceMesh.html#ae394d799a1ba346a2feb37d430862397',1,'MeshHexer::SurfaceMesh::num_vertices()'],['../classMeshHexer_1_1VolumeMesh.html#adea992fc90daac58466dac1f3c6f37da',1,'MeshHexer::VolumeMesh::num_vertices()']]]
+  ['max_0',['max',['../structMeshHexer_1_1BoundingBox.html#a4b41a3d14963780c8b034e6f1a1c03d0',1,'MeshHexer::BoundingBox']]],
+  ['maximal_5faspect_5fratio_1',['maximal_aspect_ratio',['../classMeshHexer_1_1SurfaceMesh.html#acef6379c61b78d97e3f9e9974ec6fa90',1,'MeshHexer::SurfaceMesh']]],
+  ['meshhexer_2',['MeshHexer',['../index.html',1,'MeshHexer'],['../index.html#autotoc_md6',1,'Using MeshHexer']]],
+  ['meshhexer_20cli_3',['meshhexer-cli',['../index.html#autotoc_md7',1,'']]],
+  ['meshwarnings_4',['MeshWarnings',['../structMeshHexer_1_1MeshWarnings.html',1,'MeshHexer']]],
+  ['min_5',['min',['../structMeshHexer_1_1BoundingBox.html#a40730716b3c4bc4931fb9149da3d6218',1,'MeshHexer::BoundingBox']]],
+  ['min_5fgap_6',['min_gap',['../classMeshHexer_1_1SurfaceMesh.html#a21900d33c96ef8392057e91bb8bfae93',1,'MeshHexer::SurfaceMesh']]],
+  ['minimal_5faspect_5fratio_7',['minimal_aspect_ratio',['../classMeshHexer_1_1SurfaceMesh.html#a419aa808cbfc07cb147f122aec2255e5',1,'MeshHexer::SurfaceMesh']]]
 ];

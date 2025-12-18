@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['idx_0',['idx',['../structMeshHexer_1_1DegenerateTriangleWarning.html#abf6a61a62b3761eedeacf60fcdbc98f1',1,'MeshHexer::DegenerateTriangleWarning::idx'],['../structMeshHexer_1_1AnisotropicTriangleWarning.html#a52954468fa9b38c6b3d59ec685981d83',1,'MeshHexer::AnisotropicTriangleWarning::idx']]]
+  ['face_0',['face',['../structMeshHexer_1_1Gap.html#a92758f0f7694ddc88aa1f298cf9c7930',1,'MeshHexer::Gap']]]
 ];

@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['point_0',['Point',['../structMeshHexer_1_1Point.html',1,'MeshHexer']]]
+  ['meshwarnings_0',['MeshWarnings',['../structMeshHexer_1_1MeshWarnings.html',1,'MeshHexer']]]
 ];

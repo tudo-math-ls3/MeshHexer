@@ -1,9 +1,9 @@
 var classMeshHexer_1_1VolumeMesh =
 [
-    [ "ConstIterator", "classMeshHexer_1_1VolumeMesh.html#abcbc6f36859bc527191cbae2485aa1d6", null ],
-    [ "Iterator", "classMeshHexer_1_1VolumeMesh.html#a1d3869c5af7d4afbe342eb806762416e", null ],
+    [ "ConstIterator", "classMeshHexer_1_1VolumeMesh.html#a4353fa46018366eec7165a88902165b4", null ],
+    [ "Iterator", "classMeshHexer_1_1VolumeMesh.html#aaaf2bbeab264536b7aac15ac0c05bab7", null ],
     [ "VolumeMesh", "classMeshHexer_1_1VolumeMesh.html#aad87148722c19773a6a93385995f546e", null ],
-    [ "VolumeMesh", "classMeshHexer_1_1VolumeMesh.html#a5138191554a3c4d9e38683853a39e32b", null ],
+    [ "VolumeMesh", "classMeshHexer_1_1VolumeMesh.html#ada0fa470d9446d15bf9d399b90e7e3b4", null ],
     [ "cell", "classMeshHexer_1_1VolumeMesh.html#accaadb83cee6d839a1f74869a17b8a72", null ],
     [ "edge", "classMeshHexer_1_1VolumeMesh.html#a854ff534ebc958236795886e74747811", null ],
     [ "face", "classMeshHexer_1_1VolumeMesh.html#aa8c6443299c5ee33abd923d9660497fb", null ],
@@ -11,7 +11,8 @@ var classMeshHexer_1_1VolumeMesh =
     [ "num_edges", "classMeshHexer_1_1VolumeMesh.html#ae29bb4e20b40ec8428565024674ec19d", null ],
     [ "num_faces", "classMeshHexer_1_1VolumeMesh.html#a5fce33837e256d6d43822b89c300904a", null ],
     [ "num_vertices", "classMeshHexer_1_1VolumeMesh.html#adea992fc90daac58466dac1f3c6f37da", null ],
-    [ "subdivision_level", "classMeshHexer_1_1VolumeMesh.html#acbcdb8f1c74c57ada0046b92f58fc620", null ],
+    [ "subdivision_level", "classMeshHexer_1_1VolumeMesh.html#aba8f7274b0a38659eb1371c723f56436", null ],
+    [ "subdivision_level", "classMeshHexer_1_1VolumeMesh.html#a587da074c3ecc185690d1e5cc703e726", null ],
     [ "vertex", "classMeshHexer_1_1VolumeMesh.html#a615a95e335e13585cbaca83d596ebf28", null ],
     [ "write_feat_xml", "classMeshHexer_1_1VolumeMesh.html#a5abfbf93fb6baf7b53207acc8cb3ba25", null ],
     [ "xs_begin", "classMeshHexer_1_1VolumeMesh.html#a97df822ef1f3ec6a646e08cda2e7c043", null ],

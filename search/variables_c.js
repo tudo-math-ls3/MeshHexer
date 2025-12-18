@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['z_0',['z',['../structMeshHexer_1_1Point.html#a456f7c857a8df073e2ecdfd7c2c7c29a',1,'MeshHexer::Point']]]
+  ['x_0',['x',['../structMeshHexer_1_1Point.html#a7d926d8440182704e65eb0d94dbe7989',1,'MeshHexer::Point']]]
 ];

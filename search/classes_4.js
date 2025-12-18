@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['meshwarnings_0',['MeshWarnings',['../structMeshHexer_1_1MeshWarnings.html',1,'MeshHexer']]]
+  ['gap_0',['Gap',['../structMeshHexer_1_1Gap.html',1,'MeshHexer']]]
 ];

@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['result_0',['Result',['../classMeshHexer_1_1Result.html',1,'MeshHexer::Result&lt; T, E &gt;'],['../classMeshHexer_1_1Result.html#ab88c6c0996a22556d5c59b06fdbb82ea',1,'MeshHexer::Result::Result(const Result &amp;)=delete'],['../classMeshHexer_1_1Result.html#a466c474f3db74f74a281e67df1ad3c2e',1,'MeshHexer::Result::Result(Result &amp;&amp;)=default'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#a4d72ad2e20e1c0792f144d8726a53519',1,'MeshHexer::Result&lt; void, E &gt;::Result(const E &amp;value)'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#a511639923be28e23429b2ae9667e20f3',1,'MeshHexer::Result&lt; void, E &gt;::Result(E &amp;&amp;value)'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#ac2a8fe80a7af6c5aa82525a37388e60c',1,'MeshHexer::Result&lt; void, E &gt;::Result(const Result &amp;)=delete'],['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html#a7d93fb417dfc3e52f0befe87630121a7',1,'MeshHexer::Result&lt; void, E &gt;::Result(Result &amp;&amp;)=default']]],
-  ['result_3c_20void_2c_20e_20_3e_1',['Result&lt; void, E &gt;',['../classMeshHexer_1_1Result_3_01void_00_01E_01_4.html',1,'MeshHexer']]]
+  ['point_0',['Point',['../structMeshHexer_1_1Point.html',1,'MeshHexer']]]
 ];

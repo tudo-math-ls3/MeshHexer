@@ -4,6 +4,7 @@ var annotated_dup =
       [ "AnisotropicTriangleWarning", "structMeshHexer_1_1AnisotropicTriangleWarning.html", "structMeshHexer_1_1AnisotropicTriangleWarning" ],
       [ "BoundingBox", "structMeshHexer_1_1BoundingBox.html", "structMeshHexer_1_1BoundingBox" ],
       [ "DegenerateTriangleWarning", "structMeshHexer_1_1DegenerateTriangleWarning.html", "structMeshHexer_1_1DegenerateTriangleWarning" ],
+      [ "FBMMeshSettings", "structMeshHexer_1_1FBMMeshSettings.html", "structMeshHexer_1_1FBMMeshSettings" ],
       [ "Gap", "structMeshHexer_1_1Gap.html", "structMeshHexer_1_1Gap" ],
       [ "MeshWarnings", "structMeshHexer_1_1MeshWarnings.html", "structMeshHexer_1_1MeshWarnings" ],
       [ "Point", "structMeshHexer_1_1Point.html", "structMeshHexer_1_1Point" ],

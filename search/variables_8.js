@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['self_5fintersections_0',['self_intersections',['../structMeshHexer_1_1MeshWarnings.html#a1b6447993e4964d8fc97e47fe3053e0e',1,'MeshHexer::MeshWarnings']]],
-  ['subdivision_5flevel_1',['subdivision_level',['../structMeshHexer_1_1Slice.html#a5eff0565846c41b47289a2e50439e1c7',1,'MeshHexer::Slice']]]
+  ['name_0',['name',['../structMeshHexer_1_1SelfIntersectionWarning.html#aec9081401a991a31e10b3ff977cdb055',1,'MeshHexer::SelfIntersectionWarning::name'],['../structMeshHexer_1_1DegenerateTriangleWarning.html#acf278c11f8439faa26cd86081218bb36',1,'MeshHexer::DegenerateTriangleWarning::name'],['../structMeshHexer_1_1AnisotropicTriangleWarning.html#a68b232136ee2eccfaa10338b882d7746',1,'MeshHexer::AnisotropicTriangleWarning::name']]]
 ];

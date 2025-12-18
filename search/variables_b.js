@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['y_0',['y',['../structMeshHexer_1_1Point.html#a6dbb84ede934f27c3fbf741f090efb57',1,'MeshHexer::Point']]]
+  ['tri_5fa_0',['tri_a',['../structMeshHexer_1_1SelfIntersectionWarning.html#a78a1237b8d77c581b3bb33b66a4d2e52',1,'MeshHexer::SelfIntersectionWarning']]],
+  ['tri_5fb_1',['tri_b',['../structMeshHexer_1_1SelfIntersectionWarning.html#acb404ab72706c69a5babe710bde598fb',1,'MeshHexer::SelfIntersectionWarning']]]
 ];

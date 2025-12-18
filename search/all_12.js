@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['x_0',['x',['../structMeshHexer_1_1Point.html#a7d926d8440182704e65eb0d94dbe7989',1,'MeshHexer::Point']]],
-  ['xs_5fbegin_1',['xs_begin',['../classMeshHexer_1_1VolumeMesh.html#a97df822ef1f3ec6a646e08cda2e7c043',1,'MeshHexer::VolumeMesh']]],
-  ['xs_5fend_2',['xs_end',['../classMeshHexer_1_1VolumeMesh.html#a6ac4af018b30849b727b0fe839db4462',1,'MeshHexer::VolumeMesh']]]
+  ['warnings_0',['warnings',['../classMeshHexer_1_1SurfaceMesh.html#a58ed934d7d4378dfba55f692e5522e64',1,'MeshHexer::SurfaceMesh']]],
+  ['write_5ffeat_5fxml_1',['write_feat_xml',['../classMeshHexer_1_1VolumeMesh.html#a5abfbf93fb6baf7b53207acc8cb3ba25',1,'MeshHexer::VolumeMesh']]],
+  ['write_5fto_5ffile_2',['write_to_file',['../classMeshHexer_1_1SurfaceMesh.html#a70e40606bea8defe6ac57883f605d8c6',1,'MeshHexer::SurfaceMesh']]]
 ];

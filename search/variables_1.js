@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['confidence_0',['confidence',['../structMeshHexer_1_1Gap.html#ac90666e93758474778dec892699920dc',1,'MeshHexer::Gap']]],
-  ['coord_1',['coord',['../structMeshHexer_1_1Slice.html#a1b454513426e1d34e844b84885dacf66',1,'MeshHexer::Slice']]]
+  ['bounding_5fbox_0',['bounding_box',['../structMeshHexer_1_1FBMMeshSettings.html#ac9846186ce862c1d3c101d2fcdd1e409',1,'MeshHexer::FBMMeshSettings']]]
 ];

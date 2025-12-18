@@ -175,9 +175,9 @@ std::uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>num_faces</b
 <tr class="memitem:a21900d33c96ef8392057e91bb8bfae93" id="r_a21900d33c96ef8392057e91bb8bfae93"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structMeshHexer_1_1Gap.html">Gap</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a21900d33c96ef8392057e91bb8bfae93">min_gap</a> ()</td></tr>
 <tr class="memdesc:a21900d33c96ef8392057e91bb8bfae93"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compute the smallest <a class="el" href="structMeshHexer_1_1Gap.html" title="Possible interior diameter of a surface mesh.">Gap</a> of the surface mesh.  <br /></td></tr>
 <tr class="separator:a21900d33c96ef8392057e91bb8bfae93"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a836366bb246c4df2f57420c9494978a3" id="r_a836366bb246c4df2f57420c9494978a3"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classMeshHexer_1_1VolumeMesh.html">VolumeMesh</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a836366bb246c4df2f57420c9494978a3">fbm_mesh</a> (std::uint64_t levels)</td></tr>
-<tr class="memdesc:a836366bb246c4df2f57420c9494978a3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a non-fitted volume mesh for this surface mesh.  <br /></td></tr>
-<tr class="separator:a836366bb246c4df2f57420c9494978a3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a97eb0b62d88b2d54a2f7983f8f0460fe" id="r_a97eb0b62d88b2d54a2f7983f8f0460fe"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classMeshHexer_1_1VolumeMesh.html">VolumeMesh</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a97eb0b62d88b2d54a2f7983f8f0460fe">fbm_mesh</a> (const <a class="el" href="structMeshHexer_1_1FBMMeshSettings.html">FBMMeshSettings</a> &amp;settings)</td></tr>
+<tr class="memdesc:a97eb0b62d88b2d54a2f7983f8f0460fe"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a non-fitted volume mesh for this surface mesh.  <br /></td></tr>
+<tr class="separator:a97eb0b62d88b2d54a2f7983f8f0460fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a58ed934d7d4378dfba55f692e5522e64" id="r_a58ed934d7d4378dfba55f692e5522e64"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structMeshHexer_1_1MeshWarnings.html">MeshWarnings</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a58ed934d7d4378dfba55f692e5522e64">warnings</a> () const</td></tr>
 <tr class="memdesc:a58ed934d7d4378dfba55f692e5522e64"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create warnings for this surface mesh.  <br /></td></tr>
 <tr class="separator:a58ed934d7d4378dfba55f692e5522e64"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -210,8 +210,8 @@ std::uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>num_faces</b
 
 </div>
 </div>
-<a id="a836366bb246c4df2f57420c9494978a3" name="a836366bb246c4df2f57420c9494978a3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a836366bb246c4df2f57420c9494978a3">&#9670;&#160;</a></span>fbm_mesh()</h2>
+<a id="a97eb0b62d88b2d54a2f7983f8f0460fe" name="a97eb0b62d88b2d54a2f7983f8f0460fe"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a97eb0b62d88b2d54a2f7983f8f0460fe">&#9670;&#160;</a></span>fbm_mesh()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -219,7 +219,7 @@ std::uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>num_faces</b
         <tr>
           <td class="memname"><a class="el" href="classMeshHexer_1_1VolumeMesh.html">VolumeMesh</a> MeshHexer::SurfaceMesh::fbm_mesh </td>
           <td>(</td>
-          <td class="paramtype">std::uint64_t</td>          <td class="paramname"><span class="paramname"><em>levels</em></span></td><td>)</td>
+          <td class="paramtype">const <a class="el" href="structMeshHexer_1_1FBMMeshSettings.html">FBMMeshSettings</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>settings</em></span></td><td>)</td>
           <td></td>
         </tr>
       </table>
@@ -228,11 +228,12 @@ std::uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>num_faces</b
 <p>Create a non-fitted volume mesh for this surface mesh. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">levels</td><td>Number of regular refinements in intended multi-grid hierarchy</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">levels</td><td>Number of regular refinements in intended multi-grid hierarchy </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">settings</td><td>Settings for the FBM mesh generator</td></tr>
   </table>
   </dd>
 </dl>
-<p>The volume mesh is created such that after the adaptive refinement prescribed by the volume mesh and after <code>levels</code> further global refinement steps, the final volume mesh roughly hits the local min gap of the surface mesh.</p>
+<p>The volume mesh is created such that after the adaptive refinement prescribed by the volume mesh and after <code>settings.levels</code> further global refinement steps, the final volume mesh roughly hits the local min gap of the surface mesh.</p>
 <p>Assumes that adaptive refinements are 3-refinements and global refinements are 2-refinements. </p>
 
 </div>

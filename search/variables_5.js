@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['max_0',['max',['../structMeshHexer_1_1BoundingBox.html#a4b41a3d14963780c8b034e6f1a1c03d0',1,'MeshHexer::BoundingBox']]],
-  ['min_1',['min',['../structMeshHexer_1_1BoundingBox.html#a40730716b3c4bc4931fb9149da3d6218',1,'MeshHexer::BoundingBox']]]
+  ['idx_0',['idx',['../structMeshHexer_1_1DegenerateTriangleWarning.html#abf6a61a62b3761eedeacf60fcdbc98f1',1,'MeshHexer::DegenerateTriangleWarning::idx'],['../structMeshHexer_1_1AnisotropicTriangleWarning.html#a52954468fa9b38c6b3d59ec685981d83',1,'MeshHexer::AnisotropicTriangleWarning::idx']]]
 ];
