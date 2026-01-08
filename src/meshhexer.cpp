@@ -153,6 +153,12 @@ namespace MeshHexer
     score_gaps(_mesh);
   }
 
+  std::vector<Gap> SurfaceMesh::SurfaceMeshImpl::gaps()
+  {
+    prepare_for_min_gap();
+    return MeshHexer::gaps(_mesh);
+  }
+
   Gap SurfaceMesh::SurfaceMeshImpl::min_gap()
   {
     prepare_for_min_gap();
@@ -267,6 +273,8 @@ namespace MeshHexer
     return ws;
   }
 
+  SurfaceMesh::SurfaceMesh() = default;
+
   SurfaceMesh::SurfaceMesh(std::unique_ptr<SurfaceMesh::SurfaceMeshImpl> ptr) : impl(std::move(ptr))
   {
   }
@@ -274,6 +282,11 @@ namespace MeshHexer
   SurfaceMesh::SurfaceMesh(SurfaceMesh&&) noexcept = default;
   SurfaceMesh& SurfaceMesh::operator=(SurfaceMesh&&) noexcept = default;
   SurfaceMesh::~SurfaceMesh() = default;
+
+  std::vector<Gap> SurfaceMesh::gaps()
+  {
+    return impl->gaps();
+  }
 
   Gap SurfaceMesh::min_gap()
   {

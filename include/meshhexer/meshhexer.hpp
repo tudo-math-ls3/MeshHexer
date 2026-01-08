@@ -46,7 +46,7 @@ namespace MeshHexer
     SurfaceMesh& operator=(const SurfaceMesh&) = delete;
 
     /// standard ctor
-    SurfaceMesh() = default;
+    SurfaceMesh();
 
 
     /**
