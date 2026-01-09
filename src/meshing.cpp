@@ -763,7 +763,9 @@ namespace MeshHexer
     for(const std::pair<Point3D, Point3D>& p : size_field)
     {
       auto node_index = octree.locate(p.first);
-      const std::size_t depth = octree.depth(node_index);
+      // NOTE: Because we force at least two full refinements above, we have
+      // to assume at least depth 2 here
+      const std::size_t depth = std::max(octree.depth(node_index), 2UL);
 
       if(depth <= global_refinements)
       {
